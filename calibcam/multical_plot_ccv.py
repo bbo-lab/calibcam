@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 
-import ccv
+from . import ccv
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
@@ -25,7 +25,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d import proj3d
 
-import multical_func_ccv as func
+from . import multical_func_ccv as func
 
 
 

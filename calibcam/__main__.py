@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 
-import ccv
+from . import ccv
 
-import multical_func_ccv as func
-import multical_plot_ccv
+from . import multical_func_ccv as func
+from . import multical_plot_ccv
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
