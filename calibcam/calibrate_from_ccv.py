@@ -765,7 +765,7 @@ class MainWindow(QMainWindow):
         return
 
     def save_multicalibration_to_text(self):
-        self.resultPath_text = self.dataPath + '/multicalibration_text.txt'
+        self.resultPath_text = self.dataPath + '/multicalibration_matlab_mcl_gen.m'
 
         f = open(self.resultPath_text, 'w')
 
@@ -903,6 +903,8 @@ class MainWindow(QMainWindow):
         f.write('% marker size in cm:\n')
         f.write('marker_size = {:.8f}\n'.format(self.marker_size_real))
         f.write('\n\n')
+        
+        f.write('[mc ,mcfn] = cameralib.helper.openCVToMCL(R,t,A,k,sensorSize,square_size,bbohelper.filesystem.filename(f))')
 
         f.close()
         print('Saved multi camera calibration to file {:s}'.format(self.resultPath_text))
