@@ -11,7 +11,7 @@ def main():
     # PArse command line arguments
     parser = argparse.ArgumentParser(description="Calibrate set of cameras")
     parser.add_argument('--videos', type=str, required=False, nargs=1) #TODO: Implement that this takes glob arg and omits GUI start
-    parser.add_argument('--board', type=str, required=False, nargs=1, default='large_dual_led')
+    parser.add_argument('--board', type=str, required=False, nargs=1, default=['large_dual_led'])
     args = parser.parse_args()
     print(args)
     

@@ -895,7 +895,10 @@ class MainWindow(QMainWindow):
         f.write('marker_size = {:.8f}\n'.format(self.board_params['marker_size_real']))
         f.write('\n\n')
         
-        f.write('[mc ,mcfn] = cameralib.helper.openCVToMCL(R,t,A,k,sensorSize,square_size,bbohelper.filesystem.filename(f))')
+        f.write('[mc ,mcfn] = cameralib.helper.openCVToMCL(R,t,A,k,sensorSize,square_size,bbohelper.filesystem.filename(f))\n'
+                'mcl = cameralib.MultiCamSetupModel.fromMCL(mcfn)\n'
+                "mcl.save([mcfn(1:end-3) 'mat'])\n"
+                )
 
         f.close()
         print('Saved multi camera calibration to file {:s}'.format(self.resultPath_text))

@@ -7,11 +7,10 @@ dependencies:
   - numpy
   - opencv
   - py-opencv
-  - pyqt
   - pyyaml
-  - qt
   - scipy
   - pip
   - pip:
     - bbo-ccvtools
+    - pyqt5
     - autograd
