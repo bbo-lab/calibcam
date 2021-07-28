@@ -3,11 +3,12 @@ from itertools import compress
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+from pathlib import Path
 
 from . import ccv
-
 from . import multical_func_ccv as func
 from . import multical_plot_ccv
+from .board import get_board_params
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
@@ -36,7 +37,7 @@ from autograd import elementwise_grad
 from scipy.optimize import least_squares
 
 class MainWindow(QMainWindow):
-    def __init__(self, board_params=None, parent=None):
+    def __init__(self, board_name=None, parent=None):
         super(MainWindow, self).__init__(parent=parent)
         self.setGeometry(0, 0, 320, 96)
 
@@ -49,9 +50,9 @@ class MainWindow(QMainWindow):
         self.frame_main.setLayout(self.layoutGrid)
         self.setCentralWidget(self.frame_main)
 
-        self.board_params = board_params
-        print(self.board_params)
         self.set_control_buttons()
+        
+        self.board_name = board_name
 
         self.setFocus()
         self.setWindowTitle('Multi Camera Calibration Tool')
@@ -255,6 +256,11 @@ class MainWindow(QMainWindow):
         return
 
     def generate_board(self):
+        if self.board_name is not None:
+            self.board_params = get_board_params(self.board_name)
+        else:
+            self.board_params = get_board_params(Path(self.recFileNames[0]).parent)
+        
         self.nFeatures = (self.board_params['boardWidth'] - 1) * (self.board_params['boardHeight'] - 1)
         self.minDetectFeat = int(max(self.board_params['boardWidth'], self.board_params['boardHeight']))
         self.board = cv2.aruco.CharucoBoard_create(self.board_params['boardWidth'],
