@@ -93,8 +93,8 @@ class Calibrator():
             else:
                 print('WARNING: Number of frames is not identical for all cameras')
                 print('Number of detected frames per camera:')
-                for i_cam in range(self.nCameras):
-                    print('\tcamera {:03d}:\t{:04d}'.format(i_cam, self.nFrames[i_cam]))
+                for (i_cam,nF) in enumerate(nFrames):
+                    print(f'\tcamera {i_cam:03d}:\t{nF:04d}')
 
                 # raise exception for outside confirmation
                 raise UnequalFrameCountException
