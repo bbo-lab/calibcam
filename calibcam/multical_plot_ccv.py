@@ -30,14 +30,14 @@ from . import multical_func_ccv as func
 
 
 class PlotWindow(QMainWindow):
-    def __init__(self, result, result_directory,
+    def __init__(self, calibrator,
                  parent=None):
         super(PlotWindow, self).__init__(parent=parent)
         self.setGeometry(0, 160, 768, 768)
         
         # get calibration result
-        self.result = result
-        self.result_directory = result_directory
+        self.result = calibrator.result
+        self.result_directory = calibrator.dataPath
         self.recFileNames = self.result['recFileNames']
         self.mask_multi = self.result['mask_multi']
         self.calib_multi = self.result['calib']
