@@ -4,7 +4,7 @@ import numpy as np
 import pathlib
 
 def get_board_params(board_source):
-    if isinstance(board_source,pathlib.PosixPath):
+    if isinstance(board_source,pathlib.PosixPath) or isinstance(board_source,pathlib.WindowsPath):
         boardpath = board_source / 'board.npy'
     else:
         boardpath = os.path.join(os.path.dirname(os.path.abspath(__file__)),'boards',board_source+'.npy')
