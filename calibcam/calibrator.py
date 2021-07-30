@@ -91,6 +91,7 @@ class Calibrator():
                 # if everything is fine keep on going with the calibration
                 self.recordingIsLoaded = True
             else:
+                self.nFrames = np.int64(np.min(nFrames))
                 print('WARNING: Number of frames is not identical for all cameras')
                 print('Number of detected frames per camera:')
                 for (i_cam,nF) in enumerate(nFrames):

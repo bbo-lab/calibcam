@@ -160,7 +160,6 @@ class MainWindow(QMainWindow):
                     user_input = msg.exec_()
                     user_input = np.int64(user_input)
                 if (user_input == np.int64(1024)):
-                    self.calibrator.nFrames = np.int64(np.min(self.nFrames))
                     self.calibrator.recordingIsLoaded = True
         else:
             print('WARNING: Provide at least two input files')
