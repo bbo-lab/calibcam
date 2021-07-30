@@ -144,7 +144,7 @@ class Calibrator():
         self.get_fitted_paras()
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration()
-        self.save_multicalibration_to_text()
+        func.save_multicalibration_to_matlabcode(self.result,self.dataPath)
         print('FINISHED MULTI CAMERA CALIBRATION')
         return                       
 
@@ -634,159 +634,11 @@ class Calibrator():
         self.result['r1_single_fit'] = self.r1_single_fit
         self.result['R1_single_fit'] = self.R1_single_fit
         self.result['t1_single_fit'] = self.t1_single_fit
+        self.result['square_size_real'] = self.board_params['square_size_real']
+        self.result['marker_size_real'] = self.board_params['marker_size_real']
         # save
         self.resultPath = self.dataPath + '/multicalibration.npy'
         np.save(self.resultPath, self.result)
         print('Saved multi camera calibration to file {:s}'.format(self.resultPath))
         return
-
-    def save_multicalibration_to_text(self):
-        self.resultPath_text = self.dataPath + '/multicalibration_matlab_mcl_gen.m'
-
-        f = open(self.resultPath_text, 'w')
-
-        f.write('% INFO:\n')
-        f.write('% line break: \ n \n')
-        f.write('% useful webpage: https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html\n')
-        f.write('\n\n\n')
-
-        i = 'nCameras'
-        nCams = self.result[i]
-        f.write('% number of cameras:\n')
-        f.write('nCams = {:01d}\n'.format(nCams))
-        f.write('\n\n')
-
-        i = 'recFileNames'
-        f.write('% full path of used files (order equal to camera indexing):\n')
-        f.write('f = { ...\n')
-        for j in self.result[i]:
-            f.write('\'' + str(j) + '\',...\n')
-        f.write('}\n')
-        f.write('\n\n')
-
-        i = 'indexRefCam'
-        f.write('% index of reference camera (starts at 0):\n')
-        f.write('index_refCam = {:01d}\n'.format(self.result[i]))
-        f.write('\n\n')
-
-        i = 'A_fit'
-        data_use = self.result[i]
-        f.write('% camera matrices [f_x, c_x, f_y, c_y]:\n')
-        f.write('A = [ ...\n')
-        for i_cam in range(nCams):
-            for i_row in range(4):
-                f.write(str(data_use[i_cam, i_row]) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\n')
-        f.write('\n\n')
-
-        i = 'k_fit'
-        data_use = self.result[i]
-        f.write('% distortion coefficients [k_1, k_2, p_1, p_2, k_3]:\n')
-        f.write('k = [ ...\n')
-        for i_cam in range(nCams):
-            for i_row in range(5):
-                f.write(str(data_use[i_cam, i_row]) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\n')
-        f.write('\n\n')
-
-        i = 'RX1_fit'
-        data_use = self.result[i]
-        f.write('% rotation matrices to convert into coordinate system of the respective camera:\n')
-        f.write('R = cat(3, ...\n')
-        for i_cam in range(nCams):
-            f.write('[')
-            for i_row in range(3):
-                for i_col in range(3):
-                    f.write(str(data_use[i_cam, i_row, i_col]) + ' ')
-                if (i_row != 2):
-                    f.write('; ...\n')
-                else:
-                    if (i_cam != nCams - 1):
-                        f.write('], ...\n')
-                    else:
-                        f.write('])\n')
-        f.write('\n\n')
-
-        i = 'tX1_fit'
-        data_use = self.result[i]
-        f.write('% translation vectors to convert into coordinate system of the respective camera (units in squares):\n')
-        f.write('t = [ ...\n')
-        for i_cam in range(nCams):
-            for i_row in range(3):
-                f.write(str(data_use[i_cam, i_row]) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\'\n')
-        f.write('\n\n')
-
-        i = 'headers'
-        data_use = self.result[i]
-        
-        f.write('% sensor size in pixel:\n')
-        f.write('sensorSize = [ ...\n')
-        for i_cam in range(nCams):
-            for i_row in range(2):
-                f.write(str(data_use[i_cam]['sensorsize'][i_row]) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\n')
-        f.write('\n\n')
-        
-        f.write('% offset in pixel:\n')
-        f.write('offset = [ ...\n')
-        for i_cam in range(nCams):
-            for i_row in range(2):
-                f.write(str(data_use[i_cam]['offset'][i_row]) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\n')
-        f.write('\n\n')
-        
-        # optional:
-        f.write('% used width in pixel:\n')
-        f.write('width = [ ...\n')
-        for i_cam in range(nCams):
-            f.write(str(data_use[i_cam]['w']) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\n')
-        f.write('\n\n')
-       
-        f.write('% used height in pixel:\n')
-        f.write('height = [ ...\n')
-        for i_cam in range(nCams):
-            f.write(str(data_use[i_cam]['h']) + ' ')
-            if (i_cam != nCams - 1):
-                f.write('; ...\n')
-            else:
-                f.write(']\n')
-        f.write('\n\n')
-
-        f.write('% square size in cm:\n')
-        f.write('square_size = {:.8f}\n'.format(self.board_params['square_size_real']))
-        f.write('\n\n')
-
-        f.write('% marker size in cm:\n')
-        f.write('marker_size = {:.8f}\n'.format(self.board_params['marker_size_real']))
-        f.write('\n\n')
-        
-        f.write('[mc ,mcfn] = cameralib.helper.openCVToMCL(R,t,A,k,sensorSize,square_size,bbohelper.filesystem.filename(f))\n'
-                'mcl = cameralib.MultiCamSetupModel.fromMCL(mcfn)\n'
-                "mcl.save([mcfn(1:end-3) 'mat'])\n"
-                )
-
-        f.close()
-        print('Saved multi camera calibration to file {:s}'.format(self.resultPath_text))
-        return
-                
 
