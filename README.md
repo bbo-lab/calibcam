@@ -20,7 +20,7 @@ Camera calibration derived from Arne's calibration code
 
 1. From `[repository]/calibcam/boards`, copy the appropriate board into the calibration video directory and rename to `board.npy`
 2. Open Anaconda prompt via Start Menu
-3. Switch to multitrackpy environment: `conda activate calibcam`
+3. Switch to calibcam environment: `conda activate calibcam`
 4. Run the program with `python -m calibcam`
 5. In GUI, click "Perform calibration"
 6. Select all calibration videos
