@@ -27,3 +27,16 @@ Camera calibration derived from Arne's calibration code
 7. After calibration, check reprojection in GUI
 8. Run `multicalibration_matlab_mcl_gen.m` in the video directory in MATLAB
 9. Save resulting mcl file into video directory
+
+Alternatively, run purely commandline based with
+```
+$ python -m calibcam --help
+usage: __main__.py [-h] [--videos [VIDEOS [VIDEOS ...]]] [--board BOARD]
+
+Calibrate set of cameras
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --videos [VIDEOS [VIDEOS ...]]
+  --board BOARD
+```
