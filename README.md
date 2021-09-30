@@ -1,5 +1,5 @@
 # calibcam
-Camera calibration derived from Arne's calibration code
+A charuco based calibrator for camera setups (intrinsic and extrinsic coordinates).
 
 # Installation
 
