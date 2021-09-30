@@ -11,7 +11,7 @@ A charuco based calibrator for camera setups (intrinsic and extrinsic coordinate
 4. Using `cd` and `dir`, navigate to the calibcam directory INSIDE the repository (which may also be named calibcam)
 5. Create conda environment using `conda env create -f environment.yml`
 6. Switch to multitrackpy environment: `conda activate calibcam`
-7. Add calibcam module to conda environment: `conda develop [path to your repository, including repository directory]`
+7. Navigate to repository (folder containing setup.py) and install via: `pip install .`
 
 
 # Usage
