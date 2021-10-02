@@ -139,7 +139,7 @@ class MainWindow(QMainWindow):
         recFileNames_unsorted, _ = QFileDialog.getOpenFileNames(dialog,
                                                                 "Choose files to calibrate",
                                                                 self.startDirectory,
-                                                                "ccv files (*.ccv)",
+                                                                "Video files (*.*)",
                                                                 options=dialogOptions)
         if (len(recFileNames_unsorted) > 1):
             recFileNames = sorted(recFileNames_unsorted)

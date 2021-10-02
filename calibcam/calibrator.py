@@ -1,9 +1,12 @@
-from . import ccv
+import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 from itertools import compress
 from pathlib import Path
+
+import imageio
+from ccvtools import rawio
 
 import time
 
@@ -22,6 +25,7 @@ class UnequalFrameCountException(Exception):
 # TODO: clean up mess of all these useless globals/properties inside methods
 # TODO: reorganize output. class should print anything itself ...
 class Calibrator():
+    readers = None
     board_name = None
     board_params = None
     board = None
@@ -65,41 +69,46 @@ class Calibrator():
     
     
     def set_recordings(self, recordings):
-        # check if input files are ccv-files:
-        filesAreCorrect = True
-        for i_file in recordings:
-            fileEnding = i_file.split('/')[-1].split('.')[-1]
-            if (fileEnding != 'ccv'):
-                filesAreCorrect = False
-        if not(filesAreCorrect):
+        # check if input files are valid files:
+        try:
+            self.readers = [ imageio.get_reader(rec) for rec in recordings ]
+        except:
             print('At least one unsupported format supplied')
             raise UnsupportedFormatException
+
+        self.dataPath = os.path.dirname(recordings[0])
+        self.nCameras = int(np.size(recordings, 0))
+        self.recFileNames = recordings
+
+        nFrames = np.zeros(self.nCameras, dtype=np.int64)
+        for reader in self.readers:
+            nFrames[i_cam] = reader.count_frames() # len() may be Inf for formats where counting frames can be expensive
+            header = reader.get_meta_data()
+            # Add required headers that are not normally part of standard video formats but are required information for a full calibration
+            # TODO add option to supply this via options. Currently, compressed
+            if not "offset" in header:
+                header['offset'] = [0, 0]
+            if not "sensorsize" in header:
+                header['sensorsize'] = reader.get_data(0).shape
+
+            self.headers.append(header)
+
+
+        self.nFrames = nFrames[0]
+        # check if frame number is consistent:
+        if np.all(np.equal(nFrames[0],nFrames[1:])):
+            # if everything is fine keep on going with the calibration
+            self.recordingIsLoaded = True
         else:
-            self.dataPath = '/'.join(recordings[0].split('/')[:-1])
-            self.nCameras = int(np.size(recordings, 0))
-            self.recFileNames = recordings;
+            self.nFrames = np.int64(np.min(nFrames))
+            print('WARNING: Number of frames is not identical for all cameras')
+            print('Number of detected frames per camera:')
+            for (i_cam,nF) in enumerate(nFrames):
+                print(f'\tcamera {i_cam:03d}:\t{nF:04d}')
 
-            nFrames = np.zeros(self.nCameras, dtype=np.int64)
-            for i_cam in range(self.nCameras):
-                header = ccv.get_header(recordings[i_cam])
-                nFrames[i_cam] = header['nframes']
-                self.headers.append(header)
-                
-            self.nFrames = nFrames[0]
-            # check if frame number is consistent:
-            if np.all(np.equal(nFrames[0],nFrames[1:])):
-                # if everything is fine keep on going with the calibration
-                self.recordingIsLoaded = True
-            else:
-                self.nFrames = np.int64(np.min(nFrames))
-                print('WARNING: Number of frames is not identical for all cameras')
-                print('Number of detected frames per camera:')
-                for (i_cam,nF) in enumerate(nFrames):
-                    print(f'\tcamera {i_cam:03d}:\t{nF:04d}')
+            # raise exception for outside confirmation
+            raise UnequalFrameCountException
 
-                # raise exception for outside confirmation
-                raise UnequalFrameCountException
-    
     def perform_multi_calibration(self):
         self.generate_board()
             
@@ -164,6 +173,7 @@ class Calibrator():
             previousCorners = np.zeros((self.nFeatures, 2), dtype=np.float64)
             currentCorners = np.zeros((self.nFeatures, 2), dtype=np.float64)
             # calculate offset
+
             offset_x = self.headers[i_cam]['offset'][0]
             offset_y = self.headers[i_cam]['offset'][1]
             for i_frame in np.arange(0, self.nFrames, 1, dtype=np.int64):
@@ -171,7 +181,7 @@ class Calibrator():
                 corners2add = list()
                 ids2add = list()
                 # feature detection
-                frame = ccv.get_frame(self.recFileNames[i_cam], i_frame + 1)
+                frame = self.readers[i_cam].get_data(i_frame)
                 res = cv2.aruco.detectMarkers(frame,
                                               self.board_params['dictionary'],
                                               parameters=detector_parameters)
@@ -256,7 +266,7 @@ class Calibrator():
             plt.pause(1e-16)
             for i_frame in np.arange(0, self.nFrames, 1, dtype=np.int64):
                 for i_cam in range(self.nCameras):
-                    frame = ccv.get_frame(self.recFileNames[i_cam], i_frame + 1)
+                    frame = self.readers[i_cam].get_data(i_frame)
                     ax_list[i_cam].lines = list()
                     ax_list[i_cam].set_title('cam: {:01d}, frame: {:06d}'.format(i_cam, i_frame))
                     im_list[i_cam].set_data(frame)

@@ -1,8 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+import
 
-from . import ccv
+import imageio
+from ccvtools import rawio
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
@@ -38,6 +40,7 @@ class PlotWindow(QMainWindow):
         # get calibration result
         self.result = calibrator.result
         self.result_directory = calibrator.dataPath
+        self.readers = calibrator.readers
         self.recFileNames = self.result['recFileNames']
         self.mask_multi = self.result['mask_multi']
         self.calib_multi = self.result['calib']
@@ -152,8 +155,7 @@ class PlotWindow(QMainWindow):
         self.toolbar.hide()
         
     def plot_draw(self):
-        self.img = ccv.get_frame(self.result_directory + '/' + self.recFileNames[self.i_cam].split('/')[-1],
-                                 self.i_pose + 1)
+        self.img = self.readers[self.i_cam].get_data(self.i_pose)
         self.ax.clear()
         self.ax.imshow(self.img,
                        aspect=1,
