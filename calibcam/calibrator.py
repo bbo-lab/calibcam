@@ -13,7 +13,7 @@ import time
 from autograd import elementwise_grad
 from scipy.optimize import least_squares
 
-from . import multical_func_ccv as func
+from . import multical_func as func
 from .board import get_board_params
 
 class UnsupportedFormatException(Exception):

@@ -1,7 +1,7 @@
 import numpy as np
 import sys
 
-from . import multical_plot_ccv
+from . import multical_plot
 from .calibrator import Calibrator, UnsupportedFormatException, UnequalFrameCountException
 
 from PyQt5.QtCore import Qt
@@ -93,7 +93,7 @@ class MainWindow(QMainWindow):
         return
 
     def plot_calibration(self):
-        self.PlotWindow = multical_plot_ccv.PlotWindow(self.calibrator)
+        self.PlotWindow = multical_plot.PlotWindow(self.calibrator)
         self.PlotWindow.show()
         self.button_performCalibration.setEnabled(True)
         self.button_loadCalibration.setEnabled(True)
