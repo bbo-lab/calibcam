@@ -26,5 +26,5 @@ setup(
     ],
     packages=['calibcam'],
     include_package_data=True,
-    install_requires=["matplotlib", "numpy", "opencv", "py-opencv", "pyyaml", "scipy", "bbo-ccvtools", "pyqt5", "autograd"],
+    install_requires=["matplotlib", "numpy", "opencv", "py-opencv", "pyyaml", "scipy", "bbo-ccvtools", "pyqt5", "autograd", "imageio", "bbo-ccvtools"],
 )
