@@ -16,6 +16,8 @@ from scipy.optimize import least_squares
 from . import multical_func as func
 from .board import get_board_params
 
+from pprint import pprint
+
 class UnsupportedFormatException(Exception):
     pass
 
@@ -81,16 +83,30 @@ class Calibrator():
         self.recFileNames = recordings
 
         nFrames = np.zeros(self.nCameras, dtype=np.int64)
-        for reader in self.readers:
-            nFrames[i_cam] = reader.count_frames() # len() may be Inf for formats where counting frames can be expensive
+        for (i_cam,reader) in enumerate(self.readers):
+            nFrames[i_cam] = len(reader) # len() may be Inf for formats where counting frames can be expensive
+            if 1000000000000000<nFrames[i_cam]:
+                try:
+                    nFrames[i_cam] = reader.count_frames()
+                except:
+                    print('Could not determine number of frames')
+                    raise UnsupportedFormatException
+
             header = reader.get_meta_data()
             # Add required headers that are not normally part of standard video formats but are required information for a full calibration
             # TODO add option to supply this via options. Currently, compressed
-            if not "offset" in header:
-                header['offset'] = [0, 0]
-            if not "sensorsize" in header:
-                header['sensorsize'] = reader.get_data(0).shape
-
+            if "sensor" in header:
+                header['offset'] = tuple(header['sensor']['offset'])
+                header['sensorsize'] = tuple(header['sensor']['size'])
+                del header['sensor']
+            else:
+                print("Infering sensor size from image and setting offset to 0!")
+                header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
+                header['offset'] = tuple(np.asarray([0, 0]))
+                
+            print(header)
+            for k in header:
+                print(type(header[k]))
             self.headers.append(header)
 
 
@@ -182,6 +198,8 @@ class Calibrator():
                 ids2add = list()
                 # feature detection
                 frame = self.readers[i_cam].get_data(i_frame)
+                if len(frame.shape)>2:
+                        frame = frame[:,:,1]
                 res = cv2.aruco.detectMarkers(frame,
                                               self.board_params['dictionary'],
                                               parameters=detector_parameters)
@@ -267,6 +285,8 @@ class Calibrator():
             for i_frame in np.arange(0, self.nFrames, 1, dtype=np.int64):
                 for i_cam in range(self.nCameras):
                     frame = self.readers[i_cam].get_data(i_frame)
+                    if len(frame.shape)>2:
+                        frame = frame[:,:,1]
                     ax_list[i_cam].lines = list()
                     ax_list[i_cam].set_title('cam: {:01d}, frame: {:06d}'.format(i_cam, i_frame))
                     im_list[i_cam].set_data(frame)
@@ -647,6 +667,7 @@ class Calibrator():
         self.result['t1_single_fit'] = self.t1_single_fit
         self.result['square_size_real'] = self.board_params['square_size_real']
         self.result['marker_size_real'] = self.board_params['marker_size_real']
+        pprint(self.result)
         # save
         self.resultPath = self.dataPath + '/multicalibration.npy'
         np.save(self.resultPath, self.result)
