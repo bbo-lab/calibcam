@@ -22,6 +22,9 @@ A charuco based calibrator for camera setups (intrinsic and extrinsic coordinate
 5. In GUI, click "Perform calibration"
 6. Select all calibration videos
 7. After calibration, check reprojection in GUI
+
+BBO internal MATLAB use only:
+
 8. Run `multicalibration_matlab_mcl_gen.m` in the video directory in MATLAB
 9. Save resulting mcl file into video directory
 
