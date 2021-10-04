@@ -6,12 +6,9 @@ A charuco based calibrator for camera setups (intrinsic and extrinsic coordinate
 ## Windows
 
 1. (If not already done:) [Install Anaconda](https://docs.anaconda.com/anaconda/install/windows/)
-2. Clone git@github.com:bbo-lab/calibcam.git 
-3. Open Anaconda prompt via Start Menu
-4. Using `cd` and `dir`, navigate to the calibcam directory INSIDE the repository (which may also be named calibcam)
-5. Create conda environment using `conda env create -f environment.yml`
-6. Switch to multitrackpy environment: `conda activate calibcam`
-7. Navigate to repository (folder containing setup.py) and install via: `pip install .`
+2. Create conda env `conda env create -f https://raw.githubusercontent.com/bbo-lab/calibcam/main/environment.yml`
+3. Switch to multitrackpy environment: `conda activate calibcam`
+4. Install with `pip install bbo-calibcam`
 
 
 # Usage
@@ -28,7 +25,7 @@ A charuco based calibrator for camera setups (intrinsic and extrinsic coordinate
 8. Run `multicalibration_matlab_mcl_gen.m` in the video directory in MATLAB
 9. Save resulting mcl file into video directory
 
-Alternatively, run purely commandline based with
+Alternatively, run purely commandline-based with
 ```
 $ python -m calibcam --help
 usage: __main__.py [-h] [--videos [VIDEOS [VIDEOS ...]]] [--board BOARD]
