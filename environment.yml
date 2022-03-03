@@ -11,7 +11,7 @@ dependencies:
   - scipy
   - pip
   - imageio
+  - pyqt
   - pip:
     - bbo-ccvtools
-    - pyqt5
     - autograd
