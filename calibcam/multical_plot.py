@@ -154,7 +154,7 @@ class PlotWindow(QMainWindow):
         self.toolbar.hide()
         
     def plot_draw(self):
-        self.img = self.readers[self.i_cam].get_data(self.i_pose)[:,:,1]
+        self.img = self.readers[self.i_cam].get_data(self.i_pose)
         if len(self.img.shape)>2:
             self.img = self.img[:,:,1]
         self.ax.clear()
@@ -201,7 +201,7 @@ class PlotWindow(QMainWindow):
                              proj[:, 1],
                              color='blue',
                              linestyle='',
-                             marker='x')
+                             marker='+')
                 self.ax.legend(['detection', 'projection'])            
         elif (self.mask_single[self.i_cam, self.i_pose]):
             self.status = 'single'

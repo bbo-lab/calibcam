@@ -85,6 +85,9 @@ class MainWindow(QMainWindow):
         self.button_performCalibration.setEnabled(False)
         self.button_loadCalibration.setEnabled(False)
 
+        # read the dataset
+        self.read_recording()
+
         self.calibrationIsLoaded = False
         # read the calibration
         self.read_calibration()
