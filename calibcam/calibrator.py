@@ -170,7 +170,7 @@ class Calibrator():
         self.get_fitted_paras()
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration()
-        func.save_multicalibration_to_matlabcode(self.result,self.dataPath)
+        func.save_multicalibration_to_matlabcode(self.result, self.dataPath)
         print('FINISHED MULTI CAMERA CALIBRATION')
         return                       
 
@@ -653,18 +653,21 @@ class Calibrator():
         self.result['message'] = self.message
         self.result['convergence'] = self.success
         # optimization variables (output)
-        self.result['x_all_fit'] = self.x_all_fit,
+        self.result['x_all_fit'] = self.x_all_fit
         self.result['rX1_fit'] = self.rX1_fit
         self.result['RX1_fit'] = self.RX1_fit
-        self.result['tX1_fit'] = self.tX1_fit
+        self.result['tX1_fit'] = self.tX1_fit*self.board_params['square_size_real']
         self.result['k_fit'] = self.k_fit
         self.result['A_fit'] = self.A_fit
         self.result['r1_fit'] = self.r1_fit
         self.result['R1_fit'] = self.R1_fit
-        self.result['t1_fit'] = self.t1_fit
+        self.result['t1_fit'] = self.t1_fit*self.board_params['square_size_real']
         self.result['r1_single_fit'] = self.r1_single_fit
         self.result['R1_single_fit'] = self.R1_single_fit
-        self.result['t1_single_fit'] = self.t1_single_fit
+        self.result['t1_single_fit'] = self.t1_single_fit*self.board_params['square_size_real']
+        # Historically, scale_factor=square_size_real, and not part of calibration.
+        # New: square_size_real factored into spatial units
+        self.result['scale_factor'] = 1
         self.result['square_size_real'] = self.board_params['square_size_real']
         self.result['marker_size_real'] = self.board_params['marker_size_real']
         pprint(self.result)
