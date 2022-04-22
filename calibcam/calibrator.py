@@ -664,7 +664,7 @@ class Calibrator():
         self.result['t1_fit'] = self.t1_fit*self.board_params['square_size_real']
         self.result['r1_single_fit'] = self.r1_single_fit
         self.result['R1_single_fit'] = self.R1_single_fit
-        self.result['t1_single_fit'] = self.t1_single_fit*self.board_params['square_size_real']
+        self.result['t1_single_fit'] = np.asarray(self.t1_single_fit)*self.board_params['square_size_real']
         # Historically, scale_factor=square_size_real, and not part of calibration.
         # New: square_size_real factored into spatial units
         self.result['scale_factor'] = 1
