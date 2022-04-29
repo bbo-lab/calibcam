@@ -407,13 +407,13 @@ class Calibrator:
         for i_cam in range(len(self.readers)):
             key = 'cam{:01d}'.format(i_cam)
             calib_multi[key] = dict()
-            A[i_cam] = np.array(calib_multi[i_cam][1],
+            A[i_cam] = np.array(cal_multi_list[i_cam][1],
                                 dtype=np.float64).reshape(3, 3)
-            k[i_cam] = np.array(calib_multi[i_cam][2],
+            k[i_cam] = np.array(cal_multi_list[i_cam][2],
                                 dtype=np.float64).reshape(1, 5)
             nUsedFrames = np.sum(self.mask_single[i_cam])
             if nUsedFrames > 0:
-                if cal_single_list[i_cam][0] < calib_multi[i_cam][0]:
+                if cal_single_list[i_cam][0] < cal_multi_list[i_cam][0]:
                     A[i_cam] = np.array(cal_single_list[i_cam][1],
                                         dtype=np.float64).reshape(3, 3)
                     k[i_cam] = np.array(cal_single_list[i_cam][2],
@@ -440,10 +440,10 @@ class Calibrator:
                     # only append the list here when the camera has actually seen the pattern in the respective frame
                     # i.e. we have an estimate for r and t
                     if self.allFramesMask[i_cam, i_frame]:
-                        rotations_use = np.array(calib_multi[i_cam][3][index],
+                        rotations_use = np.array(cal_multi_list[i_cam][3][index],
                                                  dtype=np.float64).reshape(3, 1)
                         calib_multi[key]['rotation_vectors'].append(rotations_use)
-                        translations_use = np.array(calib_multi[i_cam][4][index],
+                        translations_use = np.array(cal_multi_list[i_cam][4][index],
                                                     dtype=np.float64).reshape(3, 1)
                         calib_multi[key]['translation_vectors'].append(translations_use)
                         index = index + 1
