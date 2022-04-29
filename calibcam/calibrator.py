@@ -330,8 +330,6 @@ class Calibrator:
             print(f"{len(charuco_ids)} charuco_ids are in a column!: {charuco_ids}")
             return False
 
-        print(f"{len(charuco_ids)} charuco_ids are not degenerate")
-
     def detect_corners_cam(self, reader):
         all_corners = []
         all_ids = []
