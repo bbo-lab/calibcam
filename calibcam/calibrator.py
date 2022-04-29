@@ -14,6 +14,7 @@ from autograd import elementwise_grad
 from scipy.optimize import least_squares
 
 from . import multical_func as func
+from .helper import save_multicalibration_to_matlabcode, check_detections_nondegenerate
 from .board import get_board_params
 
 from pprint import pprint
@@ -38,65 +39,32 @@ class Calibrator:
         self.board = None
         self.recFileNames = []
         self.dataPath = None
-        self.nCameras = np.NaN
         self.nFrames = np.NaN
         self.recordingIsLoaded = False
         self.result = None
-        self.nAllVars = None
-        self.M_single = None
-        self.m_single = None
-        self.delta_single = None
-        self.x0_single = None
-        self.free_para = None
-        self.index_free_k = None
-        self.free_para_single = None
-        self.nAllVars_all = None
-        self.x0_all = None
-        self.free_para_all = None
-        self.x0_all_free = None
-        self.bounds_all = None
-        self.bounds_all_free = None
-        self.x0 = None
-        self.rX1 = None
-        self.tX1 = None
-        self.k = None
-        self.A = None
-        self.r1 = None
-        self.t1 = None
-        self.RX1 = None
-        self.R1 = None
-        self.r1_single = None
+
         self.x_all_fit = None
-        self.t1_single = None
-        self.x_fit = None
-        self.rX1_fit = None
-        self.tX1_fit = None
-        self.k_fit = None
-        self.A_fit = None
-        self.r1_fit = None
-        self.t1_fit = None
-        self.RX1_fit = None
-        self.R1_fit = None
+
         self.x_single_fit = None
         self.r1_single_fit = None
         self.t1_single_fit = None
         self.R1_single_fit = None
+
+        self.x_fit = None
+        self.RX1_fit = None
+        self.rX1_fit = None
+        self.tX1_fit = None
+        self.k_fit = None
+        self.A_fit = None
+
+        self.r1_fit = None
+        self.t1_fit = None
+        self.R1_fit = None
+
         self.tol = None
         self.min_result = None
-        self.message = None
-        self.success = None
         self.resultPath = None
-        self.delta = None
-        self.m = None
-        self.M = None
-        self.tSize = 3  # number of free translation parameters per residual
-        self.rSize = 3  # number of free rotation parameters per residual
-        self.ASize = 4  # number of free variables in camera matrix per residual
-        self.kSize = 5  # number of free distortion coefficients per residual
-        self.nVars = self.rSize + self.tSize + self.kSize + self.ASize + self.rSize + self.tSize  # number of free parameters per residual TODO Is this even correct with 2x rSize/tSize?
-        self.nRes_single = None  # total number of residuals for each direction (x, y) (single calibration)
-        self.nRes = None  # total number of residuals for each direction (x, y)
-        self.nAllVars_single = None  # total number of free parameters (single calibration)
+
         self.nFeatures = int(0)  # Number of overall corners of board
         self.allFramesMask = np.empty(0, dtype=bool)
         self.allCorners_list = []
@@ -104,26 +72,24 @@ class Calibrator:
         self.mask_single = np.empty(0)  # later nC x nF, mask of frames that are only detected in one camera
         self.mask_multi = np.empty(0)  # later nF
         self.indexRefCam = np.nan
-        self.cal_single_list = []  # later nC, List of calibration from mask_single frames
         self.nPoses_single = []  # later nC
         self.calib_single = dict()
-        self.cal_multi_list = []  # later nC, List of calibration from multiframe single camera frames
         self.calib_multi = dict()
         self.nPoses = int(0)
+
+        self.info = dict()  # Info on calibration for documentation purposes ONLY
 
         # flags and criteria for cv2.aruco.calibrateCameraCharuco
         self.flags = (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3)
         self.criteria = (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
                          30,
                          float(np.finfo(np.float32).eps))
-
-        self.args = dict()  # Arguments for optimization
         return
 
     def reset_recordings(self):
         self.recFileNames = []
+        self.readers = []
         self.dataPath = None
-        self.nCameras = np.NaN
         self.nFrames = np.NaN
         self.recordingIsLoaded = False
         self.result = None
@@ -151,10 +117,9 @@ class Calibrator:
             raise UnsupportedFormatException
 
         self.dataPath = os.path.dirname(recordings[0])
-        self.nCameras = int(np.size(recordings, 0))
         self.recFileNames = recordings
 
-        n_frames = np.zeros(self.nCameras, dtype=np.int64)
+        n_frames = np.zeros(len(self.readers), dtype=np.int64)
         for (i_cam, reader) in enumerate(self.readers):
             n_frames[i_cam] = self.get_frames_from_cam(reader)
 
@@ -174,12 +139,12 @@ class Calibrator:
         self.recordingIsLoaded = True
 
         # Initialize quantities with camera and frame sizes
-        self.allFramesMask = np.zeros((self.nCameras, self.nFrames),
+        self.allFramesMask = np.zeros((len(self.readers), self.nFrames),
                                       dtype=bool)
-        self.mask_single = np.zeros((self.nCameras, self.nFrames),
+        self.mask_single = np.zeros((len(self.readers), self.nFrames),
                                     dtype=bool)
         self.mask_multi = np.zeros(self.nFrames, dtype=bool)
-        self.nPoses_single = np.zeros(self.nCameras, dtype=np.int64)
+        self.nPoses_single = np.zeros(len(self.readers), dtype=np.int64)
 
         self.set_board(self.board_name)
 
@@ -225,38 +190,31 @@ class Calibrator:
         self.split_frame_sets()
 
         # perform single calibration
-        self.perform_single_calibration()
+        cal_single_list = self.perform_single_calibration()
+        self.info['cal_single_list'] = cal_single_list
 
         # generate calib_single
-        self.generate_calib_single()
+        self.generate_calib_single(cal_single_list)
 
         # perform multi calibration
-        self.perform_single_calibration_for_multi()
+        cal_multi_list = self.perform_single_calibration_for_multi()
+        self.info['cal_multi_list'] = cal_multi_list
 
         # generate calib_multi
-        self.generate_calib_multi()
+        self.generate_calib_multi(cal_single_list, cal_multi_list)
 
         # the following functions are based on multical_main.py
         print('PREPARE FOR MULTI CAMERA CALIBRATION')
-        self.generate_args()
+        args, inits, bounds = self.generate_args()
+        self.info['args'] = args
         print('START MULTI CAMERA CALIBRATION')
-        self.start_optimization()
-        self.get_fitted_paras()
+        self.start_optimization(args, inits, bounds)
+        self.get_fitted_paras(args)
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration()
-        func.save_multicalibration_to_matlabcode(self.result, self.dataPath)
+        save_multicalibration_to_matlabcode(self.result, self.dataPath)
         print('FINISHED MULTI CAMERA CALIBRATION')
         return
-
-    @staticmethod
-    def set_detector_parameters():
-        detector_parameters = cv2.aruco.DetectorParameters_create()
-        detector_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
-        detector_parameters.cornerRefinementWinSize = 5  # default value
-        detector_parameters.cornerRefinementMaxIterations = 30  # default value
-        detector_parameters.cornerRefinementMinAccuracy = 0.1  # default value
-
-        return detector_parameters
 
     def detect_corners(self):
         print('DETECTING FEATURES')
@@ -268,68 +226,6 @@ class Calibrator:
             self.allIds_list.append(all_ids)
             print(f'Detected features in {np.sum(self.allFramesMask[i_cam]):04d}  frames in camera {i_cam:02d}')
         return
-        # plot detection result only works if sensor sizes of all cameras are identical TODO refactor into separate method
-        # if verbose:
-        #     img_dummy = np.zeros_like(frame)
-        #     fig = plt.figure(1,
-        #                      figsize=(8, 8))
-        #     nRowsCols = np.int64(np.ceil(np.sqrt(self.nCameras)))
-        #     ax_list = []
-        #     im_list = []
-        #     for i_cam in range(self.nCameras):
-        #         ax = fig.add_subplot(nRowsCols, nRowsCols, i_cam + 1)
-        #         ax.set_axis_off()
-        #         ax_list.append(ax)
-        #         im = ax_list[i_cam].imshow(img_dummy,
-        #                                    aspect=1,
-        #                                    cmap='gray',
-        #                                    vmin=0,
-        #                                    vmax=255)
-        #         im_list.append(im)
-        #     fig.tight_layout()
-        #     fig.canvas.draw()
-        #     plt.pause(1e-16)
-        #     for i_frame in np.arange(0, self.nFrames, 1, dtype=np.int64):
-        #         for i_cam in range(self.nCameras):
-        #             frame = reader.get_data(i_frame)
-        #             if len(frame.shape) > 2:
-        #                 frame = frame[:, :, 1]
-        #             ax_list[i_cam].lines = []
-        #             ax_list[i_cam].set_title('cam: {:01d}, frame: {:06d}'.format(i_cam, i_frame))
-        #             im_list[i_cam].set_data(frame)
-        #             if self.allFramesMask[i_cam, i_frame]:
-        #                 corners_plot = np.array(self.allCorners_list[i_cam][i_frame])
-        #                 ax_list[i_cam].plot(corners_plot[:, 0, 0],
-        #                                     corners_plot[:, 0, 1],
-        #                                     linestyle='',
-        #                                     marker='x',
-        #                                     color='red')
-        #         fig.canvas.draw()
-        #         plt.pause(5e-1)
-        #     plt.close(1)
-        #     raise
-
-    def check_detections_nondegenerate(self, charuco_ids):
-        # Detection may not lie on a single line
-
-        charuco_ids = np.asarray(charuco_ids).ravel()
-
-        # Not enough points
-        if len(charuco_ids) < 5:
-            # print(f"{len(charuco_ids)} charuco_ids are not enough!")
-            return False
-
-        # All points along one row (width)
-        if charuco_ids[-1] < (np.floor(charuco_ids[0]/(self.board_params['boardWidth']-1)) + 1) * (self.board_params['boardWidth']-1):
-            # print(f"{len(charuco_ids)} charuco_ids are in a row!: {charuco_ids}")
-            return False
-
-        # All points along one column (height)
-        if np.all(np.mod(np.diff(charuco_ids), self.board_params['boardWidth']-1) == 0):
-            # print(f"{len(charuco_ids)} charuco_ids are in a column!: {charuco_ids}")
-            return False
-
-        return True
 
     def detect_corners_cam(self, reader):
         all_corners = []
@@ -338,7 +234,7 @@ class Calibrator:
         previous_corners = np.zeros((self.nFeatures, 2), dtype=np.float64)
         current_corners = np.zeros((self.nFeatures, 2), dtype=np.float64)
 
-        frames_mask = np.zeros(self.get_frames_from_cam(reader),dtype=bool)
+        frames_mask = np.zeros(self.get_frames_from_cam(reader), dtype=bool)
 
         # calculate offset
         offset_x = self.get_header(reader)['offset'][0]
@@ -374,7 +270,7 @@ class Calibrator:
                                                         self.board,
                                                         minMarkers=2)
                 # checks if the result is degenerated
-                if self.check_detections_nondegenerate(charucoIds):
+                if check_detections_nondegenerate(self.board_params, charucoIds):
                     # add offset
                     charucoCorners[:, :, 0] = charucoCorners[:, :, 0] + offset_x
                     charucoCorners[:, :, 1] = charucoCorners[:, :, 1] + offset_y
@@ -456,16 +352,17 @@ class Calibrator:
 
     def perform_single_calibration(self):
         print('PERFORM SINGLE CAMERA CALIBRATION #1')
-        for i_cam in range(self.nCameras):
+        cal_single_list = []
+        for i_cam in range(len(self.readers)):
             mask = self.mask_single[i_cam]
             cal = self.calibrate_camera(i_cam, mask)
-            self.cal_single_list.append(cal)
-        return
+            cal_single_list.append(cal)
+        return cal_single_list
 
-    def generate_calib_single(self):
+    def generate_calib_single(self, cal_single_list):
         self.calib_single = dict()
         self.nPoses_single = np.sum(self.mask_single, 1)
-        for i_cam in range(0, self.nCameras, 1):
+        for i_cam in range(0, len(self.readers), 1):
             key = 'cam{:01d}'.format(i_cam)
             self.calib_single[key] = dict()
             self.calib_single[key]['charuco_ids'] = []
@@ -483,10 +380,10 @@ class Calibrator:
                                            dtype=np.float64).reshape(nFeats, 2)
                     self.calib_single[key]['charuco_corners'].append(corners_use)
                     # r and t
-                    rotations_use = np.array(self.cal_single_list[i_cam][3][index],
+                    rotations_use = np.array(cal_single_list[i_cam][3][index],
                                              dtype=np.float64).reshape(3, 1)
                     self.calib_single[key]['rotation_vectors'].append(rotations_use)
-                    translations_use = np.array(self.cal_single_list[i_cam][4][index],
+                    translations_use = np.array(cal_single_list[i_cam][4][index],
                                                 dtype=np.float64).reshape(3, 1)
                     self.calib_single[key]['translation_vectors'].append(translations_use)
                     index = index + 1
@@ -495,196 +392,196 @@ class Calibrator:
     def perform_single_calibration_for_multi(self):
         print('PERFORM SINGLE CAMERA CALIBRATION #2')
         print('The following single camera calibrations will be used to initialize the multi camera calibration')
-        for i_cam in range(self.nCameras):
+        cal_multi_list = []
+        for i_cam in range(len(self.readers)):
             mask = self.mask_multi & self.allFramesMask[i_cam]
             cal = self.calibrate_camera(i_cam, mask)
-            self.cal_multi_list.append(cal)
-        return
+            cal_multi_list.append(cal)
+        return cal_multi_list
 
-    def generate_calib_multi(self):
-        self.calib_multi = dict()
+    def generate_calib_multi(self, cal_single_list, cal_multi_list):
+        calib_multi = dict()
         self.nPoses = int(np.sum(self.mask_multi))
-        A = np.zeros((self.nCameras, 3, 3), dtype=np.float64)
-        k = np.zeros((self.nCameras, 5), dtype=np.float64)
-        for i_cam in range(self.nCameras):
+        A = np.zeros((len(self.readers), 3, 3), dtype=np.float64)
+        k = np.zeros((len(self.readers), 5), dtype=np.float64)
+        for i_cam in range(len(self.readers)):
             key = 'cam{:01d}'.format(i_cam)
-            self.calib_multi[key] = dict()
-            A[i_cam] = np.array(self.cal_multi_list[i_cam][1],
+            calib_multi[key] = dict()
+            A[i_cam] = np.array(calib_multi[i_cam][1],
                                 dtype=np.float64).reshape(3, 3)
-            k[i_cam] = np.array(self.cal_multi_list[i_cam][2],
+            k[i_cam] = np.array(calib_multi[i_cam][2],
                                 dtype=np.float64).reshape(1, 5)
             nUsedFrames = np.sum(self.mask_single[i_cam])
             if nUsedFrames > 0:
-                if self.cal_single_list[i_cam][0] < self.cal_multi_list[i_cam][0]:
-                    A[i_cam] = np.array(self.cal_single_list[i_cam][1],
+                if cal_single_list[i_cam][0] < calib_multi[i_cam][0]:
+                    A[i_cam] = np.array(cal_single_list[i_cam][1],
                                         dtype=np.float64).reshape(3, 3)
-                    k[i_cam] = np.array(self.cal_single_list[i_cam][2],
+                    k[i_cam] = np.array(cal_single_list[i_cam][2],
                                         dtype=np.float64).reshape(1, 5)
             #
-            self.calib_multi[key]['camera_matrix'] = A[i_cam]
-            self.calib_multi[key]['dist_coeffs'] = k[i_cam]
+            calib_multi[key]['camera_matrix'] = A[i_cam]
+            calib_multi[key]['dist_coeffs'] = k[i_cam]
             # rest
-            self.calib_multi[key]['charuco_ids'] = []
-            self.calib_multi[key]['charuco_corners'] = []
-            self.calib_multi[key]['rotation_vectors'] = []
-            self.calib_multi[key]['translation_vectors'] = []
+            calib_multi[key]['charuco_ids'] = []
+            calib_multi[key]['charuco_corners'] = []
+            calib_multi[key]['rotation_vectors'] = []
+            calib_multi[key]['translation_vectors'] = []
             index = np.int64(0)
             for i_frame in range(self.nFrames):
                 if self.mask_multi[i_frame]:
                     nFeats = np.size(self.allIds_list[i_cam][i_frame])
                     ids_use = np.array(self.allIds_list[i_cam][i_frame],
                                        dtype=np.int64).reshape(nFeats, 1)
-                    self.calib_multi[key]['charuco_ids'].append(ids_use)
+                    calib_multi[key]['charuco_ids'].append(ids_use)
                     corners_use = np.array(self.allCorners_list[i_cam][i_frame],
                                            dtype=np.float64).reshape(nFeats, 2)
-                    self.calib_multi[key]['charuco_corners'].append(corners_use)
+                    calib_multi[key]['charuco_corners'].append(corners_use)
                     # r and t
                     # only append the list here when the camera has actually seen the pattern in the respective frame
                     # i.e. we have an estimate for r and t
                     if self.allFramesMask[i_cam, i_frame]:
-                        rotations_use = np.array(self.cal_multi_list[i_cam][3][index],
+                        rotations_use = np.array(calib_multi[i_cam][3][index],
                                                  dtype=np.float64).reshape(3, 1)
-                        self.calib_multi[key]['rotation_vectors'].append(rotations_use)
-                        translations_use = np.array(self.cal_multi_list[i_cam][4][index],
+                        calib_multi[key]['rotation_vectors'].append(rotations_use)
+                        translations_use = np.array(calib_multi[i_cam][4][index],
                                                     dtype=np.float64).reshape(3, 1)
-                        self.calib_multi[key]['translation_vectors'].append(translations_use)
+                        calib_multi[key]['translation_vectors'].append(translations_use)
                         index = index + 1
-        return
+        return calib_multi
 
     def generate_args(self):
-        print('Defining arguments for multi camera calibration')
-        self.args = dict()
+        args = dict()
 
         # GENERAL
-        print('\t - Defining general variables')
-        # total number of cameras
-        self.args['nCameras'] = self.nCameras
-        # total number of poses
-        self.args['nPoses'] = self.nPoses
-        # total number of poses (single calibration)
-        self.args['nPoses_single'] = self.nPoses_single
-        # width of charuco board
-        self.args['boardWidth'] = self.board_params['boardWidth']
-        # height of charuco board
-        self.args['boardHeight'] = self.board_params['boardHeight']
-        # total number of features on the charuco board
-        self.args['nFeatures'] = self.nFeatures
-        # total number of residuals for each direction (x, y)
-        self.nRes = self.nFeatures * self.nPoses * self.nCameras
-        self.args['nRes'] = self.nRes
-        # total number of residuals for each direction (x, y) (single calibration)
-        self.nRes_single = np.sum(self.nFeatures * self.nPoses_single)
-        self.args['nRes_single'] = self.nRes_single
-        self.args['kSize'] = self.kSize
+        kSize = 5
+        tSize = 3
+        rSize = 3
+        ASize = 4
+        nVars = rSize + tSize + kSize + ASize + rSize + tSize
+        nAllVars = (len(self.readers) - 1) * (rSize + tSize) + len(self.readers) * kSize + len(
+            self.readers) * ASize + self.nPoses * (rSize + tSize)
+        nAllVars_single = np.sum((rSize + tSize) * self.nPoses_single)
 
-        self.args['ASize'] = self.ASize
-
-        self.args['rSize'] = self.rSize
-
-        self.args['tSize'] = self.tSize
-
-        self.args['nVars'] = self.nVars
-        # total number of free parameters
-        self.nAllVars = (self.nCameras - 1) * (
-                self.rSize + self.tSize) + self.nCameras * self.kSize + self.nCameras * self.ASize + self.nPoses * (
-                                self.rSize + self.tSize)
-        self.args['nAllVars'] = self.nAllVars
-        # total number of free parameters (single calibration)
-        self.nAllVars_single = np.sum((self.rSize + self.tSize) * self.nPoses_single)
-        self.args['nAllVars_single'] = self.nAllVars_single
-        # index of the reference camera
-        self.args['indexRefCam'] = self.indexRefCam
-        self.args['use_sparse_jac'] = False
+        args_general = {
+            'nCameras': len(self.readers),  # total number of cameras
+            'nPoses': self.nPoses,  # total number of poses
+            'nPoses_single': self.nPoses_single,  # total number of poses (single calibration)
+            'boardWidth': self.board_params['boardWidth'],  # width of charuco board
+            'boardHeight': self.board_params['boardHeight'],  # height of charuco board
+            'nFeatures': self.nFeatures,  # total number of features on the charuco board
+            'nRes': self.nFeatures * self.nPoses * len(self.readers),
+            # total number of residuals for each direction (x, y)
+            'nRes_single': np.sum(self.nFeatures * self.nPoses_single),
+            # total number of residuals for each direction (x, y) (single calibration)
+            'kSize': kSize,  # number of free distortion coefficients per residual
+            'tSize': tSize,  # number of free translation parameters per residual
+            'rSize': rSize,  # number of free rotation parameters per residual
+            'ASize': ASize,  # number of free variables in camera matrix per residual
+            'nVars': nVars,
+            # number of free parameters per residual TODO Is this even correct with 2x rSize/tSize?
+            'nAllVars': nAllVars,  # total number of free parameters
+            'nAllVars_single': nAllVars_single,  # total number of free parameters (single calibration)
+            'indexRefCam': self.indexRefCam,  # index of the reference camera
+        }
+        args = {**args, **args_general}
 
         # CONSTANTS
-        print('\t - Defining constants')
-        self.M, self.m, self.delta = func.map_calib2consts(self.calib_multi, self.args)
-        self.args['M'] = self.M
-        self.args['m'] = self.m
-        self.args['delta'] = self.delta
-        self.M_single, self.m_single, self.delta_single = func.map_calib2consts_single(self.calib_single, self.args)
-        self.args['M_single'] = self.M_single
-        self.args['m_single'] = self.m_single
-        self.args['delta_single'] = self.delta_single
+        M, m, delta = func.map_calib2consts(self.calib_multi, args_general)
+        M_single, m_single, delta_single = func.map_calib2consts_single(self.calib_single, args_general)
+
+        args_constants = {
+            'M': M,
+            'm_': m,
+            'delta': delta,
+            'M_single': M_single,
+            'm_single': m_single,
+            'delta_single': delta_single,
+        }
+        args = {**args, **args_constants}
 
         # JACOBIAN
-        print('\t - Defining jacobian')
-        self.args['jac_x'] = np.zeros(self.nVars, dtype=object)
-        self.args['jac_y'] = np.zeros(self.nVars, dtype=object)
-        for i_var in range(self.nVars):
-            self.args['jac_x'][i_var] = elementwise_grad(func.calc_res_x, i_var)
-            self.args['jac_y'][i_var] = elementwise_grad(func.calc_res_y, i_var)
+        args_jacobian = {
+            'jac_x': np.asarray([elementwise_grad(func.calc_res_x, i_var) for i_var in range(nVars)]),
+            'jac_y': np.asarray([elementwise_grad(func.calc_res_y, i_var) for i_var in range(nVars)]),
+        }
+
+        args = {**args, **args_jacobian}
 
         # OPTIMIZATION
-        print('\t - Defining optimization input variables')
-        # definie inital x
-        self.x0 = func.set_x0_objFunc(self.calib_multi, self.args)
-        self.x0_single = func.set_x0_objFunc_single(self.calib_single, self.args)
-        # define free parameters
-        self.free_para = np.ones(self.nAllVars, dtype=bool)
-        self.index_free_k = (self.nCameras - 1) * (self.rSize + self.tSize)
-        self.free_para[self.index_free_k:self.index_free_k + self.nCameras * self.kSize] = False
-        self.free_para[self.index_free_k:self.index_free_k + self.nCameras * self.kSize:self.kSize] = True
-        self.free_para[self.index_free_k + 1:self.index_free_k + 1 + self.nCameras * self.kSize:self.kSize] = True
-        self.args['free_para'] = self.free_para
-        # define free parameters (single calibration)
-        self.free_para_single = np.ones(self.nAllVars_single, dtype=bool)
-        self.args['free_para_single'] = self.free_para_single
-        # stack multi- and single-calibration
-        self.nAllVars_all = self.nAllVars + self.nAllVars_single
-        self.args['nAllVars_all'] = self.nAllVars_all
-        self.x0_all = np.concatenate([self.x0, self.x0_single], 0)
-        self.args['x0_all'] = self.x0_all
-        self.free_para_all = np.concatenate([self.free_para, self.free_para_single], 0)
-        self.args['free_para_all'] = self.free_para_all
-        # define correct initialization vector for x0_all
-        self.x0_all_free = self.x0_all[self.free_para_all]
-        # define boundaries
-        self.bounds_all = np.array([[-np.inf, np.inf]] * np.size(self.x0_all)).T
-        self.bounds_all_free = self.bounds_all[:, self.free_para_all]
-        return
+        x0 = func.set_x0_objFunc(self.calib_multi, args)  # define initial x
+        x0_single = func.set_x0_objFunc_single(self.calib_single, args)
+        x0_all = np.concatenate([x0, x0_single], 0)
 
-    def get_initial_paras(self):
-        self.x0 = func.set_x0_objFunc(self.calib_multi, self.args)
-        self.rX1, self.tX1, self.k, self.A, self.r1, self.t1 = func.calc_paras_from_x(self.x0, self.args)
-        self.RX1 = func.map_r2R(self.rX1)
-        self.R1 = func.map_r2R(self.r1)
-        self.r1_single, self.t1_single = func.calc_paras_from_x_single(self.x0_single, self.args)
-        return
+        inits = {
+            'x0': x0,
+            'x0_single': x0_single,
+            'x0_all': x0_all,
+        }
 
-    def get_fitted_paras(self):
-        self.x_all_fit = np.copy(self.x0_all)
-        self.x_all_fit[self.free_para_all] = self.min_result.x
-        self.x_fit = self.x_all_fit[:self.nAllVars]
+        free_para = np.ones(nAllVars, dtype=bool)
+        index_free_k = (len(self.readers) - 1) * (rSize + tSize)
+        free_para[index_free_k:index_free_k + len(self.readers) * kSize] = False
+        free_para[index_free_k:index_free_k + len(self.readers) * kSize:kSize] = True
+        free_para[index_free_k + 1:index_free_k + 1 + len(self.readers) * kSize:kSize] = True
+        free_para_single = np.ones(nAllVars_single, dtype=bool)
+        free_para_all = np.concatenate([free_para, free_para_single], 0)
+        nAllVars_all = nAllVars + nAllVars_single
+
+        args_optimization = {
+            'x0_all': x0_all,
+            'x0_all_free': x0_all[free_para_all],  # define correct initialization vector for x0_all
+            'free_para': free_para,  # define free parameters
+            'free_para_single': free_para_single,  # define free parameters (single calibration)
+            'nAllVars_all': nAllVars_all,  # stack multi- and single-calibration
+            'free_para_all': free_para_all
+        }
+
+        args = {**args, **args_optimization}
+
+        # BOUNDARIES
+        b_all = np.array([[-np.inf, np.inf]] * np.size(x0_all)).T
+        bounds = {
+            'all': b_all,
+            'all_free': b_all[:, free_para_all]
+        }
+
+        return args, inits, bounds
+
+    def get_fitted_paras(self, args):
+        self.x_all_fit = np.copy(args['x0_all'])
+        self.x_all_fit[args['free_para_all']] = self.min_result.x
+        self.x_single_fit = self.x_all_fit[args['nAllVars']:]
+        self.x_fit = self.x_all_fit[:args['nAllVars']]
+
         self.rX1_fit, self.tX1_fit, self.k_fit, self.A_fit, self.r1_fit, self.t1_fit = func.calc_paras_from_x(
-            self.x_fit, self.args)
+            self.x_fit, args)
         self.RX1_fit = func.map_r2R(self.rX1_fit)
         self.R1_fit = func.map_r2R(self.r1_fit)
-        self.x_single_fit = self.x_all_fit[self.nAllVars:]
-        self.r1_single_fit, self.t1_single_fit = func.calc_paras_from_x_single2(self.x_single_fit, self.args)
+
+        self.r1_single_fit, self.t1_single_fit = func.calc_paras_from_x_single2(self.x_single_fit, args)
         # do this since 1-dimensional arrays loose a dimension, e.g. shape (1, 3) --> (3)
-        for i_cam in range(self.nCameras):
+        for i_cam in range(len(self.readers)):
             n_used_frames = np.sum(self.mask_single[i_cam])
             if n_used_frames == 1:
                 self.r1_single_fit[i_cam][0] = self.r1_single_fit[i_cam][0][None, :]
                 self.t1_single_fit[i_cam][0] = self.t1_single_fit[i_cam][0][None, :]
         self.R1_single_fit = []
-        for i_cam in range(self.nCameras):
+        for i_cam in range(len(self.readers)):
             self.R1_single_fit.append([])
             for i_pose in range(len(self.r1_single_fit[i_cam])):
                 self.R1_single_fit[i_cam].append(func.map_r2R(self.r1_single_fit[i_cam][i_pose]))
         return
 
-    def start_optimization(self):
+    def start_optimization(self, args, inits, bounds):
         print('Starting optimization procedure - This might take a while')
         print('The following lines are associated with the current state of the optimization procedure:')
         start_time = time.time()
-        # ATTENTION: use_sparse_jac is not implemented
+
         self.tol = np.finfo(np.float64).eps  # machine epsilon
         self.min_result = least_squares(func.obj_fcn_free,
-                                        self.x0_all_free,
+                                        inits['x0_all_free'],
                                         jac=func.obj_fcn_jac_free,
-                                        bounds=self.bounds_all_free,
+                                        bounds=bounds['all_free'],
                                         method='trf',
                                         ftol=self.tol,
                                         xtol=self.tol,
@@ -694,12 +591,11 @@ class Calibrator:
                                         tr_solver='exact',
                                         max_nfev=np.inf,
                                         verbose=2,
-                                        args=[self.args])
+                                        args=[args])
         current_time = time.time()
         print('Optimization algorithm converged:\t{:s}'.format(str(self.min_result.success)))
         print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
-        self.message = self.min_result.message
-        self.success = self.min_result.success
+        self.info['optimization'] = {'message': self.min_result.message, 'success': self.min_result.success}
         return
 
     def save_multicalibration(self):
@@ -707,10 +603,8 @@ class Calibrator:
         # general
         self.result['recFileNames'] = self.recFileNames
         self.result['headers'] = [self.get_header(reader) for reader in self.readers]
-        self.result['nCameras'] = self.nCameras
+        self.result['nCameras'] = len(self.readers)
         self.result['nFrames'] = self.nFrames
-        self.result['boardWidth'] = self.board_params['boardWidth']
-        self.result['boardHeight'] = self.board_params['boardHeight']
         self.result['mask_multi'] = self.mask_multi
         self.result['indexRefCam'] = self.indexRefCam
         self.result['calib'] = self.calib_multi
@@ -718,12 +612,7 @@ class Calibrator:
         self.result['calib_single'] = self.calib_single
         self.result['mask_all'] = self.allFramesMask
         # optimization input
-        self.result['x0_all'] = self.x0_all
-        self.result['free_para_all'] = self.free_para_all
         self.result['tolerance'] = self.tol
-        # optimization output
-        self.result['message'] = self.message
-        self.result['convergence'] = self.success
         # optimization variables (output)
         self.result['x_all_fit'] = self.x_all_fit
         self.result['rX1_fit'] = self.rX1_fit
@@ -739,12 +628,72 @@ class Calibrator:
         self.result['t1_single_fit'] = np.asarray(self.t1_single_fit) * self.board_params['square_size_real']
         # Historically, scale_factor=square_size_real, and not part of calibration.
         # New: square_size_real factored into spatial units
-        self.result['scale_factor'] = 1
+
+        self.result['board'] = self.board_params
+        self.result['info'] = self.info
+
+        # Deprecated fields
         self.result['square_size_real'] = self.board_params['square_size_real']
         self.result['marker_size_real'] = self.board_params['marker_size_real']
+        self.result['boardWidth'] = self.board_params['boardWidth']
+        self.result['boardHeight'] = self.board_params['boardHeight']
+        self.result['scale_factor'] = 1
+
         pprint(self.result)
         # save
         self.resultPath = self.dataPath + '/multicalibration.npy'
         np.save(self.resultPath, self.result)
         print('Saved multi camera calibration to file {:s}'.format(self.resultPath))
         return
+
+    @staticmethod
+    def set_detector_parameters():
+        detector_parameters = cv2.aruco.DetectorParameters_create()
+        detector_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+        detector_parameters.cornerRefinementWinSize = 5  # default value
+        detector_parameters.cornerRefinementMaxIterations = 30  # default value
+        detector_parameters.cornerRefinementMinAccuracy = 0.1  # default value
+
+        return detector_parameters
+
+    # plot detection result only works if sensor sizes of all cameras are identical TODO finish refactoring into separate method
+    def plot_detection(self):
+        pass
+        # if verbose:
+        #     img_dummy = np.zeros_like(frame)
+        #     fig = plt.figure(1,
+        #                      figsize=(8, 8))
+        #     nRowsCols = np.int64(np.ceil(np.sqrt(len(self.readers))))
+        #     ax_list = []
+        #     im_list = []
+        #     for i_cam in range(len(self.readers)):
+        #         ax = fig.add_subplot(nRowsCols, nRowsCols, i_cam + 1)
+        #         ax.set_axis_off()
+        #         ax_list.append(ax)
+        #         im = ax_list[i_cam].imshow(img_dummy,
+        #                                    aspect=1,
+        #                                    cmap='gray',
+        #                                    vmin=0,
+        #                                    vmax=255)
+        #         im_list.append(im)
+        #     fig.tight_layout()
+        #     fig.canvas.draw()
+        #     plt.pause(1e-16)
+        #     for i_frame in np.arange(0, self.nFrames, 1, dtype=np.int64):
+        #         for i_cam in range(len(self.readers)):
+        #             frame = reader.get_data(i_frame)
+        #             if len(frame.shape) > 2:
+        #                 frame = frame[:, :, 1]
+        #             ax_list[i_cam].lines = []
+        #             ax_list[i_cam].set_title('cam: {:01d}, frame: {:06d}'.format(i_cam, i_frame))
+        #             im_list[i_cam].set_data(frame)
+        #             if self.allFramesMask[i_cam, i_frame]:
+        #                 corners_plot = np.array(self.allCorners_list[i_cam][i_frame])
+        #                 ax_list[i_cam].plot(corners_plot[:, 0, 0],
+        #                                     corners_plot[:, 0, 1],
+        #                                     linestyle='',
+        #                                     marker='x',
+        #                                     color='red')
+        #         fig.canvas.draw()
+        #         plt.pause(5e-1)
+        #     plt.close(1)

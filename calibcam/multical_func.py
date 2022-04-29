@@ -1,70 +1,33 @@
 import autograd.numpy as np
-import re
 import scipy
-import yaml
 
-def open_cv_matrix(loader, node):
-    mapping = loader.construct_mapping(node, deep=True)
-    mat = np.array(mapping["data"])
-    s = re.findall('\d+', mapping["dt"])
-    nChannels = 1
-    if (s):
-        nChannels = int(s[0])
-    mat.resize(mapping["rows"], mapping["cols"] * nChannels)
-    return mat
+from .helper import check_detections_nondegenerate
 
-def read_YAMLFile(fileName):
-    yaml.add_constructor(u"tag:yaml.org,2002:opencv-matrix", open_cv_matrix)
-    skip_lines = 1
-    with open(fileName) as fin:
-        for i in range(skip_lines):
-            fin.readline()
-        result = yaml.load(fin.read())
-    return result
-
-def read_data(filePath, args):
-    nCameras = args['nCameras']
-
-    calib = dict()
-    for i_camera in range(0, nCameras, 1):
-        calib['cam{:01d}'.format(i_camera)] = \
-            read_YAMLFile(filePath + '/{:02d}/calib.yml'.format(i_camera))
-
-    return calib
-
-def read_data_single(filePath, args):
-    nCameras = args['nCameras']
-
-    calib = dict()
-    for i_camera in range(0, nCameras, 1):
-        calib['cam{:01d}'.format(i_camera)] = \
-            read_YAMLFile(filePath + '/{:02d}/calib_single.yml'.format(i_camera))
-
-    return calib
 
 def rodrigues2rotMat_single(r):
-    theta = np.power(r[0]**2 + r[1]**2 + r[2]**2, 0.5)
+    theta = np.power(r[0] ** 2 + r[1] ** 2 + r[2] ** 2, 0.5)
     u = r / (theta + -np.abs(np.sign(theta)) + 1)
     # row 1
-    rotMat_00 = np.cos(theta) + u[0]**2 * (1 - np.cos(theta))
+    rotMat_00 = np.cos(theta) + u[0] ** 2 * (1 - np.cos(theta))
     rotMat_01 = u[0] * u[1] * (1 - np.cos(theta)) - u[2] * np.sin(theta)
     rotMat_02 = u[0] * u[2] * (1 - np.cos(theta)) + u[1] * np.sin(theta)
 
     # row 2
     rotMat_10 = u[0] * u[1] * (1 - np.cos(theta)) + u[2] * np.sin(theta)
-    rotMat_11 = np.cos(theta) + u[1]**2 * (1 - np.cos(theta))
+    rotMat_11 = np.cos(theta) + u[1] ** 2 * (1 - np.cos(theta))
     rotMat_12 = u[1] * u[2] * (1 - np.cos(theta)) - u[0] * np.sin(theta)
 
     # row 3
     rotMat_20 = u[0] * u[2] * (1 - np.cos(theta)) - u[1] * np.sin(theta)
     rotMat_21 = u[1] * u[2] * (1 - np.cos(theta)) + u[0] * np.sin(theta)
-    rotMat_22 = np.cos(theta) + u[2]**2 * (1 - np.cos(theta))
+    rotMat_22 = np.cos(theta) + u[2] ** 2 * (1 - np.cos(theta))
 
     rotMat = np.array([[rotMat_00, rotMat_01, rotMat_02],
                        [rotMat_10, rotMat_11, rotMat_12],
                        [rotMat_20, rotMat_21, rotMat_22]])
 
     return rotMat
+
 
 def rotMat2rodrigues_single(R):
     r = np.zeros((3, 1), dtype=float)
@@ -73,7 +36,7 @@ def rotMat2rodrigues_single(R):
     r[1] = K[0, 2]
     r[2] = K[1, 0]
 
-    if not(np.all(R == np.identity(3))):
+    if not (np.all(R == np.identity(3))):
         R_logm = scipy.linalg.logm(R)
         thetaM_1 = R_logm[2, 1] / (r[0] + np.equal(r[0], 0.0))
         thetaM_2 = R_logm[0, 2] / (r[1] + np.equal(r[1], 0.0))
@@ -85,10 +48,10 @@ def rotMat2rodrigues_single(R):
 
     return r
 
+
 def calc_xcam(calib, args):
     nCameras = args['nCameras']
     nPoses = args['nPoses']
-    minDetectFeat = args['minDetectFeat']
     indexRefCam = args['indexRefCam']
 
     rcam = dict()
@@ -99,8 +62,8 @@ def calc_xcam(calib, args):
     t11 = np.zeros((3, 1))
     tcam['t{:01d}{:01d}'.format(indexRefCam, indexRefCam)] = t11
     for i_camera in range(0, nCameras, 1):
-        if (i_camera != indexRefCam):
-            rX1 = np.zeros((3, 1), dtype=np.float64)
+        if i_camera != indexRefCam:
+            # rX1 = np.zeros((3, 1), dtype=np.float64)
             RX1 = np.zeros((3, 3), dtype=float)
             tX1 = np.zeros((3, 1), dtype=np.float64)
             nPoses_use = 0
@@ -108,7 +71,7 @@ def calc_xcam(calib, args):
                 idX = calib['cam{:01d}'.format(i_camera)]['charuco_ids'][i_pose]
                 id1 = calib['cam{:01d}'.format(indexRefCam)]['charuco_ids'][i_pose]
                 id_combi = np.intersect1d(idX, id1)
-                if (id_combi.size >= minDetectFeat):
+                if check_detections_nondegenerate(args['board_params'], id_combi):
                     # RX1
                     rotVecX = calib['cam{:01d}'.format(i_camera)]['rotation_vectors'][nPoses_use].ravel()
                     RX = rodrigues2rotMat_single(rotVecX)
@@ -131,6 +94,7 @@ def calc_xcam(calib, args):
             tcam['t{:01d}{:01d}'.format(i_camera, indexRefCam)] = tX1
     return rcam, tcam
 
+
 def set_x0_objFunc(calib, args):
     nCameras = args['nCameras']
     nPoses = args['nPoses']
@@ -149,13 +113,13 @@ def set_x0_objFunc(calib, args):
     rcam, tcam = calc_xcam(calib, args)
     # rX1
     for i_camera in range(0, nCameras, 1):
-        if (i_camera != indexRefCam):
+        if i_camera != indexRefCam:
             rX1 = rcam['r{:01d}{:01d}'.format(i_camera, indexRefCam)]
             x0[i:i + rSize] = rX1.ravel()
             i = i + rSize
     # tX1
     for i_camera in range(0, nCameras, 1):
-        if (i_camera != indexRefCam):
+        if i_camera != indexRefCam:
             tX1 = tcam['t{:01d}{:01d}'.format(i_camera, indexRefCam)]
             x0[i:i + tSize] = tX1.ravel()
             i = i + tSize
@@ -186,6 +150,7 @@ def set_x0_objFunc(calib, args):
 
     return x0
 
+
 def set_x0_objFunc_single(calib_single, args):
     nCameras = args['nCameras']
     nPoses_single = args['nPoses_single']
@@ -211,6 +176,7 @@ def set_x0_objFunc_single(calib_single, args):
 
     return x0_single
 
+
 def obj_fcn_free(x, args):
     nAllVars_all = args['nAllVars_all']
     x0_all = args['x0_all']
@@ -222,6 +188,7 @@ def obj_fcn_free(x, args):
     obj_fcn_free_val = obj_fcn(x_all_use, args)
 
     return obj_fcn_free_val
+
 
 def obj_fcn_jac_free(x, args):
     nAllVars_all = args['nAllVars_all']
@@ -235,19 +202,20 @@ def obj_fcn_jac_free(x, args):
 
     return obj_fcn_jac_free_val
 
+
 def map_calib2consts(calib, args):
     nCameras = args['nCameras']
     nPoses = args['nPoses']
-    nFeatures = args['nFeatures']
+    # nFeatures = args['nFeatures']
     nRes = args['nRes']
     boardWidth = args['boardWidth']
     boardHeight = args['boardHeight']
     nFeatures = args['nFeatures']
-    minDetectFeat = args['minDetectFeat']
 
     # M
-    M_0 = np.repeat(np.arange(1, boardWidth).reshape(1, boardWidth-1), boardHeight-1, axis=0).ravel().reshape(nFeatures, 1)
-    M_1 = np.repeat(np.arange(1, boardHeight), boardWidth-1, axis=0).reshape(nFeatures, 1)
+    M_0 = np.repeat(np.arange(1, boardWidth).reshape(1, boardWidth - 1), boardHeight - 1, axis=0).ravel().reshape(
+        nFeatures, 1)
+    M_1 = np.repeat(np.arange(1, boardHeight), boardWidth - 1, axis=0).reshape(nFeatures, 1)
     M_ini = np.concatenate([M_0, M_1], 1)
 
     M = np.zeros((nRes, 2), dtype=np.float64)
@@ -265,7 +233,7 @@ def map_calib2consts(calib, args):
 
             corners = calib['cam{:01d}'.format(i_camera)]['charuco_corners'][i_pose]
             idX = calib['cam{:01d}'.format(i_camera)]['charuco_ids'][i_pose]
-            if (idX.size >= minDetectFeat):
+            if check_detections_nondegenerate(args['board_params'], idX):
                 index[:] = False
                 index[idX.T[0]] = True
                 # m
@@ -275,19 +243,20 @@ def map_calib2consts(calib, args):
 
     return M, m, delta
 
+
 def map_calib2consts_single(calib_single, args):
     nCameras = args['nCameras']
     nPoses_single = args['nPoses_single']
-    nFeatures = args['nFeatures']
+    # nFeatures = args['nFeatures']
     nRes_single = args['nRes_single']
     boardWidth = args['boardWidth']
     boardHeight = args['boardHeight']
     nFeatures = args['nFeatures']
-    minDetectFeat = args['minDetectFeat']
 
     # M
-    M_0 = np.repeat(np.arange(1, boardWidth).reshape(1, boardWidth-1), boardHeight-1, axis=0).ravel().reshape(nFeatures, 1)
-    M_1 = np.repeat(np.arange(1, boardHeight), boardWidth-1, axis=0).reshape(nFeatures, 1)
+    M_0 = np.repeat(np.arange(1, boardWidth).reshape(1, boardWidth - 1), boardHeight - 1, axis=0).ravel().reshape(
+        nFeatures, 1)
+    M_1 = np.repeat(np.arange(1, boardHeight), boardWidth - 1, axis=0).reshape(nFeatures, 1)
     M_ini = np.concatenate([M_0, M_1], 1)
 
     M_single = np.zeros((nRes_single, 2), dtype=np.float64)
@@ -306,7 +275,7 @@ def map_calib2consts_single(calib_single, args):
             idX = calib_single['cam{:01d}'.format(i_camera)]['charuco_ids'][i_pose]
             index[:] = False
             index[idX.T[0]] = True
-            if (idX.size >= minDetectFeat):
+            if check_detections_nondegenerate(args['board_params'], idX):
                 # m
                 m_single[res_index1:res_index2:1][idX.T[0]] = corners
                 # delta
@@ -314,11 +283,12 @@ def map_calib2consts_single(calib_single, args):
 
     return M_single, m_single, delta_single
 
+
 def rodrigues2rotMat(r, nRes):
-    theta = np.power(r[:, 0]**2 + r[:, 1]**2 + r[:, 2]**2, 0.5)
+    theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
     u = r / (theta + -np.abs(np.sign(theta)) + 1).reshape(nRes, 1)
     # row 1
-    rotMat_00 = np.cos(theta) + u[:, 0]**2 * (1 - np.cos(theta))
+    rotMat_00 = np.cos(theta) + u[:, 0] ** 2 * (1 - np.cos(theta))
     rotMat_01 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) - u[:, 2] * np.sin(theta)
     rotMat_02 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) + u[:, 1] * np.sin(theta)
     rotMat_0 = np.concatenate([rotMat_00.reshape(nRes, 1, 1),
@@ -327,7 +297,7 @@ def rodrigues2rotMat(r, nRes):
 
     # row 2
     rotMat_10 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) + u[:, 2] * np.sin(theta)
-    rotMat_11 = np.cos(theta) + u[:, 1]**2 * (1 - np.cos(theta))
+    rotMat_11 = np.cos(theta) + u[:, 1] ** 2 * (1 - np.cos(theta))
     rotMat_12 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) - u[:, 0] * np.sin(theta)
     rotMat_1 = np.concatenate([rotMat_10.reshape(nRes, 1, 1),
                                rotMat_11.reshape(nRes, 1, 1),
@@ -336,7 +306,7 @@ def rodrigues2rotMat(r, nRes):
     # row 3
     rotMat_20 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) - u[:, 1] * np.sin(theta)
     rotMat_21 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) + u[:, 0] * np.sin(theta)
-    rotMat_22 = np.cos(theta) + u[:, 2]**2 * (1 - np.cos(theta))
+    rotMat_22 = np.cos(theta) + u[:, 2] ** 2 * (1 - np.cos(theta))
     rotMat_2 = np.concatenate([rotMat_20.reshape(nRes, 1, 1),
                                rotMat_21.reshape(nRes, 1, 1),
                                rotMat_22.reshape(nRes, 1, 1)], 2)
@@ -346,6 +316,7 @@ def rodrigues2rotMat(r, nRes):
                              rotMat_2], 1)
 
     return rotMat
+
 
 def map_m(rX1_0, rX1_1, rX1_2,
           tX1_0, tX1_1, tX1_2,
@@ -369,7 +340,6 @@ def map_m(rX1_0, rX1_1, rX1_2,
     t1 = np.concatenate([t1_0.reshape(nRes, 1),
                          t1_1.reshape(nRes, 1),
                          t1_2.reshape(nRes, 1)], 1)
-
 
     RX1 = rodrigues2rotMat(rX1, nRes)
     R1 = rodrigues2rotMat(r1, nRes)
@@ -401,9 +371,10 @@ def map_m(rX1_0, rX1_1, rX1_2,
     x_pre = m_proj_0_2 / m_proj_2_2
     y_pre = m_proj_1_2 / m_proj_2_2
     # distort
-    r2 = x_pre**2 + y_pre**2
+    r2 = x_pre ** 2 + y_pre ** 2
 
     return x_pre, y_pre, r2
+
 
 def calc_res_x(rX1_0, rX1_1, rX1_2,
                tX1_0, tX1_1, tX1_2,
@@ -420,15 +391,16 @@ def calc_res_x(rX1_0, rX1_1, rX1_2,
                              M,
                              nRes)
     # distort
-    x = x_pre * (1 + k_1 * r2 + k_2 * r2**2 + k_3 * r2**3) + \
+    x = x_pre * (1 + k_1 * r2 + k_2 * r2 ** 2 + k_3 * r2 ** 3) + \
         2 * p_1 * x_pre * y_pre + \
-        p_2 * (r2 + 2 * x_pre**2)
+        p_2 * (r2 + 2 * x_pre ** 2)
     # A * m_proj
     x_post = x * fx + cx
 
     res_x = delta * (x_post - m[:, 0])
 
     return res_x
+
 
 def calc_res_y(rX1_0, rX1_1, rX1_2,
                tX1_0, tX1_1, tX1_2,
@@ -445,8 +417,8 @@ def calc_res_y(rX1_0, rX1_1, rX1_2,
                              M,
                              nRes)
     # distort
-    y = y_pre * (1 + k_1 * r2 + k_2 * r2**2 + k_3 * r2**3) + \
-        p_1 * (r2 + 2 * y_pre**2) + \
+    y = y_pre * (1 + k_1 * r2 + k_2 * r2 ** 2 + k_3 * r2 ** 3) + \
+        p_1 * (r2 + 2 * y_pre ** 2) + \
         2 * p_2 * x_pre * y_pre
     # A * m_proj
     y_post = y * fy + cy
@@ -454,6 +426,7 @@ def calc_res_y(rX1_0, rX1_1, rX1_2,
     res_y = delta * (y_post - m[:, 1])
 
     return res_y
+
 
 def calc_paras_from_x(x, args):
     nCameras = args['nCameras']
@@ -491,6 +464,7 @@ def calc_paras_from_x(x, args):
 
     return rX1, tX1, k, A, r1, t1
 
+
 def calc_paras_from_x_single(x_single, args):
     nCameras = args['nCameras']
     nPoses_single = args['nPoses_single']
@@ -518,6 +492,7 @@ def calc_paras_from_x_single(x_single, args):
         t1_single[i_camera][:nPoses_single[i_camera]] = x_use[:, 1]
 
     return r1_single, t1_single
+
 
 def calc_paras_from_x_single2(x_single, args):
     nCameras = args['nCameras']
@@ -548,6 +523,7 @@ def calc_paras_from_x_single2(x_single, args):
 
     return r1_single, t1_single
 
+
 def map_r2R(r):
     n_iter = np.size(r, 0)
 
@@ -556,6 +532,7 @@ def map_r2R(r):
         R[i] = rodrigues2rotMat_single(r[i, :])
 
     return R
+
 
 def map_xOpt2xRes(x_opt, args):
     nCameras = args['nCameras']
@@ -642,6 +619,7 @@ def map_xOpt2xRes(x_opt, args):
 
     return x_res_all
 
+
 def obj_fcn(x_opt, args):
     M = args['M']
     m = args['m']
@@ -675,7 +653,8 @@ def obj_fcn(x_opt, args):
     # single
     obj_fcn_val_x_single = calc_res_x(x_res[nRes:, 0], x_res[nRes:, 1], x_res[nRes:, 2],
                                       x_res[nRes:, 3], x_res[nRes:, 4], x_res[nRes:, 5],
-                                      x_res[nRes:, 6], x_res[nRes:, 7], x_res[nRes:, 8], x_res[nRes:, 9], x_res[nRes:, 10],
+                                      x_res[nRes:, 6], x_res[nRes:, 7], x_res[nRes:, 8], x_res[nRes:, 9],
+                                      x_res[nRes:, 10],
                                       x_res[nRes:, 11], x_res[nRes:, 12], x_res[nRes:, 13], x_res[nRes:, 14],
                                       x_res[nRes:, 15], x_res[nRes:, 16], x_res[nRes:, 17],
                                       x_res[nRes:, 18], x_res[nRes:, 19], x_res[nRes:, 20],
@@ -683,7 +662,8 @@ def obj_fcn(x_opt, args):
                                       nRes_single)
     obj_fcn_val_y_single = calc_res_y(x_res[nRes:, 0], x_res[nRes:, 1], x_res[nRes:, 2],
                                       x_res[nRes:, 3], x_res[nRes:, 4], x_res[nRes:, 5],
-                                      x_res[nRes:, 6], x_res[nRes:, 7], x_res[nRes:, 8], x_res[nRes:, 9], x_res[nRes:, 10],
+                                      x_res[nRes:, 6], x_res[nRes:, 7], x_res[nRes:, 8], x_res[nRes:, 9],
+                                      x_res[nRes:, 10],
                                       x_res[nRes:, 11], x_res[nRes:, 12], x_res[nRes:, 13], x_res[nRes:, 14],
                                       x_res[nRes:, 15], x_res[nRes:, 16], x_res[nRes:, 17],
                                       x_res[nRes:, 18], x_res[nRes:, 19], x_res[nRes:, 20],
@@ -694,6 +674,7 @@ def obj_fcn(x_opt, args):
                                   obj_fcn_val_x_single, obj_fcn_val_y_single], 0)
 
     return obj_fcn_val
+
 
 def obj_fcn_jac(x_opt, args):
     nRes = args['nRes']
@@ -707,6 +688,7 @@ def obj_fcn_jac(x_opt, args):
     jac = np.concatenate([jac_multi, jac_single], 0)
 
     return jac
+
 
 def fill_jac_multi(x_res, args):
     nCameras = args['nCameras']
@@ -742,21 +724,25 @@ def fill_jac_multi(x_res, args):
     for i in range(0, rSize, 1):
         df_dx = args['jac_x'][i + args_i](x_res[indexRef, 0], x_res[indexRef, 1], x_res[indexRef, 2],
                                           x_res[indexRef, 3], x_res[indexRef, 4], x_res[indexRef, 5],
-                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8], x_res[indexRef, 9], x_res[indexRef, 10],
-                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13], x_res[indexRef, 14],
+                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8],
+                                          x_res[indexRef, 9], x_res[indexRef, 10],
+                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13],
+                                          x_res[indexRef, 14],
                                           x_res[indexRef, 15], x_res[indexRef, 16], x_res[indexRef, 17],
                                           x_res[indexRef, 18], x_res[indexRef, 19], x_res[indexRef, 20],
                                           M[indexRef], m[indexRef], delta[indexRef],
-                                          nRes-resPerCam).reshape(nCameras - 1, resPerCam)
+                                          nRes - resPerCam).reshape(nCameras - 1, resPerCam)
         obj_fcn_jac_val_x[indexRef, i + out_i:rSize * (nCameras - 1) + out_i:rSize] = scipy.linalg.block_diag(*df_dx).T
         df_dx = args['jac_y'][i + args_i](x_res[indexRef, 0], x_res[indexRef, 1], x_res[indexRef, 2],
                                           x_res[indexRef, 3], x_res[indexRef, 4], x_res[indexRef, 5],
-                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8], x_res[indexRef, 9], x_res[indexRef, 10],
-                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13], x_res[indexRef, 14],
+                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8],
+                                          x_res[indexRef, 9], x_res[indexRef, 10],
+                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13],
+                                          x_res[indexRef, 14],
                                           x_res[indexRef, 15], x_res[indexRef, 16], x_res[indexRef, 17],
                                           x_res[indexRef, 18], x_res[indexRef, 19], x_res[indexRef, 20],
                                           M[indexRef], m[indexRef], delta[indexRef],
-                                          nRes-resPerCam).reshape(nCameras - 1, resPerCam)
+                                          nRes - resPerCam).reshape(nCameras - 1, resPerCam)
         obj_fcn_jac_val_y[indexRef, i + out_i:rSize * (nCameras - 1) + out_i:rSize] = scipy.linalg.block_diag(*df_dx).T
     args_i = args_i + rSize
     out_i = out_i + (nCameras - 1) * rSize
@@ -764,21 +750,25 @@ def fill_jac_multi(x_res, args):
     for i in range(0, tSize, 1):
         df_dx = args['jac_x'][i + args_i](x_res[indexRef, 0], x_res[indexRef, 1], x_res[indexRef, 2],
                                           x_res[indexRef, 3], x_res[indexRef, 4], x_res[indexRef, 5],
-                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8], x_res[indexRef, 9], x_res[indexRef, 10],
-                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13], x_res[indexRef, 14],
+                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8],
+                                          x_res[indexRef, 9], x_res[indexRef, 10],
+                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13],
+                                          x_res[indexRef, 14],
                                           x_res[indexRef, 15], x_res[indexRef, 16], x_res[indexRef, 17],
                                           x_res[indexRef, 18], x_res[indexRef, 19], x_res[indexRef, 20],
                                           M[indexRef], m[indexRef], delta[indexRef],
-                                          nRes-resPerCam).reshape(nCameras - 1, resPerCam)
+                                          nRes - resPerCam).reshape(nCameras - 1, resPerCam)
         obj_fcn_jac_val_x[indexRef, i + out_i:tSize * (nCameras - 1) + out_i:tSize] = scipy.linalg.block_diag(*df_dx).T
         df_dx = args['jac_y'][i + args_i](x_res[indexRef, 0], x_res[indexRef, 1], x_res[indexRef, 2],
                                           x_res[indexRef, 3], x_res[indexRef, 4], x_res[indexRef, 5],
-                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8], x_res[indexRef, 9], x_res[indexRef, 10],
-                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13], x_res[indexRef, 14],
+                                          x_res[indexRef, 6], x_res[indexRef, 7], x_res[indexRef, 8],
+                                          x_res[indexRef, 9], x_res[indexRef, 10],
+                                          x_res[indexRef, 11], x_res[indexRef, 12], x_res[indexRef, 13],
+                                          x_res[indexRef, 14],
                                           x_res[indexRef, 15], x_res[indexRef, 16], x_res[indexRef, 17],
                                           x_res[indexRef, 18], x_res[indexRef, 19], x_res[indexRef, 20],
                                           M[indexRef], m[indexRef], delta[indexRef],
-                                          nRes-resPerCam).reshape(nCameras - 1, resPerCam)
+                                          nRes - resPerCam).reshape(nCameras - 1, resPerCam)
         obj_fcn_jac_val_y[indexRef, i + out_i:tSize * (nCameras - 1) + out_i:tSize] = scipy.linalg.block_diag(*df_dx).T
     args_i = args_i + tSize
     out_i = out_i + (nCameras - 1) * tSize
@@ -817,13 +807,13 @@ def fill_jac_multi(x_res, args):
                                           nRes).reshape(nCameras, resPerCam)
         obj_fcn_jac_val_x[:, i + out_i:ASize * nCameras + out_i:ASize] = scipy.linalg.block_diag(*df_dx).T
         df_dx = args['jac_y'][i + ASize_use + args_i](x_res[:, 0], x_res[:, 1], x_res[:, 2],
-                                          x_res[:, 3], x_res[:, 4], x_res[:, 5],
-                                          x_res[:, 6], x_res[:, 7], x_res[:, 8], x_res[:, 9], x_res[:, 10],
-                                          x_res[:, 11], x_res[:, 12], x_res[:, 13], x_res[:, 14],
-                                          x_res[:, 15], x_res[:, 16], x_res[:, 17],
-                                          x_res[:, 18], x_res[:, 19], x_res[:, 20],
-                                          M, m, delta,
-                                          nRes).reshape(nCameras, resPerCam)
+                                                      x_res[:, 3], x_res[:, 4], x_res[:, 5],
+                                                      x_res[:, 6], x_res[:, 7], x_res[:, 8], x_res[:, 9], x_res[:, 10],
+                                                      x_res[:, 11], x_res[:, 12], x_res[:, 13], x_res[:, 14],
+                                                      x_res[:, 15], x_res[:, 16], x_res[:, 17],
+                                                      x_res[:, 18], x_res[:, 19], x_res[:, 20],
+                                                      M, m, delta,
+                                                      nRes).reshape(nCameras, resPerCam)
         obj_fcn_jac_val_y[:, i + ASize_use + out_i:ASize * nCameras + out_i:ASize] = scipy.linalg.block_diag(*df_dx).T
     args_i = args_i + ASize
     out_i = out_i + nCameras * ASize
@@ -878,6 +868,7 @@ def fill_jac_multi(x_res, args):
     obj_fcn_jac_val = np.concatenate([obj_fcn_jac_val_x, obj_fcn_jac_val_y], 0)
 
     return obj_fcn_jac_val
+
 
 def fill_jac_single(x_res, args):
     nCameras = args['nCameras']
@@ -955,13 +946,14 @@ def fill_jac_single(x_res, args):
             obj_fcn_jac_val_x[mask, i + out_i + i_camera * ASize] = df_dx
 
             df_dx = args['jac_y'][i + args_i + ASize_use](x_use[:, 0], x_use[:, 1], x_use[:, 2],
-                                              x_use[:, 3], x_use[:, 4], x_use[:, 5],
-                                              x_use[:, 6], x_use[:, 7], x_use[:, 8], x_use[:, 9], x_use[:, 10],
-                                              x_use[:, 11], x_use[:, 12], x_use[:, 13], x_use[:, 14],
-                                              x_use[:, 15], x_use[:, 16], x_use[:, 17],
-                                              x_use[:, 18], x_use[:, 19], x_use[:, 20],
-                                              M_use, m_use, delta_use,
-                                              resPerCam_single[i_camera])
+                                                          x_use[:, 3], x_use[:, 4], x_use[:, 5],
+                                                          x_use[:, 6], x_use[:, 7], x_use[:, 8], x_use[:, 9],
+                                                          x_use[:, 10],
+                                                          x_use[:, 11], x_use[:, 12], x_use[:, 13], x_use[:, 14],
+                                                          x_use[:, 15], x_use[:, 16], x_use[:, 17],
+                                                          x_use[:, 18], x_use[:, 19], x_use[:, 20],
+                                                          M_use, m_use, delta_use,
+                                                          resPerCam_single[i_camera])
             obj_fcn_jac_val_y[mask, i + out_i + i_camera * ASize + ASize_use] = df_dx
 
         args_i = args_i + ASize
@@ -974,11 +966,12 @@ def fill_jac_single(x_res, args):
                                               x_use[:, 15], x_use[:, 16], x_use[:, 17],
                                               x_use[:, 18], x_use[:, 19], x_use[:, 20],
                                               M_use, m_use, delta_use,
-                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera], nFeatures)
-            obj_fcn_jac_val_x[mask, \
-                              nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i: \
-                              nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i:
-                              rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
+                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera],
+                                                                                       nFeatures)
+            obj_fcn_jac_val_x[mask,
+            nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i:
+            nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i:
+            rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
 
             df_dx = args['jac_y'][i + args_i](x_use[:, 0], x_use[:, 1], x_use[:, 2],
                                               x_use[:, 3], x_use[:, 4], x_use[:, 5],
@@ -987,11 +980,11 @@ def fill_jac_single(x_res, args):
                                               x_use[:, 15], x_use[:, 16], x_use[:, 17],
                                               x_use[:, 18], x_use[:, 19], x_use[:, 20],
                                               M_use, m_use, delta_use,
-                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera], nFeatures)
-            obj_fcn_jac_val_y[mask, \
-                              nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i: \
-                              nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i:
-                              rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
+                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera],
+                                                                                       nFeatures)
+            obj_fcn_jac_val_y[mask, nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i:
+            nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i:
+            rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
 
         args_i = args_i + rSize
 
@@ -1004,11 +997,12 @@ def fill_jac_single(x_res, args):
                                               x_use[:, 15], x_use[:, 16], x_use[:, 17],
                                               x_use[:, 18], x_use[:, 19], x_use[:, 20],
                                               M_use, m_use, delta_use,
-                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera], nFeatures)
-            obj_fcn_jac_val_x[mask, \
-                              nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i + rSize: \
-                              nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i + rSize:
-                              rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
+                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera],
+                                                                                       nFeatures)
+            obj_fcn_jac_val_x[mask,
+            nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i + rSize:
+            nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i + rSize:
+            rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
 
             df_dx = args['jac_y'][i + args_i](x_use[:, 0], x_use[:, 1], x_use[:, 2],
                                               x_use[:, 3], x_use[:, 4], x_use[:, 5],
@@ -1017,170 +1011,14 @@ def fill_jac_single(x_res, args):
                                               x_use[:, 15], x_use[:, 16], x_use[:, 17],
                                               x_use[:, 18], x_use[:, 19], x_use[:, 20],
                                               M_use, m_use, delta_use,
-                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera], nFeatures)
-            obj_fcn_jac_val_y[mask, \
-                              nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i + rSize: \
-                              nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i + rSize:
-                              rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
-
+                                              int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera],
+                                                                                       nFeatures)
+            obj_fcn_jac_val_y[mask,
+            nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i + rSize:
+            nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i + rSize:
+            rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
 
     obj_fcn_jac_val = np.concatenate([obj_fcn_jac_val_x, obj_fcn_jac_val_y], 0)
 
     return obj_fcn_jac_val
-
-
-def save_multicalibration_to_matlabcode(result,path):
-    result_path_text = path + '/multicalibration_matlab_mcl_gen.m'
-
-    f = open(result_path_text, 'w')
-
-    f.write('% INFO:\n')
-    f.write('% line break: \n \n')
-    f.write('% See: https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html\n')
-    f.write('\n\n\n')
-
-    i = 'nCameras'
-    n_cams = result[i]
-    f.write('% number of cameras:\n')
-    f.write('nCams = {:01d}\n'.format(n_cams))
-    f.write('\n\n')
-
-    i = 'recFileNames'
-    f.write('% full path of used files (order equal to camera indexing):\n')
-    f.write('f = { ...\n')
-    for j in result[i]:
-        f.write('\'' + str(j) + '\',...\n')
-    f.write('}\n')
-    f.write('\n\n')
-
-    i = 'indexRefCam'
-    f.write('% index of reference camera (starts at 0):\n')
-    f.write('index_refCam = {:01d}\n'.format(result[i]))
-    f.write('\n\n')
-
-    i = 'A_fit'
-    data_use = result[i]
-    f.write('% camera matrices [f_x, c_x, f_y, c_y]:\n')
-    f.write('A = [ ...\n')
-    for i_cam in range(n_cams):
-        for i_row in range(4):
-            f.write(str(data_use[i_cam, i_row]) + ' ')
-        if i_cam != n_cams - 1:
-            f.write('; ...\n')
-        else:
-            f.write(']\n')
-    f.write('\n\n')
-
-    i = 'k_fit'
-    data_use = result[i]
-    f.write('% distortion coefficients [k_1, k_2, p_1, p_2, k_3]:\n')
-    f.write('k = [ ...\n')
-    for i_cam in range(n_cams):
-        for i_row in range(5):
-            f.write(str(data_use[i_cam, i_row]) + ' ')
-        if i_cam != n_cams - 1:
-            f.write('; ...\n')
-        else:
-            f.write(']\n')
-    f.write('\n\n')
-
-    i = 'RX1_fit'
-    data_use = result[i]
-    f.write('% rotation matrices to convert into coordinate system of the respective camera:\n')
-    f.write('R = cat(3, ...\n')
-    for i_cam in range(n_cams):
-        f.write('[')
-        for i_row in range(3):
-            for i_col in range(3):
-                f.write(str(data_use[i_cam, i_row, i_col]) + ' ')
-            if i_row != 2:
-                f.write('; ...\n')
-            else:
-                if i_cam != n_cams - 1:
-                    f.write('], ...\n')
-                else:
-                    f.write('])\n')
-    f.write('\n\n')
-
-    i = 'tX1_fit'
-    data_use = result[i]
-    f.write('% translation vectors to convert into coordinate system of the respective camera (units in squares):\n')
-    f.write('t = [ ...\n')
-    for i_cam in range(n_cams):
-        for i_row in range(3):
-            f.write(str(data_use[i_cam, i_row]) + ' ')
-        if i_cam != n_cams - 1:
-            f.write('; ...\n')
-        else:
-            f.write(']\'\n')
-    f.write('\n\n')
-
-    i = 'headers'
-    data_use = result[i]
-
-    f.write('% sensor size in pixel:\n')
-    f.write('sensorSize = [ ...\n')
-    for i_cam in range(n_cams):
-        for i_row in range(2):
-            f.write(str(data_use[i_cam]['sensorsize'][i_row]) + ' ')
-        if i_cam != n_cams - 1:
-            f.write('; ...\n')
-        else:
-            f.write(']\n')
-    f.write('\n\n')
-
-    f.write('% offset in pixel:\n')
-    f.write('offset = [ ...\n')
-    for i_cam in range(n_cams):
-        for i_row in range(2):
-            f.write(str(data_use[i_cam]['offset'][i_row]) + ' ')
-        if i_cam != n_cams - 1:
-            f.write('; ...\n')
-        else:
-            f.write(']\n')
-    f.write('\n\n')
-
-    # optional:
-    # f.write('% used width in pixel:\n')
-    # f.write('width = [ ...\n')
-    # for i_cam in range(nCams):
-    #    f.write(str(data_use[i_cam]['w']) + ' ')
-    #    if (i_cam != nCams - 1):
-    #        f.write('; ...\n')
-    #    else:
-    #        f.write(']\n')
-    # f.write('\n\n')
-    #
-    # f.write('% used height in pixel:\n')
-    # f.write('height = [ ...\n')
-    # for i_cam in range(nCams):
-    #     f.write(str(data_use[i_cam]['h']) + ' ')
-    #     if (i_cam != nCams - 1):
-    #         f.write('; ...\n')
-    #     else:
-    #         f.write(']\n')
-    # f.write('\n\n')
-
-    f.write('% square size in cm:\n')
-    f.write('square_size = {:.8f}\n'.format(result['square_size_real']))
-    f.write('\n\n')
-
-    f.write('% marker size in cm:\n')
-    f.write('marker_size = {:.8f}\n'.format(result['marker_size_real']))
-    f.write('\n\n')
-
-    f.write('% scale factor in cm:\n')
-    f.write('scale_factor = {:.8f}\n'.format(result['scale_factor']))
-    f.write('\n\n')
-
-    f.write(
-        "[mc ,mcfn] = cameralib.helper.openCVToMCL(R,t,A,k,sensorSize,scale_factor,bbohelper.filesystem.filename(f))\n"
-        "mcl = cameralib.MultiCamSetupModel.fromMCL(mcfn)\n"
-        "mcl.save([mcfn(1:end-3) 'mat'])\n"
-    )
-
-    f.close()
-    print('Saved multi camera calibration to file {:s}'.format(result_path_text))
-    return
-
 
