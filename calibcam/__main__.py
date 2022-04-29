@@ -2,6 +2,7 @@
 import argparse
 from .calibrator import Calibrator
 
+
 def main():
     # PArse command line arguments
     parser = argparse.ArgumentParser(description="Calibrate set of cameras")
@@ -12,6 +13,7 @@ def main():
     calibrator = Calibrator(board_name=args.board[0])
 
     if args.videos is None:
+        print('Starting viewer')
         from .gui import main as gui_main
         gui_main(calibrator)
     else:

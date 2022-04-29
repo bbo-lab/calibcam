@@ -31,13 +31,12 @@ class UnequalFrameCountException(Exception):
 # TODO: reorganize output. class should print anything itself ...
 class Calibrator:
     def __init__(self, board_name=None):
-        self.board_name = board_name
+        self.set_board(board_name)
 
         self.readers = None
         self.board_params = None
         self.board = None
         self.recFileNames = []
-        self.headers = []
         self.dataPath = None
         self.nCameras = np.NaN
         self.nFrames = np.NaN
@@ -106,7 +105,7 @@ class Calibrator:
         self.allIds_list = []
         self.mask_single = np.empty(0)  # later nC x nF, mask of frames that are only detected in one camera
         self.mask_multi = np.empty(0)  # later nF
-        self.indexRefCam = []
+        self.indexRefCam = np.nan
         self.cal_single_list = []  # later nC, List of calibration from mask_single frames
         self.nPoses_single = []  # later nC
         self.calib_single = dict()
@@ -114,6 +113,7 @@ class Calibrator:
         self.calib_multi = dict()
         self.nPoses = int(0)
 
+        # flags and criteria for cv2.aruco.calibrateCameraCharuco
         self.flags = (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3)
         self.criteria = (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
                          30,
@@ -122,32 +122,30 @@ class Calibrator:
         self.args = dict()  # Arguments for optimization
         return
 
-    def reset(self):
+    def reset_recordings(self):
         self.recFileNames = []
-        self.headers = []
         self.dataPath = None
         self.nCameras = np.NaN
         self.nFrames = np.NaN
         self.recordingIsLoaded = False
         self.result = None
 
-    def generate_board(self):
-        if self.board_params is None:
-            if self.board_name is not None:
-                self.board_params = get_board_params(self.board_name)
-            else:
-                self.board_params = get_board_params(Path(self.recFileNames[0]).parent)
+    def set_board(self, board_name):
+        if board_name is not None:
+            self.board_params = get_board_params(board_name)
+        else:
+            self.board_params = get_board_params(Path(self.recFileNames[0]).parent)
 
-            self.nFeatures = (self.board_params['boardWidth'] - 1) * (self.board_params['boardHeight'] - 1)
-            self.minDetectFeat = int(max(self.board_params['boardWidth'], self.board_params['boardHeight']))
-            self.board = cv2.aruco.CharucoBoard_create(self.board_params['boardWidth'],
-                                                       self.board_params['boardHeight'],
-                                                       self.board_params['square_size'],
-                                                       self.board_params['marker_size'],
-                                                       self.board_params['dictionary'])
+        self.nFeatures = (self.board_params['boardWidth'] - 1) * (self.board_params['boardHeight'] - 1)
+        self.minDetectFeat = int(max(self.board_params['boardWidth'], self.board_params['boardHeight']))
+        self.board = cv2.aruco.CharucoBoard_create(self.board_params['boardWidth'],
+                                                   self.board_params['boardHeight'],
+                                                   self.board_params['square_size'],
+                                                   self.board_params['marker_size'],
+                                                   self.board_params['dictionary'])
         return
 
-    def set_recordings(self, recordings):
+    def set_recordings(self, recordings, allow_unequal=False):
         # check if input files are valid files:
         try:
             self.readers = [imageio.get_reader(rec) for rec in recordings]
@@ -161,81 +159,77 @@ class Calibrator:
 
         n_frames = np.zeros(self.nCameras, dtype=np.int64)
         for (i_cam, reader) in enumerate(self.readers):
-            n_frames[i_cam] = len(reader)  # len() may be Inf for formats where counting frames can be expensive
-            if 1000000000000000 < n_frames[i_cam]:
-                try:
-                    n_frames[i_cam] = reader.count_frames()
-                except ValueError:
-                    print('Could not determine number of frames')
-                    raise UnsupportedFormatException
-
-            header = reader.get_meta_data()
-            # Add required headers that are not normally part of standard video formats but are required information for a full calibration
-            # TODO add option to supply this via options. Currently, compressed
-            if "sensor" in header:
-                header['offset'] = tuple(header['sensor']['offset'])
-                header['sensorsize'] = tuple(header['sensor']['size'])
-                del header['sensor']
-            else:
-                print("Inferring sensor size from image and setting offset to 0!")
-                header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
-                header['offset'] = tuple(np.asarray([0, 0]))
-
-            print(header)
-            for k in header:
-                print(type(header[k]))
-            self.headers.append(header)
+            n_frames[i_cam] = self.get_frames_from_cam(reader)
 
         self.nFrames = n_frames[0]
         # check if frame number is consistent:
-        if np.all(np.equal(n_frames[0], n_frames[1:])):
-            # if everything is fine keep on going with the calibration
-            self.recordingIsLoaded = True
-        else:
-            self.nFrames = np.int64(np.min(n_frames))
+        if not np.all(np.equal(n_frames[0], n_frames[1:])):
             print('WARNING: Number of frames is not identical for all cameras')
             print('Number of detected frames per camera:')
             for (i_cam, nF) in enumerate(n_frames):
                 print(f'\tcamera {i_cam:03d}:\t{nF:04d}')
 
-            # raise exception for outside confirmation
-            raise UnequalFrameCountException
+            if allow_unequal:
+                self.nFrames = np.int64(np.min(n_frames))
+            else:
+                # raise exception for outside confirmation
+                raise UnequalFrameCountException
+        self.recordingIsLoaded = True
 
-    def perform_multi_calibration(self):
-        self.generate_board()
-
-        # detect corners
+        # Initialize quantities with camera and frame sizes
         self.allFramesMask = np.zeros((self.nCameras, self.nFrames),
                                       dtype=bool)
-        self.allCorners_list = []
-        self.allIds_list = []
-        self.detect_corners()
-        # split into two frame sets
-        # first set contains frames for single calibration
-        # second set contains frames for multi calibration
         self.mask_single = np.zeros((self.nCameras, self.nFrames),
                                     dtype=bool)
         self.mask_multi = np.zeros(self.nFrames, dtype=bool)
-        self.indexRefCam = np.nan
-        self.split_frame_sets()
-        # flags and criteria for cv2.aruco.calibrateCameraCharuco
-        self.flags = (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3)
-        self.criteria = (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
-                         30,
-                         float(np.finfo(np.float32).eps))
-        # perform single calibration
-        self.cal_single_list = []
-        self.perform_single_calibration()
-        # generate calib_single
-        self.calib_single = dict()
         self.nPoses_single = np.zeros(self.nCameras, dtype=np.int64)
+
+    @staticmethod
+    def get_frames_from_cam(reader):
+        n_frames = len(reader)  # len() may be Inf for formats where counting frames can be expensive
+        if 1000000000000000 < n_frames:
+            try:
+                n_frames = reader.count_frames()
+            except ValueError:
+                print('Could not determine number of frames')
+                raise UnsupportedFormatException
+
+        return n_frames
+
+    @staticmethod
+    def get_header(reader):
+        header = reader.get_meta_data()
+        # Add required headers that are not normally part of standard video formats but are required information for a full calibration
+        # TODO add option to supply this via options. Currently, compressed
+        if "sensor" in header:
+            header['offset'] = tuple(header['sensor']['offset'])
+            header['sensorsize'] = tuple(header['sensor']['size'])
+            del header['sensor']
+        else:
+            print("Inferring sensor size from image and setting offset to 0!")
+            header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
+            header['offset'] = tuple(np.asarray([0, 0]))
+        return header
+
+    def perform_multi_calibration(self):
+        # detect corners
+        self.detect_corners()
+
+        # split into two frame sets
+        # first set contains frames for single calibration
+        # second set contains frames for multi calibration
+        self.split_frame_sets()
+
+        # perform single calibration
+        self.perform_single_calibration()
+
+        # generate calib_single
         self.generate_calib_single()
+
         # perform multi calibration
-        self.cal_multi_list = []
         self.perform_single_calibration_for_multi()
+
         # generate calib_multi
-        self.calib_multi = dict()
-        self.nPoses = int(0)
         self.generate_calib_multi()
 
         # the following functions are based on multical_main.py
@@ -250,92 +244,24 @@ class Calibrator:
         print('FINISHED MULTI CAMERA CALIBRATION')
         return
 
-    def detect_corners(self):
-        print('DETECTING FEATURES')
+    @staticmethod
+    def set_detector_parameters():
         detector_parameters = cv2.aruco.DetectorParameters_create()
         detector_parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
         detector_parameters.cornerRefinementWinSize = 5  # default value
         detector_parameters.cornerRefinementMaxIterations = 30  # default value
         detector_parameters.cornerRefinementMinAccuracy = 0.1  # default value
-        for i_cam in range(self.nCameras):
+
+        return detector_parameters
+
+    def detect_corners(self):
+        print('DETECTING FEATURES')
+        for i_cam, reader in enumerate(self.readers):
             print('Detecting features in camera {:02d}'.format(i_cam))
-            allCorners = []
-            allIds = []
-            previousUsedFrame = np.nan
-            previousCorners = np.zeros((self.nFeatures, 2), dtype=np.float64)
-            currentCorners = np.zeros((self.nFeatures, 2), dtype=np.float64)
-            # calculate offset
+            all_corners, all_ids = self.detect_corners_cam(reader)
 
-            offset_x = self.headers[i_cam]['offset'][0]
-            offset_y = self.headers[i_cam]['offset'][1]
-            for i_frame in range(self.nFrames):
-                maskValue2add = False
-                corners2add = []
-                ids2add = []
-                # feature detection
-                frame = self.readers[i_cam].get_data(i_frame)
-                if len(frame.shape) > 2:
-                    frame = frame[:, :, 1]
-                res = cv2.aruco.detectMarkers(frame,
-                                              self.board_params['dictionary'],
-                                              parameters=detector_parameters)
-
-                if len(res[0]) > 0:
-                    res_ref = cv2.aruco.refineDetectedMarkers(frame,
-                                                              self.board,
-                                                              res[0],
-                                                              res[1],
-                                                              res[2],
-                                                              minRepDistance=10.0,
-                                                              errorCorrectionRate=3.0,
-                                                              checkAllOrders=True,
-                                                              parameters=detector_parameters)
-                    res2 = cv2.aruco.interpolateCornersCharuco(res_ref[0],
-                                                               res_ref[1],
-                                                               frame,
-                                                               self.board,
-                                                               minMarkers=2)
-
-                    # checks if the requested minimum number of features are detected
-                    if res2[0] >= self.minDetectFeat:
-                        # add offset
-                        res2[1][:, :, 0] = res2[1][:, :, 0] + offset_x
-                        res2[1][:, :, 1] = res2[1][:, :, 1] + offset_y
-                        maskValue2add = True
-                        corners2add = np.copy(res2[1])
-                        ids2add = np.copy(res2[2])
-                        # checks if consecutive frames are too similar
-                        if not (np.isnan(previousUsedFrame)):
-                            # get current and previous features
-                            previousCorners[:, :] = 0
-                            previousCorners[allIds[previousUsedFrame].ravel()] = allCorners[previousUsedFrame].squeeze()
-                            currentCorners[:, :] = 0
-                            currentCorners[res2[2].ravel()] = res2[1].squeeze()
-                            # calculates euclidian distance between features
-                            diff = currentCorners - previousCorners
-                            ids_use = np.intersect1d(allIds[previousUsedFrame].ravel(),
-                                                     res2[2].ravel())
-                            diff = diff[ids_use]
-                            dist = np.sqrt(np.sum(diff ** 2, 1))
-
-                            # use frame when all ids are different
-                            if np.size(dist) == 0:
-                                dist_max = np.inf
-                            else:
-                                dist_max = np.max(dist)
-                            # check if maximum distance is high enough
-                            if not (dist_max > 0.0):
-                                maskValue2add = False
-                                corners2add = []
-                                ids2add = []
-                if maskValue2add:
-                    previousUsedFrame = np.copy(i_frame)
-
-                self.allFramesMask[i_cam, i_frame] = maskValue2add
-                allCorners.append(corners2add)
-                allIds.append(ids2add)
-            self.allCorners_list.append(allCorners)
-            self.allIds_list.append(allIds)
+            self.allCorners_list.append(all_corners)
+            self.allIds_list.append(all_ids)
             print(
                 'Detected features in {:04d} frames in camera {:02d}'.format(np.sum(self.allFramesMask[i_cam]), i_cam))
         return
@@ -362,7 +288,7 @@ class Calibrator:
         #     plt.pause(1e-16)
         #     for i_frame in np.arange(0, self.nFrames, 1, dtype=np.int64):
         #         for i_cam in range(self.nCameras):
-        #             frame = self.readers[i_cam].get_data(i_frame)
+        #             frame = reader.get_data(i_frame)
         #             if len(frame.shape) > 2:
         #                 frame = frame[:, :, 1]
         #             ax_list[i_cam].lines = []
@@ -379,6 +305,89 @@ class Calibrator:
         #         plt.pause(5e-1)
         #     plt.close(1)
         #     raise
+
+    def detect_corners_cam(self, reader):
+        all_corners = []
+        all_ids = []
+        previous_used_frame = np.nan
+        previous_corners = np.zeros((self.nFeatures, 2), dtype=np.float64)
+        current_corners = np.zeros((self.nFeatures, 2), dtype=np.float64)
+
+        # calculate offset
+        offset_x = self.get_header(reader)['offset'][0]
+        offset_y = self.get_header(reader)['offset'][1]
+
+        for (i_frame, frame) in enumerate(reader):
+            mask_value2add = False
+            corners2add = []
+            ids2add = []
+            # feature detection
+            if len(frame.shape) > 2:
+                frame = frame[:, :, 1]
+            corners, ids, rejectedImgPoints = \
+                cv2.aruco.detectMarkers(frame,
+                                        self.board_params['dictionary'],
+                                        parameters=self.set_detector_parameters())
+
+            if len(corners) > 0:
+                corners_ref, ids_ref = \
+                    cv2.aruco.refineDetectedMarkers(frame,
+                                                    self.board,
+                                                    corners,
+                                                    ids,
+                                                    rejectedImgPoints,
+                                                    minRepDistance=10.0,
+                                                    errorCorrectionRate=3.0,
+                                                    checkAllOrders=True,
+                                                    parameters=self.set_detector_parameters())[0:2]
+                retval, charucoCorners, charucoIds = \
+                    cv2.aruco.interpolateCornersCharuco(corners_ref,
+                                                        ids_ref,
+                                                        frame,
+                                                        self.board,
+                                                        minMarkers=2)
+                print(f"charucoIds {charucoIds}")
+                # checks if the requested minimum number of features are detected
+                if retval >= self.minDetectFeat:
+                    # add offset
+                    charucoCorners[:, :, 0] = charucoCorners[:, :, 0] + offset_x
+                    charucoCorners[:, :, 1] = charucoCorners[:, :, 1] + offset_y
+                    mask_value2add = True
+                    corners2add = np.copy(charucoCorners)
+                    ids2add = np.copy(charucoIds)
+                    # checks if consecutive frames are too similar
+                    if not (np.isnan(previous_used_frame)):
+                        # get current and previous features
+                        previous_corners[:, :] = 0
+                        previous_corners[all_ids[previous_used_frame].ravel()] = all_corners[
+                            previous_used_frame].squeeze()
+                        current_corners[:, :] = 0
+                        current_corners[charucoIds.ravel()] = charucoCorners.squeeze()
+                        # calculates euclidian distance between features
+                        diff = current_corners - previous_corners
+                        ids_use = np.intersect1d(all_ids[previous_used_frame].ravel(),
+                                                 charucoIds.ravel())
+                        diff = diff[ids_use]
+                        dist = np.sqrt(np.sum(diff ** 2, 1))
+
+                        # use frame when all ids are different
+                        if np.size(dist) == 0:
+                            dist_max = np.inf
+                        else:
+                            dist_max = np.max(dist)
+                        # check if maximum distance is high enough
+                        if not (dist_max > 0.0):
+                            mask_value2add = False
+                            corners2add = []
+                            ids2add = []
+            if mask_value2add:
+                previous_used_frame = np.copy(i_frame)
+
+            self.allFramesMask[i_cam, i_frame] = mask_value2add
+            all_corners.append(corners2add)
+            all_ids.append(ids2add)
+
+        return all_corners, all_ids
 
     def split_frame_sets(self):
         for i_frame in range(self.nFrames):
@@ -407,7 +416,7 @@ class Calibrator:
             cal = cv2.aruco.calibrateCameraCharuco(corners_use,
                                                    ids_use,
                                                    self.board,
-                                                   self.headers[cam_idx]['sensorsize'],
+                                                   self.get_header(self.readers[cam_idx])['sensorsize'],
                                                    None,
                                                    None,
                                                    flags=self.flags,
@@ -551,8 +560,8 @@ class Calibrator:
         self.args['nVars'] = self.nVars
         # total number of free parameters
         self.nAllVars = (self.nCameras - 1) * (
-                    self.rSize + self.tSize) + self.nCameras * self.kSize + self.nCameras * self.ASize + self.nPoses * (
-                                    self.rSize + self.tSize)
+                self.rSize + self.tSize) + self.nCameras * self.kSize + self.nCameras * self.ASize + self.nPoses * (
+                                self.rSize + self.tSize)
         self.args['nAllVars'] = self.nAllVars
         # total number of free parameters (single calibration)
         self.nAllVars_single = np.sum((self.rSize + self.tSize) * self.nPoses_single)
@@ -673,7 +682,7 @@ class Calibrator:
         self.result = dict()
         # general
         self.result['recFileNames'] = self.recFileNames
-        self.result['headers'] = self.headers
+        self.result['headers'] = [self.get_header(reader) for reader in self.readers]
         self.result['nCameras'] = self.nCameras
         self.result['nFrames'] = self.nFrames
         self.result['boardWidth'] = self.board_params['boardWidth']

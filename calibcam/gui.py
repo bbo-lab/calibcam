@@ -27,10 +27,9 @@ from mpl_toolkits.mplot3d import proj3d
 
 
 class MainWindow(QMainWindow):
-    calibrator = None
-
-    def __init__(self, calibrator, parent=None):
+    def __init__(self, calibrator: Calibrator, parent=None):
         super(MainWindow, self).__init__(parent=parent)
+
         self.setGeometry(0, 0, 320, 96)
 
         # LAYOUT
@@ -42,7 +41,7 @@ class MainWindow(QMainWindow):
         self.frame_main.setLayout(self.layoutGrid)
         self.setCentralWidget(self.frame_main)
 
-        self.calibrator = calibrator;
+        self.calibrator = calibrator
 
         self.set_control_buttons()
 
@@ -173,7 +172,7 @@ class MainWindow(QMainWindow):
             for (i_cam, recname) in enumerate(self.calibrator.recFileNames):
                 print(f'Loading recording {recname}\t(camera {i_cam:02d})')
         else:
-            self.calibrator.reset()
+            self.calibrator.reset_recordings()
         return
 
 
