@@ -322,13 +322,12 @@ class Calibrator:
 
         # All points along one row (width)
         if charuco_ids[-1] < (np.floor(charuco_ids[0]/(self.board_params['boardWidth']-1)) + 1) * (self.board_params['boardWidth']-1):
-            print(f"{len(charuco_ids)} charuco_ids are in a row!")
+            print(f"{len(charuco_ids)} charuco_ids are in a row!: {charuco_ids}")
             return False
 
         # All points along one column (height)
         if np.all(np.mod(np.diff(charuco_ids), self.board_params['boardWidth']-1) == 0):
-            print(f"{len(charuco_ids)} charuco_ids are in a column:!")
-            print(f"np.mod({np.diff(charuco_ids)}, {self.board_params['boardWidth']}-1): {np.mod(np.diff(charuco_ids), self.board_params['boardWidth']-1)}")
+            print(f"{len(charuco_ids)} charuco_ids are in a column!: {charuco_ids}")
             return False
 
         print(f"{len(charuco_ids)} charuco_ids are not degenerate")
