@@ -266,8 +266,7 @@ class Calibrator:
             self.allFramesMask[i_cam, :] = frames_mask
             self.allCorners_list.append(all_corners)
             self.allIds_list.append(all_ids)
-            print(
-                'Detected features in {:04d} frames in camera {:02d}'.format(np.sum(self.allFramesMask[i_cam]), i_cam))
+            print(f'Detected features in {np.sum(self.allFramesMask[i_cam]):04d} ({np.sum(frames_mask)})  frames in camera {i_cam:02d}')
         return
         # plot detection result only works if sensor sizes of all cameras are identical TODO refactor into separate method
         # if verbose:
@@ -317,18 +316,20 @@ class Calibrator:
 
         # Not enough points
         if len(charuco_ids) < 3:
-            print(f"{len(charuco_ids)} charuco_ids are not enough!")
+            # print(f"{len(charuco_ids)} charuco_ids are not enough!")
             return False
 
         # All points along one row (width)
         if charuco_ids[-1] < (np.floor(charuco_ids[0]/(self.board_params['boardWidth']-1)) + 1) * (self.board_params['boardWidth']-1):
-            print(f"{len(charuco_ids)} charuco_ids are in a row!: {charuco_ids}")
+            # print(f"{len(charuco_ids)} charuco_ids are in a row!: {charuco_ids}")
             return False
 
         # All points along one column (height)
         if np.all(np.mod(np.diff(charuco_ids), self.board_params['boardWidth']-1) == 0):
-            print(f"{len(charuco_ids)} charuco_ids are in a column!: {charuco_ids}")
+            # print(f"{len(charuco_ids)} charuco_ids are in a column!: {charuco_ids}")
             return False
+
+        return True
 
     def detect_corners_cam(self, reader):
         all_corners = []
