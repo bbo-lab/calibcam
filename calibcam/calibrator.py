@@ -31,7 +31,7 @@ class UnequalFrameCountException(Exception):
 # TODO: reorganize output. class should print anything itself ...
 class Calibrator:
     def __init__(self, board_name=None):
-        self.set_board(board_name)
+        self.board_name = board_name
 
         self.readers = None
         self.board_params = None
@@ -98,9 +98,7 @@ class Calibrator:
         self.nRes = None  # total number of residuals for each direction (x, y)
         self.nAllVars_single = None  # total number of free parameters (single calibration)
         self.nFeatures = int(0)  # Number of overall corners of board
-        self.minDetectFeat = int(
-            0)  # Number of minimal expected features, set to one more than possible in one line to ensure nondegenerateness TODO Introduce better criterion
-        self.allFramesMask = np.empty(0)
+        self.allFramesMask = np.empty(0, dtype=bool)
         self.allCorners_list = []
         self.allIds_list = []
         self.mask_single = np.empty(0)  # later nC x nF, mask of frames that are only detected in one camera
@@ -137,7 +135,6 @@ class Calibrator:
             self.board_params = get_board_params(Path(self.recFileNames[0]).parent)
 
         self.nFeatures = (self.board_params['boardWidth'] - 1) * (self.board_params['boardHeight'] - 1)
-        self.minDetectFeat = int(max(self.board_params['boardWidth'], self.board_params['boardHeight']))
         self.board = cv2.aruco.CharucoBoard_create(self.board_params['boardWidth'],
                                                    self.board_params['boardHeight'],
                                                    self.board_params['square_size'],
@@ -184,6 +181,8 @@ class Calibrator:
         self.mask_multi = np.zeros(self.nFrames, dtype=bool)
         self.nPoses_single = np.zeros(self.nCameras, dtype=np.int64)
 
+        self.set_board(self.board_name)
+
     @staticmethod
     def get_frames_from_cam(reader):
         n_frames = len(reader)  # len() may be Inf for formats where counting frames can be expensive
@@ -206,9 +205,14 @@ class Calibrator:
             header['sensorsize'] = tuple(header['sensor']['size'])
             del header['sensor']
         else:
-            print("Inferring sensor size from image and setting offset to 0!")
-            header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
-            header['offset'] = tuple(np.asarray([0, 0]))
+            if 'offset' not in header:
+                print("Setting offset to 0!")
+                header['offset'] = tuple(np.asarray([0, 0]))
+
+            if 'sensorsize' not in header:
+                print("Inferring sensor size from image")
+                header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
+
         return header
 
     def perform_multi_calibration(self):
@@ -258,8 +262,8 @@ class Calibrator:
         print('DETECTING FEATURES')
         for i_cam, reader in enumerate(self.readers):
             print('Detecting features in camera {:02d}'.format(i_cam))
-            all_corners, all_ids = self.detect_corners_cam(reader)
-
+            all_corners, all_ids, frames_mask = self.detect_corners_cam(reader)
+            self.allFramesMask[i_cam, :] = frames_mask
             self.allCorners_list.append(all_corners)
             self.allIds_list.append(all_ids)
             print(
@@ -306,12 +310,37 @@ class Calibrator:
         #     plt.close(1)
         #     raise
 
+    def check_detections_nondegenerate(self, charuco_ids):
+        # Detection may not lie on a single line
+
+        charuco_ids = np.asarray(charuco_ids).ravel()
+
+        # Not enough points
+        if len(charuco_ids) < 3:
+            print(f"{len(charuco_ids)} charuco_ids are not enough!")
+            return False
+
+        # All points along one row (width)
+        if charuco_ids[-1] < (np.floor(charuco_ids[0]/(self.board_params['boardWidth']-1)) + 1) * (self.board_params['boardWidth']-1):
+            print(f"{len(charuco_ids)} charuco_ids are in a row!")
+            return False
+
+        # All points along one column (height)
+        if np.all(np.mod(np.diff(charuco_ids), self.board_params['boardWidth']-1) == 0):
+            print(f"{len(charuco_ids)} charuco_ids are in a column:!")
+            print(f"np.mod({np.diff(charuco_ids)}, {self.board_params['boardWidth']}-1): {np.mod(np.diff(charuco_ids), self.board_params['boardWidth']-1)}")
+            return False
+
+        print(f"{len(charuco_ids)} charuco_ids are not degenerate")
+
     def detect_corners_cam(self, reader):
         all_corners = []
         all_ids = []
         previous_used_frame = np.nan
         previous_corners = np.zeros((self.nFeatures, 2), dtype=np.float64)
         current_corners = np.zeros((self.nFeatures, 2), dtype=np.float64)
+
+        frames_mask = np.zeros(self.get_frames_from_cam(reader),dtype=bool)
 
         # calculate offset
         offset_x = self.get_header(reader)['offset'][0]
@@ -346,9 +375,8 @@ class Calibrator:
                                                         frame,
                                                         self.board,
                                                         minMarkers=2)
-                print(f"charucoIds {charucoIds}")
-                # checks if the requested minimum number of features are detected
-                if retval >= self.minDetectFeat:
+                # checks if the result is degenerated
+                if self.check_detections_nondegenerate(charucoIds):
                     # add offset
                     charucoCorners[:, :, 0] = charucoCorners[:, :, 0] + offset_x
                     charucoCorners[:, :, 1] = charucoCorners[:, :, 1] + offset_y
@@ -381,13 +409,13 @@ class Calibrator:
                             corners2add = []
                             ids2add = []
             if mask_value2add:
-                previous_used_frame = np.copy(i_frame)
+                previous_used_frame = i_frame
 
-            self.allFramesMask[i_cam, i_frame] = mask_value2add
+            frames_mask[i_frame] = mask_value2add
             all_corners.append(corners2add)
             all_ids.append(ids2add)
 
-        return all_corners, all_ids
+        return all_corners, all_ids, frames_mask
 
     def split_frame_sets(self):
         for i_frame in range(self.nFrames):
@@ -566,8 +594,6 @@ class Calibrator:
         # total number of free parameters (single calibration)
         self.nAllVars_single = np.sum((self.rSize + self.tSize) * self.nPoses_single)
         self.args['nAllVars_single'] = self.nAllVars_single
-        # number of features which have to be detected (per pose) in order to include it for the calibration
-        self.args['minDetectFeat'] = self.minDetectFeat
         # index of the reference camera
         self.args['indexRefCam'] = self.indexRefCam
         self.args['use_sparse_jac'] = False
