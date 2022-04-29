@@ -1,0 +1,9 @@
+cv2
+numpy
+matplotlib
+imageio
+autograd
+scipy
+yaml
+pyyaml
+setuptools
