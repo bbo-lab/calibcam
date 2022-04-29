@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
-import sys
 import argparse
-
-from PyQt5.QtWidgets import QApplication
-
-from .gui import MainWindow
 from .calibrator import Calibrator
-
 
 def main():
     # PArse command line arguments
@@ -18,9 +12,8 @@ def main():
     calibrator = Calibrator(board_name=args.board[0])
 
     if args.videos is None:
-        app = QApplication(sys.argv)
-        MainWindow(calibrator)
-        sys.exit(app.exec_())
+        from .gui import main as gui_main
+        gui_main(calibrator)
     else:
         recFileNames = sorted(args.videos)
         calibrator.set_recordings(recFileNames)

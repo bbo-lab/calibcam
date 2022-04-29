@@ -7,17 +7,17 @@ from .calibrator import Calibrator, UnsupportedFormatException, UnequalFrameCoun
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import QAbstractItemView, \
-                            QApplication, \
-                            QComboBox, \
-                            QFrame, \
-                            QFileDialog, \
-                            QGridLayout, \
-                            QLabel, \
-                            QLineEdit, \
-                            QListWidget, \
-                            QMainWindow, \
-                            QMessageBox, \
-                            QPushButton
+    QApplication, \
+    QComboBox, \
+    QFrame, \
+    QFileDialog, \
+    QGridLayout, \
+    QLabel, \
+    QLineEdit, \
+    QListWidget, \
+    QMainWindow, \
+    QMessageBox, \
+    QPushButton
 
 from matplotlib import colors as mcolors
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -26,9 +26,9 @@ from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d import proj3d
 
 
-
 class MainWindow(QMainWindow):
     calibrator = None
+
     def __init__(self, calibrator, parent=None):
         super(MainWindow, self).__init__(parent=parent)
         self.setGeometry(0, 0, 320, 96)
@@ -64,14 +64,14 @@ class MainWindow(QMainWindow):
         self.button_loadCalibration.clicked.connect(self.button_loadCalibration_press)
         self.layoutGrid.addWidget(self.button_loadCalibration, 1, 0)
         return
-    
+
     def button_performCalibration_press(self):
         self.button_performCalibration.setEnabled(False)
         self.button_loadCalibration.setEnabled(False)
-        
+
         # read the dataset
         self.read_recording()
-        
+
         if (self.calibrator.recordingIsLoaded):
             # perform complete multi camera calibration
             self.calibrator.perform_multi_calibration()
@@ -108,17 +108,17 @@ class MainWindow(QMainWindow):
         dialogOptions = dialog.Options()
         dialogOptions |= dialog.DontUseNativeDialog
         calFileName, _ = QFileDialog.getOpenFileNames(dialog,
-                                                           "Choose calibration file",
-                                                           self.startDirectory,
-                                                           "npy files (*.npy)",
-                                                           options=dialogOptions)
+                                                      "Choose calibration file",
+                                                      self.startDirectory,
+                                                      "npy files (*.npy)",
+                                                      options=dialogOptions)
         if (len(calFileName) == 1):
             # check if input file is a npy-file:
             filesAreCorrect = True
             fileEnding = calFileName[0].split('/')[-1].split('.')[-1]
             if (fileEnding != 'npy'):
                 filesAreCorrect = False
-            if not(filesAreCorrect):
+            if not (filesAreCorrect):
                 print('WARNING: Input file is not correct (no npy-file)')
                 self.button_performCalibration.setEnabled(True)
                 self.button_loadCalibration.setEnabled(True)
@@ -151,22 +151,23 @@ class MainWindow(QMainWindow):
             except UnsupportedFormatException as err:
                 pass
             except UnequalFrameCountException as err:
-                print('Do you want the software to continue and ignore the last recorded frames in order to fix this issue?')
+                print(
+                    'Do you want the software to continue and ignore the last recorded frames in order to fix this issue?')
                 user_input = np.int64(0)
-                while not((user_input == np.int64(1024)) or
-                            (user_input == np.int64(4194304))):
+                while not ((user_input == np.int64(1024)) or
+                           (user_input == np.int64(4194304))):
                     msg = QMessageBox()
                     msg.setIcon(QMessageBox.Information)
                     msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
                     msg.setText('WARNING: Number of frames is not identical for all cameras')
-                    msg.setInformativeText('Do you want the software to continue and leave out the last recorded frame in order to fix this issue?')
+                    msg.setInformativeText(
+                        'Do you want the software to continue and leave out the last recorded frame in order to fix this issue?')
                     user_input = msg.exec_()
                     user_input = np.int64(user_input)
                 if (user_input == np.int64(1024)):
                     self.calibrator.recordingIsLoaded = True
         else:
             print('WARNING: Provide at least two input files')
-
 
         if self.calibrator.recordingIsLoaded:
             for (i_cam, recname) in enumerate(self.calibrator.recFileNames):
@@ -176,6 +177,12 @@ class MainWindow(QMainWindow):
         return
 
 
+def main(calibrator: Calibrator):
+    app = QApplication(sys.argv)
+    MainWindow(calibrator)
+    sys.exit(app.exec_())
 
 
-
+if __name__ == '__main__':
+    calibrator = Calibrator(board_name=None)
+    main(calibrator)
