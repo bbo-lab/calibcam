@@ -266,7 +266,7 @@ class Calibrator:
             self.allFramesMask[i_cam, :] = frames_mask
             self.allCorners_list.append(all_corners)
             self.allIds_list.append(all_ids)
-            print(f'Detected features in {np.sum(self.allFramesMask[i_cam]):04d} ({np.sum(frames_mask)})  frames in camera {i_cam:02d}')
+            print(f'Detected features in {np.sum(self.allFramesMask[i_cam]):04d}  frames in camera {i_cam:02d}')
         return
         # plot detection result only works if sensor sizes of all cameras are identical TODO refactor into separate method
         # if verbose:
@@ -315,7 +315,7 @@ class Calibrator:
         charuco_ids = np.asarray(charuco_ids).ravel()
 
         # Not enough points
-        if len(charuco_ids) < 3:
+        if len(charuco_ids) < 5:
             # print(f"{len(charuco_ids)} charuco_ids are not enough!")
             return False
 
