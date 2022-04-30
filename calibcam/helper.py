@@ -10,13 +10,13 @@ def check_detections_nondegenerate(board_width, charuco_ids):
         return False
 
     # All points along one row (width)
-    if charuco_ids[-1] < (np.floor(charuco_ids[0] / (board_width[0] - 1)) + 1) * (
+    if charuco_ids[-1] < (np.floor(charuco_ids[0] / (board_width - 1)) + 1) * (
             board_wh[0] - 1):
         # print(f"{len(charuco_ids)} charuco_ids are in a row!: {charuco_ids}")
         return False
 
     # All points along one column (height)
-    if np.all(np.mod(np.diff(charuco_ids), board_width[0] - 1) == 0):
+    if np.all(np.mod(np.diff(charuco_ids), board_width - 1) == 0):
         # print(f"{len(charuco_ids)} charuco_ids are in a column!: {charuco_ids}")
         return False
 
