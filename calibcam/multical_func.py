@@ -67,9 +67,9 @@ def calc_xcam(calib, args):
                 if check_detections_nondegenerate(args['boardWidth'], id_combi):
                     # RX1
                     rotVecX = calib['cam{:01d}'.format(i_camera)]['rotation_vectors'][nPoses_use].ravel()
-                    RX = rodrigues(rotVecX)
+                    RX = rodrigues(rotVecX)[0]
                     rotVec1 = calib['cam{:01d}'.format(indexRefCam)]['rotation_vectors'][nPoses_use].ravel()
-                    R1 = rodrigues(rotVec1)
+                    R1 = rodrigues(rotVec1)[0]
                     RX1_add = np.dot(RX, R1.T)
                     RX1 += RX1_add
                     tX = calib['cam{:01d}'.format(i_camera)]['translation_vectors'][nPoses_use]
@@ -81,7 +81,7 @@ def calc_xcam(calib, args):
             # Based on Curtis et al., A Note on Averaging Rotations (Lemma 2.2)
             u, s, vh = np.linalg.svd(RX1, full_matrices=True)
             RX1 = np.dot(u, vh)
-            rX1 = rodrigues(RX1)
+            rX1 = rodrigues(RX1)[0]
             rcam['r{:01d}{:01d}'.format(i_camera, indexRefCam)] = rX1
             tX1 = tX1 / nPoses_use
             tcam['t{:01d}{:01d}'.format(i_camera, indexRefCam)] = tX1
@@ -488,7 +488,7 @@ def map_r2R(r):
 
     R = np.zeros((n_iter, 3, 3), dtype=float)
     for i in range(0, n_iter, 1):
-        R[i] = rodrigues(r[i, :])
+        R[i] = rodrigues(r[i, :])[0]
 
     return R
 
