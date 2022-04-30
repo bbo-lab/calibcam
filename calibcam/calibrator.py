@@ -11,6 +11,7 @@ from ccvtools import rawio
 import time
 
 from autograd import elementwise_grad
+
 from scipy.optimize import least_squares
 
 from . import multical_func as func
@@ -205,10 +206,10 @@ class Calibrator:
 
         # the following functions are based on multical_main.py
         print('PREPARE FOR MULTI CAMERA CALIBRATION')
-        args, inits, bounds = self.generate_args()
+        args, bounds = self.generate_args()
         self.info['args'] = args
         print('START MULTI CAMERA CALIBRATION')
-        self.start_optimization(args, inits, bounds)
+        self.start_optimization(args, bounds)
         self.get_fitted_paras(args)
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration()
@@ -327,7 +328,10 @@ class Calibrator:
         self.mask_single[:, mask] = self.allFramesMask[:, mask]
         return
 
-    def calibrate_camera(self, cam_idx, mask):
+    def calibrate_camera(self, cam_idx, mask=None):
+        if mask is None:
+            mask = np.asarray([len(c) > 0 for c in self.allCorners_list[cam_idx]], dtype=bool)
+
         n_used_frames = np.sum(mask)
         print(f'Using {n_used_frames:03d} frames to perform single camera calibration for camera {cam_idx:02d}')
         if n_used_frames > 0:  # do this to not run into indexing issues
@@ -355,7 +359,7 @@ class Calibrator:
         cal_single_list = []
         for i_cam in range(len(self.readers)):
             mask = self.mask_single[i_cam]
-            cal = self.calibrate_camera(i_cam, mask)
+            cal = self.calibrate_camera(i_cam, None)
             cal_single_list.append(cal)
         return cal_single_list
 
@@ -491,7 +495,7 @@ class Calibrator:
 
         args_constants = {
             'M': M,
-            'm_': m,
+            'm': m,
             'delta': delta,
             'M_single': M_single,
             'm_single': m_single,
@@ -512,12 +516,6 @@ class Calibrator:
         x0_single = func.set_x0_objFunc_single(self.calib_single, args)
         x0_all = np.concatenate([x0, x0_single], 0)
 
-        inits = {
-            'x0': x0,
-            'x0_single': x0_single,
-            'x0_all': x0_all,
-        }
-
         free_para = np.ones(nAllVars, dtype=bool)
         index_free_k = (len(self.readers) - 1) * (rSize + tSize)
         free_para[index_free_k:index_free_k + len(self.readers) * kSize] = False
@@ -528,6 +526,8 @@ class Calibrator:
         nAllVars_all = nAllVars + nAllVars_single
 
         args_optimization = {
+            'x0': x0,
+            'x0_single': x0_single,
             'x0_all': x0_all,
             'x0_all_free': x0_all[free_para_all],  # define correct initialization vector for x0_all
             'free_para': free_para,  # define free parameters
@@ -545,7 +545,7 @@ class Calibrator:
             'all_free': b_all[:, free_para_all]
         }
 
-        return args, inits, bounds
+        return args, bounds
 
     def get_fitted_paras(self, args):
         self.x_all_fit = np.copy(args['x0_all'])
@@ -572,13 +572,13 @@ class Calibrator:
                 self.R1_single_fit[i_cam].append(func.map_r2R(self.r1_single_fit[i_cam][i_pose]))
         return
 
-    def start_optimization(self, args, inits, bounds):
+    def start_optimization(self, args, bounds):
         print('Starting optimization procedure - This might take a while')
         print('The following lines are associated with the current state of the optimization procedure:')
         start_time = time.time()
 
         self.min_result = least_squares(func.obj_fcn_free,
-                                        inits['x0_all_free'],
+                                        args['x0_all_free'],
                                         jac=func.obj_fcn_jac_free,
                                         bounds=bounds['all_free'],
                                         method='trf',

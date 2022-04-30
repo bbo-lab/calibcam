@@ -1,32 +1,19 @@
-import matplotlib.pyplot as plt
 import numpy as np
-import sys
-
-import imageio
-from ccvtools import rawio
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIntValidator
-from PyQt5.QtWidgets import QAbstractItemView, \
-                            QApplication, \
-                            QComboBox, \
+from PyQt5.QtWidgets import QComboBox, \
                             QFrame, \
-                            QFileDialog, \
                             QGridLayout, \
                             QLabel, \
                             QLineEdit, \
-                            QListWidget, \
                             QMainWindow, \
-                            QPushButton, \
-                            QTextEdit 
-                            
-from matplotlib import colors as mcolors
+                            QTextEdit
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import proj3d
 
-from . import multical_func as func
 
 from cv2 import Rodrigues as rodrigues
 
