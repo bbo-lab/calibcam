@@ -104,8 +104,8 @@ class Calibrator:
         self.nFeatures = (self.board_params['boardWidth'] - 1) * (self.board_params['boardHeight'] - 1)
         self.board = cv2.aruco.CharucoBoard_create(self.board_params['boardWidth'],
                                                    self.board_params['boardHeight'],
-                                                   self.board_params['square_size'],
-                                                   self.board_params['marker_size'],
+                                                   self.board_params['square_size_real'],
+                                                   self.board_params['marker_size']*self.board_params['square_size_real'],
                                                    self.board_params['dictionary'])
         return
 
@@ -616,15 +616,15 @@ class Calibrator:
         self.result['x_all_fit'] = self.x_all_fit
         self.result['rX1_fit'] = self.rX1_fit
         self.result['RX1_fit'] = self.RX1_fit
-        self.result['tX1_fit'] = self.tX1_fit * self.board_params['square_size_real']
+        self.result['tX1_fit'] = self.tX1_fit
         self.result['k_fit'] = self.k_fit
         self.result['A_fit'] = self.A_fit
         self.result['r1_fit'] = self.r1_fit
         self.result['R1_fit'] = self.R1_fit
-        self.result['t1_fit'] = self.t1_fit * self.board_params['square_size_real']
+        self.result['t1_fit'] = self.t1_fit
         self.result['r1_single_fit'] = self.r1_single_fit
         self.result['R1_single_fit'] = self.R1_single_fit
-        self.result['t1_single_fit'] = np.asarray(self.t1_single_fit) * self.board_params['square_size_real']
+        self.result['t1_single_fit'] = np.asarray(self.t1_single_fit)
         # Historically, scale_factor=square_size_real, and not part of calibration.
         # New: square_size_real factored into spatial units
 
@@ -632,8 +632,8 @@ class Calibrator:
         self.result['info'] = self.info
 
         # Deprecated fields
-        self.result['square_size_real'] = self.board_params['square_size_real']
-        self.result['marker_size_real'] = self.board_params['marker_size_real']
+        self.result['square_size_real'] = self.board_params['square_size']
+        self.result['marker_size_real'] = self.result['square_size_real']*self.board_params['marker_size']
         self.result['boardWidth'] = self.board_params['boardWidth']
         self.result['boardHeight'] = self.board_params['boardHeight']
         self.result['scale_factor'] = 1
