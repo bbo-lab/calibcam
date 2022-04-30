@@ -28,7 +28,7 @@ from mpl_toolkits.mplot3d import proj3d
 
 from . import multical_func as func
 
-
+from cv2 import Rodrigues as rodrigues
 
 class PlotWindow(QMainWindow):
     def __init__(self, calibrator,
@@ -257,11 +257,11 @@ class PlotWindow(QMainWindow):
         M_2 = np.zeros(self.nFeatures).reshape(self.nFeatures, 1)
         M = np.concatenate([M_0, M_1, M_2], 1)
         # R1 * M + t1
-        R1 = func.rodrigues2rotMat_single(r1)    
+        R1 = rodrigues(r1)
         m = np.dot(R1, M.T).T + t1
         if (self.status == 'multi'):
             # RX1 * m_proj + tX1
-            RX1 = func.rodrigues2rotMat_single(rX1)
+            RX1 = rodrigues(rX1)
             m = np.dot(RX1, m.T).T + tX1
         x_pre = m[:, 0] / m[:, 2]
         y_pre = m[:, 1] / m[:, 2]

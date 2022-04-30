@@ -1,52 +1,45 @@
 import autograd.numpy as np
 import scipy
+from cv2 import Rodrigues as rodrigues
 
 from .helper import check_detections_nondegenerate
 
 
-def rodrigues2rotMat_single(r):
-    theta = np.power(r[0] ** 2 + r[1] ** 2 + r[2] ** 2, 0.5)
-    u = r / (theta + -np.abs(np.sign(theta)) + 1)
+# Converts array of rotation vectors to array of rotation matrices
+# TODO check performance of this vs other solutions
+def rodrigues2rotMats(r):
+    nRes = len(r)
+    theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
+    u = r / (theta + -np.abs(np.sign(theta)) + 1).reshape(nRes, 1)
     # row 1
-    rotMat_00 = np.cos(theta) + u[0] ** 2 * (1 - np.cos(theta))
-    rotMat_01 = u[0] * u[1] * (1 - np.cos(theta)) - u[2] * np.sin(theta)
-    rotMat_02 = u[0] * u[2] * (1 - np.cos(theta)) + u[1] * np.sin(theta)
+    rotMat_00 = np.cos(theta) + u[:, 0] ** 2 * (1 - np.cos(theta))
+    rotMat_01 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) - u[:, 2] * np.sin(theta)
+    rotMat_02 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) + u[:, 1] * np.sin(theta)
+    rotMat_0 = np.concatenate([rotMat_00.reshape(nRes, 1, 1),
+                               rotMat_01.reshape(nRes, 1, 1),
+                               rotMat_02.reshape(nRes, 1, 1)], 2)
 
     # row 2
-    rotMat_10 = u[0] * u[1] * (1 - np.cos(theta)) + u[2] * np.sin(theta)
-    rotMat_11 = np.cos(theta) + u[1] ** 2 * (1 - np.cos(theta))
-    rotMat_12 = u[1] * u[2] * (1 - np.cos(theta)) - u[0] * np.sin(theta)
+    rotMat_10 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) + u[:, 2] * np.sin(theta)
+    rotMat_11 = np.cos(theta) + u[:, 1] ** 2 * (1 - np.cos(theta))
+    rotMat_12 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) - u[:, 0] * np.sin(theta)
+    rotMat_1 = np.concatenate([rotMat_10.reshape(nRes, 1, 1),
+                               rotMat_11.reshape(nRes, 1, 1),
+                               rotMat_12.reshape(nRes, 1, 1)], 2)
 
     # row 3
-    rotMat_20 = u[0] * u[2] * (1 - np.cos(theta)) - u[1] * np.sin(theta)
-    rotMat_21 = u[1] * u[2] * (1 - np.cos(theta)) + u[0] * np.sin(theta)
-    rotMat_22 = np.cos(theta) + u[2] ** 2 * (1 - np.cos(theta))
+    rotMat_20 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) - u[:, 1] * np.sin(theta)
+    rotMat_21 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) + u[:, 0] * np.sin(theta)
+    rotMat_22 = np.cos(theta) + u[:, 2] ** 2 * (1 - np.cos(theta))
+    rotMat_2 = np.concatenate([rotMat_20.reshape(nRes, 1, 1),
+                               rotMat_21.reshape(nRes, 1, 1),
+                               rotMat_22.reshape(nRes, 1, 1)], 2)
 
-    rotMat = np.array([[rotMat_00, rotMat_01, rotMat_02],
-                       [rotMat_10, rotMat_11, rotMat_12],
-                       [rotMat_20, rotMat_21, rotMat_22]])
+    rotMat = np.concatenate([rotMat_0,
+                             rotMat_1,
+                             rotMat_2], 1)
 
     return rotMat
-
-
-def rotMat2rodrigues_single(R):
-    r = np.zeros((3, 1), dtype=float)
-    K = (R - R.T) / 2
-    r[0] = K[2, 1]
-    r[1] = K[0, 2]
-    r[2] = K[1, 0]
-
-    if not (np.all(R == np.identity(3))):
-        R_logm = scipy.linalg.logm(R)
-        thetaM_1 = R_logm[2, 1] / (r[0] + np.equal(r[0], 0.0))
-        thetaM_2 = R_logm[0, 2] / (r[1] + np.equal(r[1], 0.0))
-        thetaM_3 = R_logm[1, 0] / (r[2] + np.equal(r[2], 0.0))
-        thetaM = np.array([thetaM_1, thetaM_2, thetaM_3])
-
-        theta = np.mean(thetaM[thetaM != 0.0])
-        r = r * theta
-
-    return r
 
 
 def calc_xcam(calib, args):
@@ -71,12 +64,12 @@ def calc_xcam(calib, args):
                 idX = calib['cam{:01d}'.format(i_camera)]['charuco_ids'][i_pose]
                 id1 = calib['cam{:01d}'.format(indexRefCam)]['charuco_ids'][i_pose]
                 id_combi = np.intersect1d(idX, id1)
-                if check_detections_nondegenerate(args['board_params'], id_combi):
+                if check_detections_nondegenerate(args['boardWidth'], id_combi):
                     # RX1
                     rotVecX = calib['cam{:01d}'.format(i_camera)]['rotation_vectors'][nPoses_use].ravel()
-                    RX = rodrigues2rotMat_single(rotVecX)
+                    RX = rodrigues(rotVecX)
                     rotVec1 = calib['cam{:01d}'.format(indexRefCam)]['rotation_vectors'][nPoses_use].ravel()
-                    R1 = rodrigues2rotMat_single(rotVec1)
+                    R1 = rodrigues(rotVec1)
                     RX1_add = np.dot(RX, R1.T)
                     RX1 += RX1_add
                     tX = calib['cam{:01d}'.format(i_camera)]['translation_vectors'][nPoses_use]
@@ -88,7 +81,7 @@ def calc_xcam(calib, args):
             # Based on Curtis et al., A Note on Averaging Rotations (Lemma 2.2)
             u, s, vh = np.linalg.svd(RX1, full_matrices=True)
             RX1 = np.dot(u, vh)
-            rX1 = rotMat2rodrigues_single(RX1)
+            rX1 = rodrigues(RX1)
             rcam['r{:01d}{:01d}'.format(i_camera, indexRefCam)] = rX1
             tX1 = tX1 / nPoses_use
             tcam['t{:01d}{:01d}'.format(i_camera, indexRefCam)] = tX1
@@ -233,7 +226,7 @@ def map_calib2consts(calib, args):
 
             corners = calib['cam{:01d}'.format(i_camera)]['charuco_corners'][i_pose]
             idX = calib['cam{:01d}'.format(i_camera)]['charuco_ids'][i_pose]
-            if check_detections_nondegenerate(args['board_params'], idX):
+            if check_detections_nondegenerate(args['boardWidth'], idX):
                 index[:] = False
                 index[idX.T[0]] = True
                 # m
@@ -275,47 +268,13 @@ def map_calib2consts_single(calib_single, args):
             idX = calib_single['cam{:01d}'.format(i_camera)]['charuco_ids'][i_pose]
             index[:] = False
             index[idX.T[0]] = True
-            if check_detections_nondegenerate(args['board_params'], idX):
+            if check_detections_nondegenerate(args['boardWidth'], idX):
                 # m
                 m_single[res_index1:res_index2:1][idX.T[0]] = corners
                 # delta
                 delta_single[res_index1:res_index2:1] = index.astype(np.float64)
 
     return M_single, m_single, delta_single
-
-
-def rodrigues2rotMat(r, nRes):
-    theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
-    u = r / (theta + -np.abs(np.sign(theta)) + 1).reshape(nRes, 1)
-    # row 1
-    rotMat_00 = np.cos(theta) + u[:, 0] ** 2 * (1 - np.cos(theta))
-    rotMat_01 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) - u[:, 2] * np.sin(theta)
-    rotMat_02 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) + u[:, 1] * np.sin(theta)
-    rotMat_0 = np.concatenate([rotMat_00.reshape(nRes, 1, 1),
-                               rotMat_01.reshape(nRes, 1, 1),
-                               rotMat_02.reshape(nRes, 1, 1)], 2)
-
-    # row 2
-    rotMat_10 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) + u[:, 2] * np.sin(theta)
-    rotMat_11 = np.cos(theta) + u[:, 1] ** 2 * (1 - np.cos(theta))
-    rotMat_12 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) - u[:, 0] * np.sin(theta)
-    rotMat_1 = np.concatenate([rotMat_10.reshape(nRes, 1, 1),
-                               rotMat_11.reshape(nRes, 1, 1),
-                               rotMat_12.reshape(nRes, 1, 1)], 2)
-
-    # row 3
-    rotMat_20 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) - u[:, 1] * np.sin(theta)
-    rotMat_21 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) + u[:, 0] * np.sin(theta)
-    rotMat_22 = np.cos(theta) + u[:, 2] ** 2 * (1 - np.cos(theta))
-    rotMat_2 = np.concatenate([rotMat_20.reshape(nRes, 1, 1),
-                               rotMat_21.reshape(nRes, 1, 1),
-                               rotMat_22.reshape(nRes, 1, 1)], 2)
-
-    rotMat = np.concatenate([rotMat_0,
-                             rotMat_1,
-                             rotMat_2], 1)
-
-    return rotMat
 
 
 def map_m(rX1_0, rX1_1, rX1_2,
@@ -341,8 +300,8 @@ def map_m(rX1_0, rX1_1, rX1_2,
                          t1_1.reshape(nRes, 1),
                          t1_2.reshape(nRes, 1)], 1)
 
-    RX1 = rodrigues2rotMat(rX1, nRes)
-    R1 = rodrigues2rotMat(r1, nRes)
+    RX1 = rodrigues2rotMats(rX1)
+    R1 = rodrigues2rotMats(r1)
 
     # R1 * M + t1
     m_proj_0_1 = R1[:, 0, 0] * M[:, 0] + \
@@ -529,7 +488,7 @@ def map_r2R(r):
 
     R = np.zeros((n_iter, 3, 3), dtype=float)
     for i in range(0, n_iter, 1):
-        R[i] = rodrigues2rotMat_single(r[i, :])
+        R[i] = rodrigues(r[i, :])
 
     return R
 
@@ -983,8 +942,8 @@ def fill_jac_single(x_res, args):
                                               int(resPerCam_single[i_camera])).reshape(nPoses_single[i_camera],
                                                                                        nFeatures)
             obj_fcn_jac_val_y[mask, nAllVars + np.sum(nPoses_single[:i_camera]) * (rSize + tSize) + i:
-            nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i:
-            rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
+                                    nAllVars + np.sum(nPoses_single[:i_camera + 1]) * (rSize + tSize) + i:
+                                    rSize + tSize] = scipy.linalg.block_diag(*df_dx).T
 
         args_i = args_i + rSize
 
@@ -1021,4 +980,3 @@ def fill_jac_single(x_res, args):
     obj_fcn_jac_val = np.concatenate([obj_fcn_jac_val_x, obj_fcn_jac_val_y], 0)
 
     return obj_fcn_jac_val
-

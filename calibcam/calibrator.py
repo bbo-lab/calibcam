@@ -61,7 +61,7 @@ class Calibrator:
         self.t1_fit = None
         self.R1_fit = None
 
-        self.tol = None
+        self.tol = np.finfo(np.float64).eps  # machine epsilon
         self.min_result = None
         self.resultPath = None
 
@@ -270,7 +270,7 @@ class Calibrator:
                                                         self.board,
                                                         minMarkers=2)
                 # checks if the result is degenerated
-                if check_detections_nondegenerate(self.board_params, charucoIds):
+                if check_detections_nondegenerate(self.board_params['boardWidth'], charucoIds):
                     # add offset
                     charucoCorners[:, :, 0] = charucoCorners[:, :, 0] + offset_x
                     charucoCorners[:, :, 1] = charucoCorners[:, :, 1] + offset_y
@@ -577,7 +577,6 @@ class Calibrator:
         print('The following lines are associated with the current state of the optimization procedure:')
         start_time = time.time()
 
-        self.tol = np.finfo(np.float64).eps  # machine epsilon
         self.min_result = least_squares(func.obj_fcn_free,
                                         inits['x0_all_free'],
                                         jac=func.obj_fcn_jac_free,
