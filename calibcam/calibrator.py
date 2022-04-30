@@ -194,14 +194,14 @@ class Calibrator:
         self.info['cal_single_list'] = cal_single_list
 
         # generate calib_single
-        self.generate_calib_single(cal_single_list)
+        self.calib_single = self.generate_calib_single(cal_single_list)
 
         # perform multi calibration
         cal_multi_list = self.perform_single_calibration_for_multi()
         self.info['cal_multi_list'] = cal_multi_list
 
         # generate calib_multi
-        self.generate_calib_multi(cal_single_list, cal_multi_list)
+        self.calib_multi = self.generate_calib_multi(cal_single_list, cal_multi_list)
 
         # the following functions are based on multical_main.py
         print('PREPARE FOR MULTI CAMERA CALIBRATION')
@@ -360,34 +360,34 @@ class Calibrator:
         return cal_single_list
 
     def generate_calib_single(self, cal_single_list):
-        self.calib_single = dict()
+        calib_single = dict()
         self.nPoses_single = np.sum(self.mask_single, 1)
         for i_cam in range(0, len(self.readers), 1):
             key = 'cam{:01d}'.format(i_cam)
-            self.calib_single[key] = dict()
-            self.calib_single[key]['charuco_ids'] = []
-            self.calib_single[key]['charuco_corners'] = []
-            self.calib_single[key]['rotation_vectors'] = []
-            self.calib_single[key]['translation_vectors'] = []
+            calib_single[key] = dict()
+            calib_single[key]['charuco_ids'] = []
+            calib_single[key]['charuco_corners'] = []
+            calib_single[key]['rotation_vectors'] = []
+            calib_single[key]['translation_vectors'] = []
             index = 0
             for i_frame in range(self.nFrames):
                 if self.mask_single[i_cam, i_frame]:
                     nFeats = np.size(self.allIds_list[i_cam][i_frame])
                     ids_use = np.array(self.allIds_list[i_cam][i_frame],
                                        dtype=np.int64).reshape(nFeats, 1)
-                    self.calib_single[key]['charuco_ids'].append(ids_use)
+                    calib_single[key]['charuco_ids'].append(ids_use)
                     corners_use = np.array(self.allCorners_list[i_cam][i_frame],
                                            dtype=np.float64).reshape(nFeats, 2)
-                    self.calib_single[key]['charuco_corners'].append(corners_use)
+                    calib_single[key]['charuco_corners'].append(corners_use)
                     # r and t
                     rotations_use = np.array(cal_single_list[i_cam][3][index],
                                              dtype=np.float64).reshape(3, 1)
-                    self.calib_single[key]['rotation_vectors'].append(rotations_use)
+                    calib_single[key]['rotation_vectors'].append(rotations_use)
                     translations_use = np.array(cal_single_list[i_cam][4][index],
                                                 dtype=np.float64).reshape(3, 1)
-                    self.calib_single[key]['translation_vectors'].append(translations_use)
+                    calib_single[key]['translation_vectors'].append(translations_use)
                     index = index + 1
-        return
+        return calib_single
 
     def perform_single_calibration_for_multi(self):
         print('PERFORM SINGLE CAMERA CALIBRATION #2')
