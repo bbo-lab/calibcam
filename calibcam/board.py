@@ -13,6 +13,5 @@ def get_board_params(board_source):
     
     if not board_params is None: 
         board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']
-        board_params['dictionary'] = cv2.aruco.getPredefinedDictionary(board_params['dictionary_type'])
     
     return board_params

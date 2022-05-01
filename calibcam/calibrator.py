@@ -106,7 +106,7 @@ class Calibrator:
                                                    self.board_params['boardHeight'],
                                                    self.board_params['square_size_real'],
                                                    self.board_params['marker_size']*self.board_params['square_size_real'],
-                                                   self.board_params['dictionary'])
+                                                   cv2.aruco.getPredefinedDictionary(self.board_params['dictionary_type']))
         return
 
     def set_recordings(self, recordings, allow_unequal=False):
@@ -250,7 +250,7 @@ class Calibrator:
                 frame = frame[:, :, 1]
             corners, ids, rejectedImgPoints = \
                 cv2.aruco.detectMarkers(frame,
-                                        self.board_params['dictionary'],
+                                        cv2.aruco.getPredefinedDictionary(self.board_params['dictionary_type']),
                                         parameters=self.set_detector_parameters())
 
             if len(corners) > 0:
@@ -628,15 +628,18 @@ class Calibrator:
         # Historically, scale_factor=square_size_real, and not part of calibration.
         # New: square_size_real factored into spatial units
 
-        self.result['board'] = self.board_params
+        self.result['board_params'] = self.board_params
         self.result['info'] = self.info
 
         # Deprecated fields
-        self.result['square_size_real'] = self.board_params['square_size']
-        self.result['marker_size_real'] = self.result['square_size_real']*self.board_params['marker_size']
+        self.result['square_size'] = self.board_params['square_size']
+        self.result['marker_size_relative'] = self.board_params['marker_size']
+        self.result['marker_size'] = self.result['square_size']*self.board_params['marker_size']
         self.result['boardWidth'] = self.board_params['boardWidth']
         self.result['boardHeight'] = self.board_params['boardHeight']
         self.result['scale_factor'] = 1
+
+        self.result['version'] = 2.0
 
         pprint(self.result)
         # save
