@@ -359,7 +359,7 @@ class Calibrator:
         cal_single_list = []
         for i_cam in range(len(self.readers)):
             mask = self.mask_single[i_cam]
-            cal = self.calibrate_camera(i_cam, None)
+            cal = self.calibrate_camera(i_cam, mask)
             cal_single_list.append(cal)
         return cal_single_list
 
@@ -629,12 +629,12 @@ class Calibrator:
         # New: square_size_real factored into spatial units
 
         self.result['board_params'] = self.board_params
-        self.result['info'] = self.info
+#        self.result['info'] = self.info
 
         # Deprecated fields
-        self.result['square_size'] = self.board_params['square_size']
+        self.result['square_size_real'] = self.board_params['square_size']
         self.result['marker_size_relative'] = self.board_params['marker_size']
-        self.result['marker_size'] = self.result['square_size']*self.board_params['marker_size']
+        self.result['marker_size_real'] = self.result['square_size']*self.board_params['marker_size']
         self.result['boardWidth'] = self.board_params['boardWidth']
         self.result['boardHeight'] = self.board_params['boardHeight']
         self.result['scale_factor'] = 1
