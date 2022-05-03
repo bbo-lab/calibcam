@@ -461,7 +461,7 @@ class Calibrator:
         tSize = 3
         rSize = 3
         ASize = 4
-        nVars = rSize + tSize + kSize + ASize + rSize + tSize
+        nVars = rSize + tSize + kSize + ASize + rSize + tSize # Ori of camera, int. calibration, ori of board
         nAllVars = (len(self.readers) - 1) * (rSize + tSize) + len(self.readers) * kSize + len(
             self.readers) * ASize + self.nPoses * (rSize + tSize)
         nAllVars_single = np.sum((rSize + tSize) * self.nPoses_single)
@@ -481,8 +481,7 @@ class Calibrator:
             'tSize': tSize,  # number of free translation parameters per residual
             'rSize': rSize,  # number of free rotation parameters per residual
             'ASize': ASize,  # number of free variables in camera matrix per residual
-            'nVars': nVars,
-            # number of free parameters per residual TODO Is this even correct with 2x rSize/tSize?
+            'nVars': nVars,  # number of free parameters per residual
             'nAllVars': nAllVars,  # total number of free parameters
             'nAllVars_single': nAllVars_single,  # total number of free parameters (single calibration)
             'indexRefCam': self.indexRefCam,  # index of the reference camera
