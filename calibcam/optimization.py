@@ -27,7 +27,7 @@ def estimate_cam_poses(calibs_single, coord_cam):
         R_trans = (R.from_rotvec(calibs[refcam_idx]['rvecs'])[refcam_vec_mask] * R.from_rotvec(calibs[oricam_idx]['rvecs'])[oricam_vec_mask].inv).mean()
         t_trans = (calibs[refcam_idx]['tvecs'][refcam_vec_mask] - calibs[oricam_idx]['tvecs'][oricam_vec_mask]).mean(axis=1)
 
-        calibs[oricam_idx]['rvecs'] = calibs[coord_cam]['rvecs']
+        calibs[oricam_idx]['rvecs'] = calibs[coord_cam]['rvecs']  # TODO This is wrong, that cam has other poses than coord_cam
         calibs[oricam_idx]['tvecs'] = calibs[coord_cam]['tvecs']
 
         calibs[oricam_idx]['rvec_cam'] = R_trans.inv() * R.from_rotvec(calibs[refcam_idx]['rvec_cam'])
