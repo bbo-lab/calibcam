@@ -246,10 +246,10 @@ class CamCalibrator:
             cal = {
                 'rvec_cam': np.asarray([0., 0., 0.]),
                 'tvec_cam': np.asarray([0., 0., 0.]),
-                'A': A,
-                'k': k,
-                'rvecs': rvecs,
-                'tvecs': tvecs,
+                'A': np.asarray(A),
+                'k': np.asarray(k),
+                'rvecs': np.asarray(rvecs),
+                'tvecs': np.asarray(tvecs),
                 'repro_error': retval,
                 'frame_mask': mask,
             }
