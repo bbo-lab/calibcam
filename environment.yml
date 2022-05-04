@@ -12,6 +12,7 @@ dependencies:
   - pip
   - imageio
   - pyqt
+  - joblib
   - pip:
     - bbo-ccvtools
     - autograd
