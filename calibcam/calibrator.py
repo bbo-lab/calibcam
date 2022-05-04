@@ -634,7 +634,7 @@ class Calibrator:
         # Deprecated fields
         self.result['square_size_real'] = self.board_params['square_size']
         self.result['marker_size_relative'] = self.board_params['marker_size']
-        self.result['marker_size_real'] = self.result['square_size']*self.board_params['marker_size']
+        self.result['marker_size_real'] = 0
         self.result['boardWidth'] = self.board_params['boardWidth']
         self.result['boardHeight'] = self.board_params['boardHeight']
         self.result['scale_factor'] = 1
