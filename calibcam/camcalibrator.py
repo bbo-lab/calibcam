@@ -107,11 +107,12 @@ class CamCalibrator:
         # perform single calibration
         calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all)
 
+        # Save intermediate result, for dev purposes
+        np.savez(self.dataPath+'/calibs_multi.npz', calibs_single)
+        calibs_single = np.load(self.dataPath+'/calibs_multi.npz', allow_pickle=True)['arr_0'].item()
+
         # analytically estimate initial camera poses
         calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
-        np.savez(self.dataPath+'/calibs_multi.npz', calibs_multi)
-
-        calibs_multi = np.load(self.dataPath+'/calibs_multi.npz', allow_pickle=True)['arr_0'].item()
 
         print('START MULTI CAMERA CALIBRATION')
         calibs_multi_fit, cam_poses_fit = self.start_optimization(corners_all, ids_all, calibs_multi)
@@ -257,7 +258,7 @@ class CamCalibrator:
         else:
             return []
 
-    def perform_single_cam_calibrations(self, corners_all, ids_all, mask=None):
+    def perform_single_cam_calibrations(self, corners_all, ids_all, frame_mask):
         print('PERFORM SINGLE CAMERA CALIBRATION')
 
         # calibs_single = [self.calibrate_single_camera(corners_all[i_cam],
@@ -272,11 +273,12 @@ class CamCalibrator:
                                                   ids_all[i_cam],
                                                   helper.get_header_from_reader(self.readers[i_cam])['sensorsize'],
                                                   self.board_params,
-                                                  self.opts,
-                                                  mask)
+                                                  self.opts)
             for i_cam in range(len(self.readers)))
 
         for i_cam, calib in enumerate(calibs_single):
+            calib['frame_mask'] = frame_mask[i_cam].copy()
+            assert calib['frame_mask'].sum() == calib['tvecs'].shape[1], "Sizes do not match, check masks."
             print(f'Used {calib["frame_mask"].sum():03d} frames for single camera calibration for cam {i_cam:02d}')
 
         return calibs_single
