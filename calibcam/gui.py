@@ -2,23 +2,18 @@ import numpy as np
 import sys
 
 from . import multical_plot
-from .calibrator import Calibrator, UnsupportedFormatException, UnequalFrameCountException
+from .camcalibrator import CamCalibrator, UnsupportedFormatException, UnequalFrameCountException
 
-from PyQt5.QtWidgets import QAbstractItemView, \
-    QApplication, \
-    QComboBox, \
+from PyQt5.QtWidgets import QApplication, \
     QFrame, \
     QFileDialog, \
     QGridLayout, \
-    QLabel, \
-    QLineEdit, \
-    QListWidget, \
     QMainWindow, \
     QMessageBox, \
     QPushButton
 
 class MainWindow(QMainWindow):
-    def __init__(self, calibrator: Calibrator, parent=None):
+    def __init__(self, calibrator: CamCalibrator, parent=None):
         super(MainWindow, self).__init__(parent=parent)
 
         self.setGeometry(0, 0, 320, 96)
@@ -33,7 +28,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.frame_main)
 
         self.calibrator = calibrator
+        self.calibrationIsLoaded = False
 
+        self.button_performCalibration = None
+        self.button_loadCalibration = None
+        self.PlotWindow = None
         self.set_control_buttons()
 
         self.setFocus()
@@ -47,12 +46,12 @@ class MainWindow(QMainWindow):
     def set_control_buttons(self):
         self.button_performCalibration = QPushButton()
         self.button_performCalibration.setText('Perform calibration')
-        self.button_performCalibration.clicked.connect(self.button_performCalibration_press)
+        self.button_performCalibration.clicked.connect(self.button_performCalibration_press)  # noqa
         self.layoutGrid.addWidget(self.button_performCalibration, 0, 0)
 
         self.button_loadCalibration = QPushButton()
         self.button_loadCalibration.setText('Load calibration')
-        self.button_loadCalibration.clicked.connect(self.button_loadCalibration_press)
+        self.button_loadCalibration.clicked.connect(self.button_loadCalibration_press)  # noqa
         self.layoutGrid.addWidget(self.button_loadCalibration, 1, 0)
         return
 
@@ -63,7 +62,7 @@ class MainWindow(QMainWindow):
         # read the dataset
         self.read_recording()
 
-        if (self.calibrator.recordingIsLoaded):
+        if self.calibrator.recordingIsLoaded:
             # perform complete multi camera calibration
             self.calibrator.perform_multi_calibration()
             self.plot_calibration()
@@ -82,7 +81,7 @@ class MainWindow(QMainWindow):
         self.calibrationIsLoaded = False
         # read the calibration
         self.read_calibration()
-        if (self.calibrationIsLoaded):
+        if self.calibrationIsLoaded:
             self.plot_calibration()
         return
 
@@ -103,13 +102,13 @@ class MainWindow(QMainWindow):
                                                       self.startDirectory,
                                                       "npy files (*.npy)",
                                                       options=dialogOptions)
-        if (len(calFileName) == 1):
+        if len(calFileName) == 1:
             # check if input file is a npy-file:
             filesAreCorrect = True
             fileEnding = calFileName[0].split('/')[-1].split('.')[-1]
-            if (fileEnding != 'npy'):
+            if fileEnding != 'npy':
                 filesAreCorrect = False
-            if not (filesAreCorrect):
+            if not filesAreCorrect:
                 print('WARNING: Input file is not correct (no npy-file)')
                 self.button_performCalibration.setEnabled(True)
                 self.button_loadCalibration.setEnabled(True)
@@ -135,13 +134,13 @@ class MainWindow(QMainWindow):
                                                                 self.startDirectory,
                                                                 "Video files (*.*)",
                                                                 options=dialogOptions)
-        if (len(recFileNames_unsorted) > 1):
+        if len(recFileNames_unsorted) > 1:
             recFileNames = sorted(recFileNames_unsorted)
             try:
                 self.calibrator.set_recordings(recFileNames)
-            except UnsupportedFormatException as err:
+            except UnsupportedFormatException:
                 pass
-            except UnequalFrameCountException as err:
+            except UnequalFrameCountException:
                 print(
                     'Do you want the software to continue and ignore the last recorded frames in order to fix this issue?')
                 user_input = np.int64(0)
@@ -155,25 +154,25 @@ class MainWindow(QMainWindow):
                         'Do you want the software to continue and leave out the last recorded frame in order to fix this issue?')
                     user_input = msg.exec_()
                     user_input = np.int64(user_input)
-                if (user_input == np.int64(1024)):
+                if user_input == np.int64(1024):
                     self.calibrator.recordingIsLoaded = True
         else:
             print('WARNING: Provide at least two input files')
 
         if self.calibrator.recordingIsLoaded:
-            for (i_cam, recname) in enumerate(self.calibrator.recFileNames):
+            for (i_cam, recname) in enumerate(self.calibrator.rec_file_names):
                 print(f'Loading recording {recname}\t(camera {i_cam:02d})')
         else:
             self.calibrator.reset_recordings()
         return
 
 
-def main(calibrator: Calibrator):
+def main(calibrator: CamCalibrator):
     app = QApplication(sys.argv)
-    app_mw = MainWindow(calibrator)
+    app_mw = MainWindow(calibrator)  # noqa
     sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
-    calibrator = Calibrator(board_name=None)
-    main(calibrator)
+    c = CamCalibrator(board_name=None)
+    main(c)

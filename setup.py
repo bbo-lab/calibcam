@@ -1,5 +1,5 @@
 import pathlib
-from setuptools import find_packages, setup
+from setuptools import setup
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
 

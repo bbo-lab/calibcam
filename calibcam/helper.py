@@ -1,4 +1,37 @@
 import numpy as np
+from .exceptions import *
+
+def get_n_frames_from_reader(reader):
+    n_frames = len(reader)  # len() may be Inf for formats where counting frames can be expensive
+    if 1000000000000000 < n_frames:
+        try:
+            n_frames = reader.count_frames()
+        except ValueError:
+            print('Could not determine number of frames')
+            raise UnsupportedFormatException
+
+    return n_frames
+
+
+def get_header_from_reader(reader):
+    header = reader.get_meta_data()
+    # Add required headers that are not normally part of standard video formats but are required information for a full calibration
+    # TODO add option to supply this via options. Currently, compressed
+    if "sensor" in header:
+        header['offset'] = tuple(header['sensor']['offset'])
+        header['sensorsize'] = tuple(header['sensor']['size'])
+        del header['sensor']
+    else:
+        if 'offset' not in header:
+            print("Setting offset to 0!")
+            header['offset'] = tuple(np.asarray([0, 0]))
+
+        if 'sensorsize' not in header:
+            print("Inferring sensor size from image")
+            header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
+
+    return header
+
 
 # Detection may not lie on a single line
 def check_detections_nondegenerate(board_width, charuco_ids):
@@ -21,6 +54,22 @@ def check_detections_nondegenerate(board_width, charuco_ids):
         return False
 
     return True
+
+
+def deepmerge_dicts(source, destination):
+    """
+    merges source into destination
+    """
+
+    for key, value in source.items():
+        if isinstance(value, dict):
+            # get node or create one
+            node = destination.setdefault(key, {})
+            deepmerge_dicts(value, node)
+        else:
+            destination[key] = value
+
+    return destination
 
 
 def save_multicalibration_to_matlabcode(result, path):

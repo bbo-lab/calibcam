@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import argparse
-from .calibrator import Calibrator
+from .camcalibrator import CamCalibrator
 
 
 def main():
@@ -10,7 +10,7 @@ def main():
     parser.add_argument('--board', type=str, required=False, nargs=1, default=[None])
     args = parser.parse_args()
 
-    calibrator = Calibrator(board_name=args.board[0])
+    calibrator = CamCalibrator(board_name=args.board[0])
 
     if args.videos is None:
         print('Starting viewer')

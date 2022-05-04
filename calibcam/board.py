@@ -1,10 +1,11 @@
 import os
 import numpy as np
 import pathlib
+import cv2
 
 
 def get_board_params(board_source):
-    if isinstance(board_source, pathlib.PosixPath) or isinstance(board_source, pathlib.WindowsPath):
+    if isinstance(board_source, pathlib.Path):
         board_path = board_source / 'board.npy'
     else:
         board_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'boards', board_source + '.npy')
@@ -16,7 +17,23 @@ def get_board_params(board_source):
 
     return board_params
 
-def make_board(board_width, board_height, square_size):
+
+def make_board(board_params):
+    board = cv2.aruco.CharucoBoard_create(board_params['boardWidth'],
+                                          board_params['boardHeight'],
+                                          board_params['square_size_real'],
+                                          board_params['marker_size'] * board_params['square_size_real'],
+                                          cv2.aruco.getPredefinedDictionary(
+                                              board_params['dictionary_type']))
+
+    return board
+
+
+def make_board_points(board_params):
+    board_width = board_params['boardWidth']
+    board_height = board_params['boardHeight']
+    square_size = board_params['square_size_real']
+
     n_corners = (board_width - 1) * (board_height - 1)
 
     M_0 = np.repeat(np.arange(1, board_width).reshape(1, board_width - 1), board_height - 1,

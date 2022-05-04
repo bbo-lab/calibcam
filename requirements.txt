@@ -1,9 +1,9 @@
-cv2
 numpy
 matplotlib
 imageio
 autograd
 scipy
-yaml
-pyyaml
 setuptools
+joblib
+cv2
+PyQT5
