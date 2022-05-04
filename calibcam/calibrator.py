@@ -359,7 +359,7 @@ class Calibrator:
         cal_single_list = []
         for i_cam in range(len(self.readers)):
             mask = self.mask_single[i_cam]
-            cal = self.calibrate_camera(i_cam, None)
+            cal = self.calibrate_camera(i_cam, mask)
             cal_single_list.append(cal)
         return cal_single_list
 
@@ -461,7 +461,7 @@ class Calibrator:
         tSize = 3
         rSize = 3
         ASize = 4
-        nVars = rSize + tSize + kSize + ASize + rSize + tSize
+        nVars = rSize + tSize + kSize + ASize + rSize + tSize # Ori of camera, int. calibration, ori of board
         nAllVars = (len(self.readers) - 1) * (rSize + tSize) + len(self.readers) * kSize + len(
             self.readers) * ASize + self.nPoses * (rSize + tSize)
         nAllVars_single = np.sum((rSize + tSize) * self.nPoses_single)
@@ -482,8 +482,7 @@ class Calibrator:
             'tSize': tSize,  # number of free translation parameters per residual
             'rSize': rSize,  # number of free rotation parameters per residual
             'ASize': ASize,  # number of free variables in camera matrix per residual
-            'nVars': nVars,
-            # number of free parameters per residual TODO Is this even correct with 2x rSize/tSize?
+            'nVars': nVars,  # number of free parameters per residual
             'nAllVars': nAllVars,  # total number of free parameters
             'nAllVars_single': nAllVars_single,  # total number of free parameters (single calibration)
             'indexRefCam': self.indexRefCam,  # index of the reference camera
@@ -630,7 +629,7 @@ class Calibrator:
         # New: square_size_real factored into spatial units
 
         self.result['board_params'] = self.board_params
-        self.result['info'] = self.info
+#        self.result['info'] = self.info
 
         # Deprecated fields
         self.result['square_size_real'] = self.board_params['square_size']
