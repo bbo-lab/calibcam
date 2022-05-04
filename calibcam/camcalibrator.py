@@ -105,7 +105,7 @@ class CamCalibrator:
         # self.split_frame_sets()
 
         # perform single calibration
-        calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all)
+        calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frame_mask)
 
         # Save intermediate result, for dev purposes
         np.savez(self.dataPath+'/calibs_multi.npz', calibs_single)
