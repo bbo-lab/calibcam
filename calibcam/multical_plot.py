@@ -14,8 +14,9 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from matplotlib.figure import Figure
 
-
 from cv2 import Rodrigues as rodrigues
+
+from .board import make_board
 
 class PlotWindow(QMainWindow):
     def __init__(self, calibrator,
@@ -37,6 +38,7 @@ class PlotWindow(QMainWindow):
         self.nFrames = self.result['nFrames']
         self.boardWidth = self.result['boardWidth']
         self.boardHeight = self.result['boardHeight']
+        self.square_size = self.result['square_size_real']
         self.nFeatures = (self.boardWidth - 1) * (self.boardHeight - 1)
         
         self.set_layout()
@@ -239,10 +241,7 @@ class PlotWindow(QMainWindow):
                       rX1, tX1,
                       A, k):
         # M
-        M_0 = np.repeat(np.arange(1, self.boardWidth).reshape(1, self.boardWidth-1), self.boardHeight-1, axis=0).ravel().reshape(self.nFeatures, 1)
-        M_1 = np.repeat(np.arange(1, self.boardHeight), self.boardWidth-1, axis=0).reshape(self.nFeatures, 1)
-        M_2 = np.zeros(self.nFeatures).reshape(self.nFeatures, 1)
-        M = np.concatenate([M_0, M_1, M_2], 1)
+        M = make_board(self.boardWidth, self.boardWidth, self.square_size)
         # R1 * M + t1
         R1 = rodrigues(r1)[0]
         m = np.dot(R1, M.T).T + t1

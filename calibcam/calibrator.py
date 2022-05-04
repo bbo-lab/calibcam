@@ -472,6 +472,7 @@ class Calibrator:
             'nPoses_single': self.nPoses_single,  # total number of poses (single calibration)
             'boardWidth': self.board_params['boardWidth'],  # width of charuco board
             'boardHeight': self.board_params['boardHeight'],  # height of charuco board
+            'square_size': self.board_params['square_size_real'],  # square size of board in real world unit
             'nFeatures': self.nFeatures,  # total number of features on the charuco board
             'nRes': self.nFeatures * self.nPoses * len(self.readers),
             # total number of residuals for each direction (x, y)
@@ -632,9 +633,9 @@ class Calibrator:
         self.result['info'] = self.info
 
         # Deprecated fields
-        self.result['square_size'] = self.board_params['square_size']
+        self.result['square_size_real'] = self.board_params['square_size']
         self.result['marker_size_relative'] = self.board_params['marker_size']
-        self.result['marker_size'] = self.result['square_size']*self.board_params['marker_size']
+        self.result['marker_size_real'] = self.result['square_size']*self.board_params['marker_size']
         self.result['boardWidth'] = self.board_params['boardWidth']
         self.result['boardHeight'] = self.board_params['boardHeight']
         self.result['scale_factor'] = 1

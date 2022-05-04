@@ -4,7 +4,7 @@ from cv2 import Rodrigues as rodrigues
 
 from .autograd_func import calc_res_x, calc_res_y
 from .helper import check_detections_nondegenerate
-
+from .board import make_board
 
 def calc_xcam(calib, args):
     nCameras = args['nCameras']
@@ -167,13 +167,11 @@ def map_calib2consts(calib, args):
     nRes = args['nRes']
     boardWidth = args['boardWidth']
     boardHeight = args['boardHeight']
+    square_size = args['square_size']
     nFeatures = args['nFeatures']
 
     # M
-    M_0 = np.repeat(np.arange(1, boardWidth).reshape(1, boardWidth - 1), boardHeight - 1, axis=0).ravel().reshape(
-        nFeatures, 1)
-    M_1 = np.repeat(np.arange(1, boardHeight), boardWidth - 1, axis=0).reshape(nFeatures, 1)
-    M_ini = np.concatenate([M_0, M_1], 1)
+    M_ini = make_board(boardWidth, boardHeight, square_size)[:, 0:2]
 
     M = np.zeros((nRes, 2), dtype=np.float64)
     m = np.zeros((nRes, 2), dtype=np.float64)
@@ -208,13 +206,11 @@ def map_calib2consts_single(calib_single, args):
     nRes_single = args['nRes_single']
     boardWidth = args['boardWidth']
     boardHeight = args['boardHeight']
+    square_size = args['square_size']
     nFeatures = args['nFeatures']
 
     # M
-    M_0 = np.repeat(np.arange(1, boardWidth).reshape(1, boardWidth - 1), boardHeight - 1, axis=0).ravel().reshape(
-        nFeatures, 1)
-    M_1 = np.repeat(np.arange(1, boardHeight), boardWidth - 1, axis=0).reshape(nFeatures, 1)
-    M_ini = np.concatenate([M_0, M_1], 1)
+    M_ini = make_board(boardWidth, boardHeight, square_size)[:, 0:2]
 
     M_single = np.zeros((nRes_single, 2), dtype=np.float64)
     m_single = np.zeros((nRes_single, 2), dtype=np.float64)

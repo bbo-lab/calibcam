@@ -4,8 +4,6 @@ import sys
 from . import multical_plot
 from .calibrator import Calibrator, UnsupportedFormatException, UnequalFrameCountException
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QIntValidator
 from PyQt5.QtWidgets import QAbstractItemView, \
     QApplication, \
     QComboBox, \
@@ -18,13 +16,6 @@ from PyQt5.QtWidgets import QAbstractItemView, \
     QMainWindow, \
     QMessageBox, \
     QPushButton
-
-from matplotlib import colors as mcolors
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
-from matplotlib.figure import Figure
-from mpl_toolkits.mplot3d import proj3d
-
 
 class MainWindow(QMainWindow):
     def __init__(self, calibrator: Calibrator, parent=None):
@@ -47,8 +38,9 @@ class MainWindow(QMainWindow):
 
         self.setFocus()
         self.setWindowTitle('Multi Camera Calibration Tool')
+        print(1)
         self.show()
-
+        print(2)
         self.startDirectory = ''
         return
 
@@ -178,7 +170,7 @@ class MainWindow(QMainWindow):
 
 def main(calibrator: Calibrator):
     app = QApplication(sys.argv)
-    MainWindow(calibrator)
+    app_mw = MainWindow(calibrator)
     sys.exit(app.exec_())
 
 
