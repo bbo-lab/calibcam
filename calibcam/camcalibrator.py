@@ -277,7 +277,7 @@ class CamCalibrator:
             for i_cam in range(len(self.readers)))
 
         for i_cam, calib in enumerate(calibs_single):
-            print(f'Used {len(calib["frame_idxs"]):03d} frames for single camera calibration for cam {i_cam:02d}')
+            print(f'Used {calib["frame_mask"].sum():03d} frames for single camera calibration for cam {i_cam:02d}')
 
         return calibs_single
 
