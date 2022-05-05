@@ -280,10 +280,10 @@ class CamCalibrator:
 
         for i_cam, calib in enumerate(calibs_single):
             calib['frame_mask'] = frame_mask[i_cam].copy()
-            print(f"calib['tvecs'].shape[1] = {calib['tvecs'].shape[1]}")
+            print(f"calib['tvecs'].shape[0] = {calib['tvecs'].shape[0]}")
             print(f"calib['frame_mask'].sum() = {calib['frame_mask'].sum()}")
-            assert calib['frame_mask'].sum() == calib['tvecs'].shape[1], "Sizes do not match, check masks."
-            print(f'Used {calib["frame_mask"].sum():03d} frames for single camera calibration for cam {i_cam:02d}')
+            assert calib['frame_mask'].sum(dtype=int) == calib['tvecs'].shape[0], "Sizes do not match, check masks."
+            print(f'Used {calib["frame_mask"].sum(dtype=int):03d} frames for single camera calibration for cam {i_cam:02d}')
 
         return calibs_single
 
