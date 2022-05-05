@@ -228,7 +228,6 @@ class CamCalibrator:
     def calibrate_single_camera(corners_cam, ids_cam, sensor_size, board_params, opts, mask=None):
         if mask is None:
             mask = np.asarray([len(c) > 0 for c in corners_cam], dtype=bool)
-            print(f"len(corners_cam) = {len(corners_cam)}")
 
         n_used_frames = np.sum(mask)
 
@@ -258,7 +257,6 @@ class CamCalibrator:
                 'repro_error': retval,
                 'frame_mask': mask,
             }
-            print(f"len(cal['rvecs']) = {len(cal['rvecs'])}")
             print('Finished single camera calibration.')
             return cal
         else:
