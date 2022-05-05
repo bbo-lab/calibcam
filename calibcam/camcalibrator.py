@@ -108,8 +108,12 @@ class CamCalibrator:
         calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frame_mask)
 
         # Save intermediate result, for dev purposes
-        np.savez(self.dataPath+'/calibs_multi.npz', calibs_single)
-        calibs_single = np.load(self.dataPath+'/calibs_multi.npz', allow_pickle=True)['arr_0'].item()
+        np.savez(self.dataPath+'/preoptim.npz', calibs_single, corners_all, ids_all, frame_mask)
+        preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
+        calibs_single = preoptim['arr_0']
+        corners_all = preoptim['arr_1']
+        ids_all = preoptim['arr_2']
+        frame_mask = preoptim['arr_3']
 
         # analytically estimate initial camera poses
         calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
@@ -280,8 +284,6 @@ class CamCalibrator:
 
         for i_cam, calib in enumerate(calibs_single):
             calib['frame_mask'] = frame_mask[i_cam].copy()
-            print(f"calib['tvecs'].shape[0] = {calib['tvecs'].shape[0]}")
-            print(f"calib['frame_mask'].sum() = {calib['frame_mask'].sum()}")
             assert calib['frame_mask'].sum(dtype=int) == calib['tvecs'].shape[0], "Sizes do not match, check masks."
             print(f'Used {calib["frame_mask"].sum(dtype=int):03d} frames for single camera calibration for cam {i_cam:02d}')
 
