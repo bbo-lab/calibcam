@@ -76,6 +76,7 @@ class CamCalibrator:
         n_frames = np.zeros(len(self.readers), dtype=np.int64)
         for (i_cam, reader) in enumerate(self.readers):
             n_frames[i_cam] = helper.get_n_frames_from_reader(reader)
+            print(f'Found {n_frames[i_cam]} frames in cam {i_cam}')
 
         # check if frame number is consistent
         self.n_frames = n_frames[0]
@@ -96,19 +97,19 @@ class CamCalibrator:
         self.recordingIsLoaded = True
 
     def perform_multi_calibration(self):
-        # detect corners
-        corners_all, ids_all, frame_mask = self.detect_corners()
-
-        # # split into two frame sets
-        # # first set contains frames for single calibration
-        # # second set contains frames for multi calibration
-        # self.split_frame_sets()
-
-        # perform single calibration
-        calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frame_mask)
-
-        # Save intermediate result, for dev purposes
-        np.savez(self.dataPath+'/preoptim.npz', calibs_single, corners_all, ids_all, frame_mask)
+        # # detect corners
+        # corners_all, ids_all, frame_mask = self.detect_corners()
+        #
+        # # # split into two frame sets
+        # # # first set contains frames for single calibration
+        # # # second set contains frames for multi calibration
+        # # self.split_frame_sets()
+        #
+        # # perform single calibration
+        # calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frame_mask)
+        #
+        # # Save intermediate result, for dev purposes
+        # np.savez(self.dataPath+'/preoptim.npz', calibs_single, corners_all, ids_all, frame_mask)
         preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
         calibs_single = preoptim['arr_0']
         corners_all = preoptim['arr_1']

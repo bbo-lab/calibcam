@@ -12,27 +12,32 @@ def estimate_cam_poses(calibs_single, coord_cam):
 
     while not np.all(cams_oriented):
         # Find cam with the most overlaps with an oriented camera
-        cams_oriented_idxs = np.where(cams_oriented)
-        cams_unoriented_idxs = np.where(~cams_oriented)
-        ori_nori_mat = common_frame_mat[cams_oriented, ~cams_oriented]
+        cams_oriented_idxs = np.where(cams_oriented)[0]
+        cams_unoriented_idxs = np.where(~cams_oriented)[0]
+
+        ori_nori_mat = common_frame_mat[cams_oriented]
+        ori_nori_mat = ori_nori_mat[:, ~cams_oriented]
+        ori_nori_mat = ori_nori_mat.reshape(cams_oriented.sum(), (~cams_oriented).sum())  # For masks with one entry
 
         max_row, max_col = np.unravel_index(ori_nori_mat.argmax(), ori_nori_mat.shape)
 
         refcam_idx = cams_oriented_idxs[max_row]
         oricam_idx = cams_unoriented_idxs[max_col]
-        common_frame_idxs = np.logical_and(frame_masks[refcam_idx, :], frame_masks[oricam_idx, :])
-        refcam_vec_mask = common_frame_idxs[frame_masks[refcam_idx]]
-        oricam_vec_mask = common_frame_idxs[frame_masks[oricam_idx]]
 
-        R_trans = (R.from_rotvec(calibs[refcam_idx]['rvecs'])[refcam_vec_mask] * R.from_rotvec(calibs[oricam_idx]['rvecs'])[oricam_vec_mask].inv).mean()
-        t_trans = (calibs[refcam_idx]['tvecs'][refcam_vec_mask] - calibs[oricam_idx]['tvecs'][oricam_vec_mask]).mean(axis=1)
+        common_frame_idxs = np.logical_and(frame_masks[refcam_idx], frame_masks[oricam_idx])
+        print(common_frame_idxs.shape)
+        refcam_common_mask = common_frame_idxs[frame_masks[refcam_idx]]
+        oricam_common_mask = common_frame_idxs[frame_masks[oricam_idx]]
 
-        calibs[oricam_idx]['rvecs'] = calibs[coord_cam]['rvecs']  # TODO This is wrong, that cam has other poses than coord_cam
-        calibs[oricam_idx]['tvecs'] = calibs[coord_cam]['tvecs']
+        R_trans = (R.from_rotvec(calibs[refcam_idx]['rvecs'][refcam_common_mask, :, 0]) * R.from_rotvec(calibs[oricam_idx]['rvecs'][oricam_common_mask, :, 0]).inv()).mean()
+        t_trans = (calibs[refcam_idx]['tvecs'][refcam_common_mask, :, 0] - calibs[oricam_idx]['tvecs'][oricam_common_mask, :, 0]).mean(axis=0).reshape(1, 3)
 
-        calibs[oricam_idx]['rvec_cam'] = R_trans.inv() * R.from_rotvec(calibs[refcam_idx]['rvec_cam'])
-        calibs[oricam_idx]['tvec_cam'] = R_trans.inv() * (calibs[refcam_idx]['tvec_cam'] - t_trans)
+        calibs[oricam_idx]['rvecs'] = (R_trans * R.from_rotvec(calibs[oricam_idx]['rvecs'][:, :, 0])).as_rotvec().reshape(-1, 3, 1)
+        calibs[oricam_idx]['tvecs'] = (R_trans.apply(calibs[oricam_idx]['tvecs'][:, :, 0]) + t_trans).reshape(-1, 3, 1)
 
+        calibs[oricam_idx]['rvec_cam'] = (R_trans.inv() * R.from_rotvec(calibs[oricam_idx]['rvec_cam'])).as_rotvec()
+        calibs[oricam_idx]['tvec_cam'] = R_trans.inv().apply(calibs[oricam_idx]['tvec_cam'] - t_trans)
+        cams_oriented[oricam_idx] = True
     return calibs
 
 
