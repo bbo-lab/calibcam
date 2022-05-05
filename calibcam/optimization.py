@@ -57,3 +57,16 @@ def make_free_parameter_mask(calibs, frame_masks, opts_free_vars):
     pose_mask[:] = opts_free_vars['board_poses']
 
     return np.concatenate((camera_mask.ravel(), pose_mask.ravel()), axis=0)
+
+
+def obj_fcn_free(vars_opt, args):
+    vars_full = args['vars_full']
+    mask_opt = args['mask_opt']
+
+    vars_full[mask_opt] = vars_opt
+
+    return obj_fcn(vars_full, args)
+
+
+def obj_fcn(vars_full, args):
+    pass

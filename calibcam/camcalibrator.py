@@ -12,7 +12,7 @@ import time
 import multiprocessing
 from joblib import Parallel, delayed
 
-from autograd import elementwise_grad  # noqa
+from autograd import elementwise_grad,jacobian  # noqa
 from scipy.optimize import least_squares
 
 from . import multical_func as func
@@ -296,9 +296,19 @@ class CamCalibrator:
         start_time = time.time()
 
         vars_free, vars_full, mask_free = make_initialization(calibs_multi, frame_masks, self.opts)
-        exit()
+        used_frame_mask = np.all(frame_masks,axis=0)
+        board_coords_3d_0 = board.make_board_points(self.board_params)
         args = {
             'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
+            'mask_opt': mask_free,  # Mask of free vars within all vars
+            'corners_all': corners_all,
+            'ids_all': ids_all,
+            'precalc': {  # Stuff that can be precalculated
+                'board_coords_3d_0', board_coords_3d_0,  # Board points in z plane
+            },
+            'memory': {  # References to memory that can be reused, avoiding cost of reallocation
+                'residuals': np.zeros(shape=(len(self.readers), used_frame_mask.sum(), board_coords_3d_0.size))
+            }
         }
 
         min_result = least_squares(func.obj_fcn_free,

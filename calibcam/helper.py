@@ -1,6 +1,7 @@
 import numpy as np
 from .exceptions import *
 
+
 def get_n_frames_from_reader(reader):
     n_frames = len(reader)  # len() may be Inf for formats where counting frames can be expensive
     if 1000000000000000 < n_frames:
@@ -15,7 +16,8 @@ def get_n_frames_from_reader(reader):
 
 def get_header_from_reader(reader):
     header = reader.get_meta_data()
-    # Add required headers that are not normally part of standard video formats but are required information for a full calibration
+    # Add required headers that are not normally part of standard video formats but are required information
+    # for a full calibration
     # TODO add option to supply this via options. Currently, compressed
     if "sensor" in header:
         header['offset'] = tuple(header['sensor']['offset'])
