@@ -165,7 +165,7 @@ class CamCalibrator:
                 frame = cv2.cvtColor(frame, opts['color_convert'])
 
             # corner detection
-            corners, ids, rejectedImgPoints = \
+            corners, ids, rejected_img_points = \
                 cv2.aruco.detectMarkers(frame,
                                         cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),
                                         **finalize_aruco_detector_opts(opts['aruco_detect']))
@@ -179,7 +179,7 @@ class CamCalibrator:
                                                 board.make_board(board_params),
                                                 corners,
                                                 ids,
-                                                rejectedImgPoints,
+                                                rejected_img_points,
                                                 **finalize_aruco_detector_opts(opts['aruco_refine']))[0:2]
 
             # corner interpolation
@@ -239,12 +239,12 @@ class CamCalibrator:
             ids_use = list(compress(ids_cam,
                                     mask))
             cal_res = cv2.aruco.calibrateCameraCharuco(corners_use,
-                                                   ids_use,
-                                                   board.make_board(board_params),
-                                                   sensor_size,
-                                                   None,
-                                                   None,
-                                                   **opts['aruco_calibration'])
+                                                       ids_use,
+                                                       board.make_board(board_params),
+                                                       sensor_size,
+                                                       None,
+                                                       None,
+                                                       **opts['aruco_calibration'])
 
             retval, A, k, rvecs, tvecs = cal_res[0:5]
 
@@ -284,7 +284,8 @@ class CamCalibrator:
         for i_cam, calib in enumerate(calibs_single):
             calib['frame_mask'] = frame_mask[i_cam].copy()
             assert calib['frame_mask'].sum(dtype=int) == calib['tvecs'].shape[0], "Sizes do not match, check masks."
-            print(f'Used {calib["frame_mask"].sum(dtype=int):03d} frames for single camera calibration for cam {i_cam:02d}')
+            print(
+                f'Used {calib["frame_mask"].sum(dtype=int):03d} frames for single cam calibration for cam {i_cam:02d}')
 
         return calibs_single
 
@@ -322,8 +323,8 @@ class CamCalibrator:
 
     def save_multicalibration(self, result):
         # save
-        resultPath = self.dataPath + '/multicalibration.npy'
-        np.save(resultPath, result)
+        result_path = self.dataPath + '/multicalibration.npy'
+        np.save(result_path, result)
         helper.save_multicalibration_to_matlabcode(result, self.dataPath)
-        print('Saved multi camera calibration to file {:s}'.format(resultPath))
+        print('Saved multi camera calibration to file {:s}'.format(result_path))
         return

@@ -2,6 +2,7 @@ import numpy as np
 from copy import deepcopy
 from scipy.spatial.transform import Rotation as R  # noqa
 
+
 def estimate_cam_poses(calibs_single, coord_cam):
     calibs = deepcopy(calibs_single)
     cams_oriented = np.zeros(len(calibs), dtype=bool)
@@ -29,11 +30,23 @@ def estimate_cam_poses(calibs_single, coord_cam):
         refcam_common_mask = common_frame_idxs[frame_masks[refcam_idx]]
         oricam_common_mask = common_frame_idxs[frame_masks[oricam_idx]]
 
-        R_trans = (R.from_rotvec(calibs[refcam_idx]['rvecs'][refcam_common_mask, :, 0]) * R.from_rotvec(calibs[oricam_idx]['rvecs'][oricam_common_mask, :, 0]).inv()).mean()
-        t_trans = (calibs[refcam_idx]['tvecs'][refcam_common_mask, :, 0] - calibs[oricam_idx]['tvecs'][oricam_common_mask, :, 0]).mean(axis=0).reshape(1, 3)
+        R_trans = (  # noqa
+                R.from_rotvec(calibs[refcam_idx]['rvecs'][refcam_common_mask, :, 0]) *
+                R.from_rotvec(calibs[oricam_idx]['rvecs'][oricam_common_mask, :, 0]).inv()
+        ).mean()
+        t_trans = (
+                calibs[refcam_idx]['tvecs'][refcam_common_mask, :, 0] -
+                calibs[oricam_idx]['tvecs'][oricam_common_mask, :, 0]
+        ).mean(axis=0).reshape(1, 3)
 
-        calibs[oricam_idx]['rvecs'] = (R_trans * R.from_rotvec(calibs[oricam_idx]['rvecs'][:, :, 0])).as_rotvec().reshape(-1, 3, 1)
-        calibs[oricam_idx]['tvecs'] = (R_trans.apply(calibs[oricam_idx]['tvecs'][:, :, 0]) + t_trans).reshape(-1, 3, 1)
+        calibs[oricam_idx]['rvecs'] = (
+                R_trans *
+                R.from_rotvec(calibs[oricam_idx]['rvecs'][:, :, 0])
+        ).as_rotvec().reshape(-1, 3, 1)
+        calibs[oricam_idx]['tvecs'] = (
+                R_trans.apply(calibs[oricam_idx]['tvecs'][:, :, 0]) +
+                t_trans
+        ).reshape(-1, 3, 1)
 
         calibs[oricam_idx]['rvec_cam'] = (R_trans.inv() * R.from_rotvec(calibs[oricam_idx]['rvec_cam'])).as_rotvec()
         calibs[oricam_idx]['tvec_cam'] = R_trans.inv().apply(calibs[oricam_idx]['tvec_cam'] - t_trans)
