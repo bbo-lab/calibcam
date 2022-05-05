@@ -20,7 +20,8 @@ from . import helper
 from .exceptions import *
 from . import board
 from .calibrator_opts import get_default_opts, finalize_aruco_detector_opts
-from .optimization import estimate_cam_poses, make_initialization_from
+from .optimization import make_initialization
+from .pose_estimation import estimate_cam_poses
 from pprint import pprint  # noqa
 
 
@@ -294,7 +295,7 @@ class CamCalibrator:
         print('The following lines are associated with the current state of the optimization procedure:')
         start_time = time.time()
 
-        vars_free, vars_full, mask_free = make_initialization_from(calibs_multi, frame_masks, self.opts)
+        vars_free, vars_full, mask_free = make_initialization(calibs_multi, frame_masks, self.opts)
         exit()
         args = {
             'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions

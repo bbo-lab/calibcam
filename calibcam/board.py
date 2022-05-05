@@ -8,7 +8,7 @@ def get_board_params(board_source):
     if isinstance(board_source, pathlib.Path):
         board_path = board_source / 'board.npy'
     else:
-        board_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'boards', board_source + '.npy')
+        board_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../boards', board_source + '.npy')
 
     board_params = np.load(board_path, allow_pickle=True).item()
 
