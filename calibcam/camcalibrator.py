@@ -20,7 +20,7 @@ from . import helper
 from .exceptions import *
 from . import board
 from .calibrator_opts import get_default_opts, finalize_aruco_detector_opts
-from .optimization import estimate_cam_poses
+from .optimization import estimate_cam_poses, make_initialization_from
 from pprint import pprint  # noqa
 
 
@@ -120,7 +120,7 @@ class CamCalibrator:
         calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
         print('START MULTI CAMERA CALIBRATION')
-        calibs_multi_fit, cam_poses_fit = self.start_optimization(corners_all, ids_all, calibs_multi)
+        calibs_multi_fit, cam_poses_fit = self.start_optimization(corners_all, ids_all, calibs_multi, frame_mask)
 
         result = self.build_result(calibs_multi_fit, cam_poses_fit)
 
@@ -201,13 +201,13 @@ class CamCalibrator:
             charuco_corners[:, :, 1] = charuco_corners[:, :, 1] + offset_y
 
             # check against last used frame
+            # TODO check functionality of this code and determine actual value for maxdist
             used_frame_idxs = np.where(frames_mask)
             if not len(used_frame_idxs) > 0:
                 last_used_frame_idx = used_frame_idxs[-1]
 
                 ids_common = np.intersect1d(ids_cam[last_used_frame_idx], charuco_ids)
 
-                print(f'ids_common {ids_common}')
                 if helper.check_detections_nondegenerate(board_params['boardWidth'], ids_common):
                     prev_mask = np.isin(ids_cam[last_used_frame_idx], ids_common)
                     curr_mask = np.isin(charuco_ids, ids_common)
@@ -289,23 +289,21 @@ class CamCalibrator:
 
         return calibs_single
 
-    def start_optimization(self, corners_all, ids_all, calibs_multi):
+    def start_optimization(self, corners_all, ids_all, calibs_multi, frame_masks):
         print('Starting optimization procedure - This might take a while')
         print('The following lines are associated with the current state of the optimization procedure:')
         start_time = time.time()
 
-        print(len(corners_all))
-        print(len(ids_all))
-        print(len(calibs_multi))
-
-        initialization = []
-        bounds = []
-        args = dict()
+        vars_free, vars_full, mask_free = make_initialization_from(calibs_multi, frame_masks, self.opts)
+        exit()
+        args = {
+            'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
+        }
 
         min_result = least_squares(func.obj_fcn_free,
-                                   initialization,
+                                   vars_free,
                                    jac=func.obj_fcn_jac_free,
-                                   bounds=bounds,
+                                   bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
                                    args=[args],
                                    **self.opts['optimization'])
         current_time = time.time()

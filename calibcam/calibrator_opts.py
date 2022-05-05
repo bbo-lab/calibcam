@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 def get_default_opts():
     default_opts = {
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
@@ -10,8 +11,12 @@ def get_default_opts():
         'free_vars': {
             'cam_pose': True,
             'board_poses': True,
-            'A': np.ones(shape=4, dtype=bool),
-            'k': np.asarray([True, True, False, False, False]),
+            'A': np.asarray([[True,  False, True],   # a   c   u   (c is skew and should not be necessary)
+                             [False, True,  True],   # 0   b   v
+                             [False, False, False],  # 0   0   1
+                             ]),
+            'k': np.asarray([True, True, False, False, False]),  # This also determines the supported degree of
+                                                                 # distortion. Others will be set to 0.
         },
         'aruco_calibration': {
             'flags': (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3),
@@ -56,6 +61,7 @@ def get_detector_parameters_opts():
     }
     return detector_parameters
 
+
 def finalize_aruco_detector_opts(aruco_detect_opts):
     # Separation is necessary as cv2.aruco.DetectorParameters cannot be pickled
     opts = aruco_detect_opts.copy()
@@ -68,4 +74,3 @@ def finalize_aruco_detector_opts(aruco_detect_opts):
 
     opts['parameters'] = detector_parameters
     return opts
-
