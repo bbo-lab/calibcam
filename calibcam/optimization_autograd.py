@@ -5,7 +5,6 @@
 # - Do not use for loops
 # - Do not use array assignment, e.g. A[i,j] = x
 
-import autograd.numpy as np
 from . import camfunctions_autograd as camfuncs_ag
 from .helper_autograd import rodrigues_as_rotmats
 
@@ -29,7 +28,6 @@ def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
     boards_coords = camfuncs_ag.distort(boards_coords, ks)
     boards_coords = camfuncs_ag.ideal_to_sensor(boards_coords, cam_matrices)
 
-    # Calc residual (setting residuals of undetected points to 0)
     boards_coords = corners - boards_coords
 
     return boards_coords

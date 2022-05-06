@@ -15,6 +15,12 @@ def obj_fcn_wrapper(vars_opt, args):
     # and the return is in fact unnecessary!
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
+    # Tested correct:
+    # print(rvecs_cams[2])
+    # print(tvecs_cams[2])
+    # print(cam_matrices[2])
+    # print(ks[2])
+
     residuals = opt_ag.obj_fcn(
         rvecs_cams.ravel(),
         tvecs_cams.ravel(),
@@ -27,8 +33,7 @@ def obj_fcn_wrapper(vars_opt, args):
     )
 
     residuals[np.isnan(corners)] = 0
-    print(np.sum(np.isnan(residuals)))
-    print(np.sum(np.isinf(residuals)))
+    # print(np.nanmax(np.abs(residuals)))
     return residuals.ravel()
 
 
@@ -122,15 +127,18 @@ def make_initialization(calibs, frame_masks, opts, k_to_zero=True):
             param[15:20] = calib['k']
 
     pose_idxs = np.where(np.any(frame_masks, axis=0))[0]  # indexes into full frame range
-    pose_params = np.empty(shape=(2, pose_idxs.size, 3))
+    pose_params = np.zeros(shape=(2, pose_idxs.size, 3))
+    # TODO Instead using pose from 'coord_cam', it should be averaged over all available cams.
+    # See pose_estimation.estimate_cam_poses for averaging poses
+    # This might require fixing the other cam poses in calibration, see respective TODO in pose_estimation
+    calib = calibs[opts['coord_cam']]
+    frame_mask_cam = frame_masks[opts['coord_cam']]
     for i_pose, pose_idx in enumerate(pose_idxs):  # Loop through the poses (frames that have a board pose)
-        for calib, frame_mask_cam in zip(calibs, frame_masks):  # Loop through cameras ...
-            if frame_mask_cam[pose_idx]:  # ... and check if frame is available
-                frame_idxs_cam = np.where(frame_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
-                # TODO Instead of overwriting the pose, it should be averaged over all available cams.
-                # See pose_estimation.estimate_cam_poses for averaging poses
-                pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
-                pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
+        # for calib, frame_mask_cam in zip(calibs, frame_masks):  # Loop through cameras ...
+        if np.all(pose_params[0, i_pose, :] == 0) and frame_mask_cam[pose_idx]:  # ... and check if frame is available
+            frame_idxs_cam = np.where(frame_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
+            pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
+            pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
 
     # camera_params are raveled with one scalar parameter for all cams grouped
     # pose_params are raveled with first all rvecs and then all tvecs (for faster unraveling in obj_fun)

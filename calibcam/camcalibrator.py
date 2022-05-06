@@ -119,6 +119,9 @@ class CamCalibrator:
         # analytically estimate initial camera poses
         calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
+        # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
+        # test_calib([calibs_multi[1]], corners_all[1], board.make_board_points(self.board_params))
+
         print('START MULTI CAMERA CALIBRATION')
         calibs_fit, _, _, min_result, args = \
             self.start_optimization(corners_all, ids_all, calibs_multi, frames_masks)
@@ -296,7 +299,6 @@ class CamCalibrator:
         start_time = time.time()
 
         board_coords_3d_0 = board.make_board_points(self.board_params)
-        calibs_fit = [dict((k, c[k].copy()) for k in ('A', 'k', 'rvec_cam', 'tvec_cam')) for c in calibs_multi]
 
         used_frame_mask = np.any(frame_masks, axis=0)
         used_frame_idxs = np.where(used_frame_mask)[0]
@@ -338,17 +340,24 @@ class CamCalibrator:
                 'corners': corners,
                 'jacobians': optimization.get_obj_fcn_jacobians(),
             },
-            'memory': {  # References to memory that can be reused, avoiding cost of reallocation
-                'residuals': np.zeros_like(corners),
-                'boards_coords_3d': np.zeros_like(boards_coords_3d_0),
-                'boards_coords_3d_cams': np.zeros_like(boards_coords_3d_0),
-                'calibs': calibs_fit,
-            }
+            # Inapplicable tue to autograd slice limitations
+            # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
+            #     'residuals': np.zeros_like(corners),
+            #     'boards_coords_3d': np.zeros_like(boards_coords_3d_0),
+            #     'boards_coords_3d_cams': np.zeros_like(boards_coords_3d_0),
+            #     'calibs': calibs_fit,
+            # }
         }
+
+        # For comparison with unraveled data, tested correct
+        # print(calibs_multi[2]['rvec_cam'])
+        # print(calibs_multi[2]['tvec_cam'])
+        # print(calibs_multi[2]['A'])
+        # print(calibs_multi[2]['k'])
 
         min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                    vars_free,
-                                   jac=optimization.obj_fcn_jacobian_wrapper,
+                                   jac='2-point',  # optimization.obj_fcn_jacobian_wrapper,
                                    bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
                                    args=[args],
                                    **self.opts['optimization'])
@@ -393,3 +402,16 @@ class CamCalibrator:
         helper.save_multicalibration_to_matlabcode(result, self.dataPath)
         print('Saved multi camera calibration to file {:s}'.format(result_path))
         return
+
+
+def test_calib(calibs, corners, board_points):
+    from calibcamlib import Camerasystem
+    from scipy.spatial.transform import Rotation as R  # noqa
+
+    cs = Camerasystem.from_calibs(calibs)
+    b = R.from_rotvec(calibs[0]['rvecs'][0].reshape(1, 3)).apply(board_points) + calibs[0]['tvecs'][0].T
+
+    print(corners[0].reshape(-1, 2))
+    print()
+    print(cs.project(b))
+    print()

@@ -45,6 +45,8 @@ def estimate_cam_poses(calibs_single, coord_cam):
                 calibs[refcam_idx]['tvecs'][refcam_common_mask, :, 0]
         ).mean(axis=0).reshape((1, 3))
 
+        # TODO check if this is really correct. rvecs and tvecs should be really similar between cams in the same frames
+        # (but not necessary idxs, as different cams can contain different frame idxs)
         calibs[oricam_idx]['rvecs'] = (
                 R_trans *
                 R.from_rotvec(calibs[oricam_idx]['rvecs'][:, :, 0])
