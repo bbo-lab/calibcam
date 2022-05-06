@@ -97,27 +97,28 @@ class CamCalibrator:
         self.recordingIsLoaded = True
 
     def perform_multi_calibration(self):
-        # # detect corners
-        # corners_all, ids_all, frames_masks = self.detect_corners()
-        #
-        # # # split into two frame sets
-        # # # first set contains frames for single calibration
-        # # # second set contains frames for multi calibration
-        # # self.split_frame_sets()
-        #
-        # # perform single calibration
-        # calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frames_masks)
-        #
-        # # Save intermediate result, for dev purposes
-        # np.savez(self.dataPath+'/preoptim.npz', calibs_single, corners_all, ids_all, frames_masks)
-        preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
-        calibs_single = preoptim['arr_0']
-        corners_all = preoptim['arr_1']
-        ids_all = preoptim['arr_2']
-        frames_masks = preoptim['arr_3']
+        # detect corners
+        corners_all, ids_all, frames_masks = self.detect_corners()
+
+        # # split into two frame sets
+        # # first set contains frames for single calibration
+        # # second set contains frames for multi calibration
+        # self.split_frame_sets()
+
+        # perform single calibration
+        calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frames_masks)
 
         # analytically estimate initial camera poses
         calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
+
+        # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
+        np.savez(self.dataPath + '/preoptim.npz', calibs_single, calibs_multi, corners_all, ids_all, frames_masks)
+        # preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
+        # calibs_single = preoptim['arr_0']
+        # calibs_multi = preoptim['arr_1']
+        # corners_all = preoptim['arr_2']
+        # ids_all = preoptim['arr_3']
+        # frames_masks = preoptim['arr_4']
 
         # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
         # test_calib([calibs_multi[1]], corners_all[1], board.make_board_points(self.board_params))
