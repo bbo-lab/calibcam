@@ -21,9 +21,13 @@ def map_world_board_to_cams(boards_coords_3d, rotmats_cams, tvecs_cams):
 
 
 def board_to_ideal_plane(boards_coords_3d):
+    # We add eps to the quotient to avoid division by 0 errors from non-tracked boards. Not exactly sure why
+    # this happens?
+    # TODO find more elegant way. This appears difficult since we cannot use a[a==0] = ... due to autograd limitations
+    eps = np.finfo(np.float64).eps
     boards_coords_3d = np.concatenate((
-        boards_coords_3d[:, :, (0,), :] / boards_coords_3d[:, :, (2,), :],
-        boards_coords_3d[:, :, (1,), :] / boards_coords_3d[:, :, (2,), :],
+        boards_coords_3d[:, :, (0,), :] / (boards_coords_3d[:, :, (2,), :]+eps),
+        boards_coords_3d[:, :, (1,), :] / (boards_coords_3d[:, :, (2,), :]+eps),
         np.ones_like(boards_coords_3d[:, :, (2,), :]),
     ), 2)
     return boards_coords_3d
