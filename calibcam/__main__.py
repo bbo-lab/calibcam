@@ -26,7 +26,7 @@ def main():
 
     toc = timeit.default_timer()
 
-    print(f"Overall procedure took {tic-toc} s")
+    print(f"Overall procedure took {toc-tic} s")
 
     return
 
