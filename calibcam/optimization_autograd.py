@@ -1,51 +1,37 @@
 # Functions in this file will be subject to autograd and need to be written accordingly
 # - Do not import functions that are not compatible with autograd
 # - Autograd numpy used here
+# - Do not use asarray, as it does not seem to differentiable
+# - Do not use for loops
+# - Do not use array assignment, e.g. A[i,j] = x
+
 import autograd.numpy as np
+from . import camfunctions_autograd as camfuncs_ag
+from .helper_autograd import rodrigues_as_rotmats
 
 
-# Converts array of rotation vectors to array of rotation matrices
-def rodrigues_as_rotmats(r):
-    # noinspection PyUnresolvedReferences
-    theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
-    # noinspection PyUnresolvedReferences
-    u = r / (theta + -np.abs(np.sign(theta)) + 1).reshape(-1, 1)
-    
-    # row 1
-    # noinspection PyUnresolvedReferences
-    rotmat_00 = np.cos(theta) + u[:, 0] ** 2 * (1 - np.cos(theta))
-    # noinspection PyUnresolvedReferences
-    rotmat_01 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) - u[:, 2] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
-    rotmat_02 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) + u[:, 1] * np.sin(theta)
-    rotmat_0 = np.concatenate([rotmat_00.reshape(-1, 1, 1),
-                               rotmat_01.reshape(-1, 1, 1),
-                               rotmat_02.reshape(-1, 1, 1)], 2)
+def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards, boards_coords_3d_0, corners):
+    rvecs_cams = rvecs_cams.reshape(-1, 3)
+    tvecs_cams = tvecs_cams.reshape(-1, 3)
+    cam_matrices = cam_matrices.reshape(-1, 3, 3)
+    ks = ks.reshape(-1, 5)
+    rvecs_boards = rvecs_boards.reshape(-1, 3)
+    tvecs_boards = tvecs_boards.reshape(-1, 3)
+    boards_coords_3d_0 = boards_coords_3d_0.reshape(rvecs_cams.shape[0], rvecs_boards.shape[0], 3, -1)
+    corners = corners.reshape(rvecs_cams.shape[0], rvecs_boards.shape[0], 2, -1)
 
-    # row 2
-    # noinspection PyUnresolvedReferences
-    rotmat_10 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) + u[:, 2] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
-    rotmat_11 = np.cos(theta) + u[:, 1] ** 2 * (1 - np.cos(theta))
-    # noinspection PyUnresolvedReferences
-    rotmat_12 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) - u[:, 0] * np.sin(theta)
-    rotmat_1 = np.concatenate([rotmat_10.reshape(-1, 1, 1),
-                               rotmat_11.reshape(-1, 1, 1),
-                               rotmat_12.reshape(-1, 1, 1)], 2)
+    rotmats_cams = rodrigues_as_rotmats(rvecs_cams)
+    rotmats_boards = rodrigues_as_rotmats(rvecs_boards)
 
-    # row 3
-    # noinspection PyUnresolvedReferences
-    rotmat_20 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) - u[:, 1] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
-    rotmat_21 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) + u[:, 0] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
-    rotmat_22 = np.cos(theta) + u[:, 2] ** 2 * (1 - np.cos(theta))
-    rotmat_2 = np.concatenate([rotmat_20.reshape(-1, 1, 1),
-                               rotmat_21.reshape(-1, 1, 1),
-                               rotmat_22.reshape(-1, 1, 1)], 2)
+    boards_coords = camfuncs_ag.map_ideal_board_to_world(boards_coords_3d_0, rotmats_boards, tvecs_boards)
+    boards_coords = camfuncs_ag.map_world_board_to_cams(boards_coords, rotmats_cams, tvecs_cams)
+    boards_coords = camfuncs_ag.board_to_ideal_plane(boards_coords)
+    print(boards_coords.shape)
+    boards_coords = camfuncs_ag.distort(boards_coords, ks)
+    print(boards_coords.shape)
+    boards_coords = camfuncs_ag.ideal_to_sensor(boards_coords, cam_matrices)
 
-    rotmat = np.concatenate([rotmat_0,
-                             rotmat_1,
-                             rotmat_2], 1)
+    # Calc residual (setting residuals of undetected points to 0)
+    boards_coords = (corners - boards_coords) * ~np.isnan(corners)
 
-    return rotmat
+    return boards_coords.ravel()

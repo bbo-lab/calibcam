@@ -13,17 +13,17 @@ def get_board_params(board_source):
     board_params = np.load(board_path, allow_pickle=True).item()
 
     if board_params is not None:
-        board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']
+        board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']  # noqa
 
     return board_params
 
 
 def make_board(board_params):
-    board = cv2.aruco.CharucoBoard_create(board_params['boardWidth'],
+    board = cv2.aruco.CharucoBoard_create(board_params['boardWidth'],  # noqa
                                           board_params['boardHeight'],
                                           board_params['square_size_real'],
                                           board_params['marker_size'] * board_params['square_size_real'],
-                                          cv2.aruco.getPredefinedDictionary(
+                                          cv2.aruco.getPredefinedDictionary(  # noqa
                                               board_params['dictionary_type']))
 
     return board
@@ -42,4 +42,4 @@ def make_board_points(board_params):
     M_2 = np.zeros(n_corners).reshape(n_corners, 1)
     M = np.concatenate([M_0, M_1, M_2], 1) * square_size
 
-    return M
+    return M  # n_corners x 3

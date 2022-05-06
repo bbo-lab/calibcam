@@ -84,13 +84,12 @@ def save_multicalibration_to_matlabcode(result, path):
     f.write('% See: https://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html\n')
     f.write('\n\n\n')
 
-    i = 'nCameras'
-    n_cams = result[i]
+    n_cams = len(result['calibs'])
     f.write('% number of cameras:\n')
     f.write('nCams = {:01d}\n'.format(n_cams))
     f.write('\n\n')
 
-    i = 'recFileNames'
+    i = 'rec_file_names'
     f.write('% full path of used files (order equal to camera indexing):\n')
     f.write('f = { ...\n')
     for j in result[i]:
@@ -98,9 +97,8 @@ def save_multicalibration_to_matlabcode(result, path):
     f.write('}\n')
     f.write('\n\n')
 
-    i = 'indexRefCam'
     f.write('% index of reference camera (starts at 0):\n')
-    f.write('index_refCam = {:01d}\n'.format(result[i]))
+    f.write('index_refCam = {:01d}\n'.format(1))
     f.write('\n\n')
 
     i = 'A_fit'

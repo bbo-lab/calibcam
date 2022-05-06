@@ -16,7 +16,7 @@ from matplotlib.figure import Figure
 
 from cv2 import Rodrigues as rodrigues
 
-from .board import make_board
+from calibcam.board import make_board
 
 class PlotWindow(QMainWindow):
     def __init__(self, calibrator,

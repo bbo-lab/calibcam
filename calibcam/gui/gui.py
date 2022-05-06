@@ -1,8 +1,8 @@
 import numpy as np
 import sys
 
-from . import multical_plot
-from .camcalibrator import CamCalibrator, UnsupportedFormatException, UnequalFrameCountException
+from calibcam.gui import multical_plot
+from calibcam.camcalibrator import CamCalibrator, UnsupportedFormatException, UnequalFrameCountException
 
 from PyQt5.QtWidgets import QApplication, \
     QFrame, \
