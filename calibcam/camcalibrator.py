@@ -294,8 +294,6 @@ class CamCalibrator:
         return calibs_single
 
     def start_optimization(self, corners_all, ids_all, calibs_multi, frame_masks):
-        print('Starting optimization procedure - This might take a while')
-        print('The following lines are associated with the current state of the optimization procedure:')
         start_time = time.time()
 
         board_coords_3d_0 = board.make_board_points(self.board_params)
@@ -354,6 +352,8 @@ class CamCalibrator:
         # print(calibs_multi[2]['tvec_cam'])
         # print(calibs_multi[2]['A'])
         # print(calibs_multi[2]['k'])
+
+        print('Starting optimization procedure')
 
         min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                    vars_free,

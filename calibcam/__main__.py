@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import argparse
 from .camcalibrator import CamCalibrator
+import timeit
 
 
 def main():
+    tic = timeit.default_timer()
     # PArse command line arguments
     parser = argparse.ArgumentParser(description="Calibrate set of cameras")
     parser.add_argument('--videos', type=str, required=True, nargs='*', default=None)
@@ -21,6 +23,10 @@ def main():
     #     print('Starting viewer')
     #     from .gui import main as gui_main
     #     gui_main(calibrator)
+
+    toc = timeit.default_timer()
+
+    print(f"Overall procedure took {tic-toc} s")
 
     return
 
