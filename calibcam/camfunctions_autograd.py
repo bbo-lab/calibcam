@@ -29,7 +29,7 @@ def board_to_ideal_plane(boards_coords_3d):
     return boards_coords_3d
 
 
-def distort(boards_coords_ideal, ks):  # TODO check
+def distort(boards_coords_ideal, ks):
     r2 = np.sum(boards_coords_ideal[:, :, 0:2, :] ** 2, axis=2, keepdims=True)
     b = boards_coords_ideal
     ks = ks.reshape(-1, 5, 1, 1)
