@@ -298,7 +298,7 @@ class CamCalibrator:
         board_coords_3d_0 = board.make_board_points(self.board_params)
         calibs_fit = [dict((k, c[k].copy()) for k in ('A', 'k', 'rvec_cam', 'tvec_cam')) for c in calibs_multi]
 
-        used_frame_mask = np.all(frame_masks, axis=0)
+        used_frame_mask = np.any(frame_masks, axis=0)
         used_frame_idxs = np.where(used_frame_mask)[0]
         n_used_frames = used_frame_mask.sum(dtype=int)
         n_cams = len(self.readers)
@@ -336,7 +336,7 @@ class CamCalibrator:
             'precalc': {  # Stuff that can be precalculated
                 'boards_coords_3d_0': boards_coords_3d_0,  # Board points in z plane
                 'corners': corners,
-                'jacobians': optimization.get_obj_fcn_jacobians,
+                'jacobians': optimization.get_obj_fcn_jacobians(),
             },
             'memory': {  # References to memory that can be reused, avoiding cost of reallocation
                 'residuals': np.zeros_like(corners),

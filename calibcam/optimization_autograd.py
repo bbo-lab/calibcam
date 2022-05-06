@@ -26,12 +26,10 @@ def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
     boards_coords = camfuncs_ag.map_ideal_board_to_world(boards_coords_3d_0, rotmats_boards, tvecs_boards)
     boards_coords = camfuncs_ag.map_world_board_to_cams(boards_coords, rotmats_cams, tvecs_cams)
     boards_coords = camfuncs_ag.board_to_ideal_plane(boards_coords)
-    print(boards_coords.shape)
     boards_coords = camfuncs_ag.distort(boards_coords, ks)
-    print(boards_coords.shape)
     boards_coords = camfuncs_ag.ideal_to_sensor(boards_coords, cam_matrices)
 
     # Calc residual (setting residuals of undetected points to 0)
-    boards_coords = (corners - boards_coords) * ~np.isnan(corners)
+    boards_coords = corners - boards_coords
 
-    return boards_coords.ravel()
+    return boards_coords

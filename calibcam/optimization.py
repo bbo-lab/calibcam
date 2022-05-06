@@ -15,7 +15,7 @@ def obj_fcn_wrapper(vars_opt, args):
     # and the return is in fact unnecessary!
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
-    return opt_ag.obj_fcn(
+    residuals = opt_ag.obj_fcn(
         rvecs_cams.ravel(),
         tvecs_cams.ravel(),
         cam_matrices.ravel(),
@@ -25,6 +25,11 @@ def obj_fcn_wrapper(vars_opt, args):
         boards_coords_3d_0.ravel(),
         corners.ravel()
     )
+
+    residuals[np.isnan(corners)] = 0
+    print(np.sum(np.isnan(residuals)))
+    print(np.sum(np.isinf(residuals)))
+    return residuals.ravel()
 
 
 def make_vars_full(vars_opt, args):
@@ -50,6 +55,7 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
     # Calculate the full jacobian
+    print(args['precalc']['jacobians'])
     obj_fcn_jacobian = np.concatenate(
         [j(
             rvecs_cams.ravel(),
@@ -82,15 +88,15 @@ def unravel_vars_full(vars_full, n_cams):
 
     p_idx = 2
     st_idx = n_cam_param_list[0:p_idx].sum(dtype=int) * n_cams
-    cam_matrices = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(3, 3, -1).transpose(axes=(2, 0, 1))
+    cam_matrices = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(3, 3, -1).transpose((2, 0, 1))
 
     p_idx = 3
     st_idx = n_cam_param_list[0:p_idx].sum(dtype=int) * n_cams
     ks = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(n_cam_param_list[p_idx], -1).T
 
     board_pose_vars = vars_full[n_cams * n_cam_params:]
-    rvecs_boards = board_pose_vars[0:board_pose_vars.size / 2].reshape(-1, 3)
-    tvecs_boards = board_pose_vars[board_pose_vars.size / 2:].reshape(-1, 3)
+    rvecs_boards = board_pose_vars[0:int(board_pose_vars.size / 2)].reshape(-1, 3)
+    tvecs_boards = board_pose_vars[int(board_pose_vars.size / 2):].reshape(-1, 3)
 
     return rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
 
