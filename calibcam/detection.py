@@ -40,7 +40,7 @@ def detect_corners_cam(video, opts, board_params):
     # Detect corners over cams
     for (i_frame, frame) in enumerate(reader):
         # color management
-        if opts['color_convert'] is not None and len(frame.shape) > 2:
+        if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
             frame = cv2.cvtColor(frame, opts['color_convert'])  # noqa
 
         # corner detection

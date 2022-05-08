@@ -6,7 +6,7 @@ def get_default_opts():
     default_opts = {
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'allow_unequal_n_frame': False,  # Sometimes last frame is cut, so this may be okay.
-        'color_convert': None,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
+        'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
         'preoptimize': True,  # Perform detection and single cam calibration. (Disable mostly for development.)
         'use_autograd': False,  # Use autograd instead of 2-point numerical jacobian
