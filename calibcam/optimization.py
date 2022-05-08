@@ -4,8 +4,12 @@ from autograd import jacobian  # noqa
 
 from . import optimization_autograd as opt_ag
 
+
 def obj_fcn_wrapper(vars_opt, args):
-    corners = args['precalc']['corners']
+    corners = args['precalc']['corners'].copy()  # copy is necessary since this is a reference, so further down, nans
+    # will be replaced with 0 globally  TODO find more efficient solution
+    corners_mask = np.isnan(corners)
+    corners[corners_mask] = 0
     boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
@@ -32,24 +36,15 @@ def obj_fcn_wrapper(vars_opt, args):
         corners.ravel()
     )
 
-    residuals[np.isnan(corners)] = 0
-    # print(np.nanmax(np.abs(residuals)))
+    # Residuals of untracked corners are invalid
+    residuals[corners_mask] = 0
     return residuals.ravel()
-
-
-def make_vars_full(vars_opt, args):
-    n_cams = len(args['precalc']['boards_coords_3d_0'])
-
-    # Update full set of vars with free wars
-    vars_full = args['vars_full']
-    mask_opt = args['mask_opt']
-    vars_full[mask_opt] = vars_opt
-
-    return vars_full, n_cams
 
 
 def obj_fcn_jacobian_wrapper(vars_opt, args):
     corners = args['precalc']['corners']
+    corners_mask = np.isnan(corners)
+
     boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
@@ -60,7 +55,6 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
     # Calculate the full jacobian
-    print(args['precalc']['jacobians'])
     obj_fcn_jacobian = np.concatenate(
         [j(
             rvecs_cams.ravel(),
@@ -75,8 +69,22 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
         axis=1
     )
 
+    # Residuals of untracked corners are invalid
+    obj_fcn_jacobian[corners_mask.ravel()] = 0
+
     # Return section of free variables
     return obj_fcn_jacobian[:, args['mask_opt']]
+
+
+def make_vars_full(vars_opt, args):
+    n_cams = len(args['precalc']['boards_coords_3d_0'])
+
+    # Update full set of vars with free wars
+    vars_full = args['vars_full']
+    mask_opt = args['mask_opt']
+    vars_full[mask_opt] = vars_opt
+
+    return vars_full, n_cams
 
 
 def unravel_vars_full(vars_full, n_cams):
@@ -126,19 +134,7 @@ def make_initialization(calibs, frame_masks, opts, k_to_zero=True):
         else:
             param[15:20] = calib['k']
 
-    pose_idxs = np.where(np.any(frame_masks, axis=0))[0]  # indexes into full frame range
-    pose_params = np.zeros(shape=(2, pose_idxs.size, 3))
-    # TODO Instead using pose from 'coord_cam', it should be averaged over all available cams.
-    # See pose_estimation.estimate_cam_poses for averaging poses
-    # This might require fixing the other cam poses in calibration, see respective TODO in pose_estimation
-    calib = calibs[opts['coord_cam']]
-    frame_mask_cam = frame_masks[opts['coord_cam']]
-    for i_pose, pose_idx in enumerate(pose_idxs):  # Loop through the poses (frames that have a board pose)
-        # for calib, frame_mask_cam in zip(calibs, frame_masks):  # Loop through cameras ...
-        if np.all(pose_params[0, i_pose, :] == 0) and frame_mask_cam[pose_idx]:  # ... and check if frame is available
-            frame_idxs_cam = np.where(frame_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
-            pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
-            pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
+    pose_params = make_common_pose_params(calibs, frame_masks)
 
     # camera_params are raveled with one scalar parameter for all cams grouped
     # pose_params are raveled with first all rvecs and then all tvecs (for faster unraveling in obj_fun)
@@ -147,6 +143,24 @@ def make_initialization(calibs, frame_masks, opts, k_to_zero=True):
     vars_free = vars_full[mask_free]
 
     return vars_free, vars_full, mask_free
+
+
+def make_common_pose_params(calibs, frame_masks):
+    pose_idxs = np.where(np.any(frame_masks, axis=0))[0]  # indexes into full frame range
+    pose_params = np.zeros(shape=(2, pose_idxs.size, 3))
+    # TODO Instead using pose from first available cam, it should be averaged over all available cams.
+    # See pose_estimation.estimate_cam_poses for averaging poses
+    # This might require fixing the other cam poses in calibration, see respective TODO in pose_estimation
+    # calib = calibs[opts['coord_cam']]
+    # frame_mask_cam = frame_masks[opts['coord_cam']]
+    for i_pose, pose_idx in enumerate(pose_idxs):  # Loop through the poses (frames that have a board pose)
+        for calib, frame_mask_cam in zip(calibs, frame_masks):  # Loop through cameras ...
+            if np.all(pose_params[0, i_pose, :] == 0) and frame_mask_cam[pose_idx]:  # ... and check if frame is present
+                frame_idxs_cam = np.where(frame_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
+                pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
+                pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
+
+    return pose_params
 
 
 def make_free_parameter_mask(calibs, frame_masks, opts_free_vars):

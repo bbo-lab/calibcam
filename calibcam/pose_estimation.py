@@ -35,15 +35,19 @@ def estimate_cam_poses(calibs_single, coord_cam):
         oricam_common_mask = common_frame_idxs[frame_masks[oricam_idx]]
 
         # Calculate average transformation  from oricam to refcam coordinate system
-        R_trans = (  # noqa
+        Rs_trans = (  # noqa
                 R.from_rotvec(calibs[refcam_idx]['rvecs'][refcam_common_mask, :, 0]) *
                 R.from_rotvec(calibs[oricam_idx]['rvecs'][oricam_common_mask, :, 0]).inv()
-        ).mean()
-        t_trans = (
+        )
+        R_trans = Rs_trans.mean()
+        print(f"Mean rvec deviation: {np.mean(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=0)}")
+        ts_trans = (
                 -R_trans.apply(
                     calibs[oricam_idx]['tvecs'][oricam_common_mask, :, 0]) +
                 calibs[refcam_idx]['tvecs'][refcam_common_mask, :, 0]
-        ).mean(axis=0).reshape((1, 3))
+        )
+        t_trans = ts_trans.mean(axis=0).reshape((1, 3))
+        print(f"Mean tvec deviation: {np.mean(np.abs(ts_trans - t_trans), axis=0)}")
 
         # TODO check if this is really correct. rvecs and tvecs should be really similar between cams in the same frames
         # (but not necessary idxs, as different cams can contain different frame idxs)
@@ -59,6 +63,7 @@ def estimate_cam_poses(calibs_single, coord_cam):
         calibs[oricam_idx]['rvec_cam'] = (R_trans.inv() * R.from_rotvec(calibs[oricam_idx]['rvec_cam'])).as_rotvec()
         calibs[oricam_idx]['tvec_cam'] = R_trans.inv().apply(calibs[oricam_idx]['tvec_cam'] - t_trans)
         cams_oriented[oricam_idx] = True
+
     return calibs
 
 

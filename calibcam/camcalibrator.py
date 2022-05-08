@@ -1,7 +1,7 @@
 import os
+import sys
 
 import numpy as np
-from scipy.optimize import least_squares, OptimizeResult
 from scipy.io import savemat as scipy_io_savemat
 import cv2
 
@@ -11,14 +11,11 @@ from pathlib import Path
 import imageio
 from ccvtools import rawio  # noqa
 
-import time
 import multiprocessing
 from joblib import Parallel, delayed
 
 from .exceptions import *
-from . import helper
-from . import board
-from . import optimization
+from . import helper, camfunctions, board
 
 from .calibrator_opts import get_default_opts, finalize_aruco_detector_opts
 from .pose_estimation import estimate_cam_poses
@@ -75,7 +72,7 @@ class CamCalibrator:
         # find frame numbers
         n_frames = np.zeros(len(self.readers), dtype=np.int64)
         for (i_cam, reader) in enumerate(self.readers):
-            n_frames[i_cam] = helper.get_n_frames_from_reader(reader)
+            n_frames[i_cam] = camfunctions.get_n_frames_from_reader(reader)
             print(f'Found {n_frames[i_cam]} frames in cam {i_cam}')
 
         # check if frame number is consistent
@@ -115,13 +112,11 @@ class CamCalibrator:
         np.savez(self.dataPath + '/preoptim.npz', calibs_single, calibs_multi, corners_all, ids_all, frames_masks)
         # preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
         # calibs_single = preoptim['arr_0']
-        # calibs_multi = preoptim['arr_1']
+        # # calibs_multi = preoptim['arr_1']
         # corners_all = preoptim['arr_2']
         # ids_all = preoptim['arr_3']
         # frames_masks = preoptim['arr_4']
-
-        # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
-        # test_calib([calibs_multi[1]], corners_all[1], board.make_board_points(self.board_params))
+        # calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
         print('START MULTI CAMERA CALIBRATION')
         calibs_fit, _, _, min_result, args = \
@@ -158,13 +153,15 @@ class CamCalibrator:
 
         corners_cam = []
         ids_cam = []
-        frames_mask = np.zeros(helper.get_n_frames_from_reader(reader), dtype=bool)
+        frames_mask = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
 
         # get offset
-        offset_x, offset_y = helper.get_header_from_reader(reader)['offset']
+        offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
 
         # Detect corners over cams
         for (i_frame, frame) in enumerate(reader):
+            if frames_mask.sum() > 20:
+                break
             # color management
             if opts['color_convert'] is not None and len(frame.shape) > 2:
                 frame = cv2.cvtColor(frame, opts['color_convert'])  # noqa
@@ -281,7 +278,7 @@ class CamCalibrator:
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2)))(
             delayed(self.calibrate_single_camera)(corners_all[i_cam],
                                                   ids_all[i_cam],
-                                                  helper.get_header_from_reader(self.readers[i_cam])['sensorsize'],
+                                                  camfunctions.get_header_from_reader(self.readers[i_cam])['sensorsize'],
                                                   self.board_params,
                                                   self.opts)
             for i_cam in range(len(self.readers)))
@@ -294,79 +291,15 @@ class CamCalibrator:
 
         return calibs_single
 
-    def start_optimization(self, corners_all, ids_all, calibs_multi, frame_masks):
-        start_time = time.time()
+    def start_optimization(self, corners_all, ids_all, calibs_multi, frame_masks, opts=None, board_params=None):
+        if opts is None:
+            opts = self.opts
+        if board_params is None:
+            board_params = self.board_params
 
-        board_coords_3d_0 = board.make_board_points(self.board_params)
-
-        used_frame_mask = np.any(frame_masks, axis=0)
-        used_frame_idxs = np.where(used_frame_mask)[0]
-        n_used_frames = used_frame_mask.sum(dtype=int)
-        n_cams = len(self.readers)
-        n_corner = board_coords_3d_0.shape[0]
-
-        vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frame_masks, self.opts)
-
-        # Prepare ideal boards for each cam and frame. This costs almost 3x the necessary memory, but makes
-        # further autograd compatible code much easier
-        boards_coords_3d_0 = np.tile(board_coords_3d_0.T,
-                                     (n_cams, n_used_frames, 1, 1))  # Note transpose for later linalg
-
-        corners = np.empty(shape=(n_cams, n_used_frames, 2, n_corner))
-        corners[:] = np.NaN
-        for i_cam, frame_mask_cam in enumerate(frame_masks):
-            frame_idxs_cam = np.where(frame_mask_cam)[0]
-
-            for i_frame, f_idx in enumerate(used_frame_idxs):
-                # print(ids_all[i_cam][i_frame].ravel())
-                # print(corners[i_cam, f_idx].shape)
-                # print(corners_all[i_cam][i_frame].shape)
-                cam_fr_idx = np.where(frame_idxs_cam == f_idx)[0]
-                if cam_fr_idx.size < 1:
-                    continue
-
-                cam_fr_idx = int(cam_fr_idx)
-                corners[i_cam, i_frame][:, ids_all[i_cam][cam_fr_idx].ravel()] = \
-                    corners_all[i_cam][cam_fr_idx][:, 0, :].T  # Note transpose for later linalg
-
-        args = {
-            'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
-            'mask_opt': mask_free,  # Mask of free vars within all vars
-            'frame_masks': frame_masks,
-            'opts_free_vars': self.opts['free_vars'],
-            'precalc': {  # Stuff that can be precalculated
-                'boards_coords_3d_0': boards_coords_3d_0,  # Board points in z plane
-                'corners': corners,
-                'jacobians': optimization.get_obj_fcn_jacobians(),
-            },
-            # Inapplicable tue to autograd slice limitations
-            # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
-            #     'residuals': np.zeros_like(corners),
-            #     'boards_coords_3d': np.zeros_like(boards_coords_3d_0),
-            #     'boards_coords_3d_cams': np.zeros_like(boards_coords_3d_0),
-            #     'calibs': calibs_fit,
-            # }
-        }
-
-        # For comparison with unraveled data, tested correct
-        # print(calibs_multi[2]['rvec_cam'])
-        # print(calibs_multi[2]['tvec_cam'])
-        # print(calibs_multi[2]['A'])
-        # print(calibs_multi[2]['k'])
-
-        print('Starting optimization procedure')
-
-        min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
-                                   vars_free,
-                                   jac='2-point',  # optimization.obj_fcn_jacobian_wrapper,
-                                   bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
-                                   args=[args],
-                                   **self.opts['optimization'])
-        current_time = time.time()
-        print('Optimization algorithm converged:\t{:s}'.format(str(min_result.success)))
-        print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
-
-        calibs_fit, rvecs_boards, tvecs_boards = optimization.unravel_to_calibs(min_result.x, args)
+        calibs_fit, rvecs_boards, tvecs_boards, min_result, args =\
+            camfunctions.optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks,
+                                                   opts=opts, board_params=board_params)
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
@@ -377,7 +310,7 @@ class CamCalibrator:
             'calibs': calibs,
             'board_params': self.board_params,
             'rec_file_names': self.rec_file_names,
-            'vid_headers': [helper.get_header_from_reader(r) for r in self.readers],
+            'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],
             'info': {
                 'cost_val_final': np.NaN,
                 'optimality_final': np.NaN,
@@ -397,22 +330,8 @@ class CamCalibrator:
 
     def save_multicalibration(self, result):
         # save
-        result_path = self.dataPath + '/multicam_calibration.'
-        np.save(result_path+'npy', result)
-        scipy_io_savemat(result_path + 'mat', result)
-        helper.save_multicalibration_to_matlabcode(result, self.dataPath)
+        result_path = self.dataPath + '/multicam_calibration'
+        np.save(result_path+'.npy', result)
+        scipy_io_savemat(result_path + '.mat', result)
         print('Saved multi camera calibration to file {:s}'.format(result_path))
         return
-
-
-def test_calib(calibs, corners, board_points):
-    from calibcamlib import Camerasystem
-    from scipy.spatial.transform import Rotation as R  # noqa
-
-    cs = Camerasystem.from_calibs(calibs)
-    b = R.from_rotvec(calibs[0]['rvecs'][0].reshape(1, 3)).apply(board_points) + calibs[0]['tvecs'][0].T
-
-    print(corners[0].reshape(-1, 2))
-    print()
-    print(cs.project(b))
-    print()
