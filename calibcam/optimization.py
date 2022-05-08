@@ -38,6 +38,7 @@ def obj_fcn_wrapper(vars_opt, args):
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
+    print(np.max(np.abs(residuals)))
     return residuals.ravel()
 
 
@@ -54,18 +55,23 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     # and the return is in fact unnecessary!
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
+    jacobians = [j(
+        rvecs_cams.ravel(),
+        tvecs_cams.ravel(),
+        cam_matrices.ravel(),
+        ks.ravel(),
+        rvecs_boards.ravel(),
+        tvecs_boards.ravel(),
+        boards_coords_3d_0.ravel(),
+        corners.ravel()
+    ) for j in args['precalc']['jacobians']]
+
+    for j in jacobians:
+        print(j.shape)
+
     # Calculate the full jacobian
     obj_fcn_jacobian = np.concatenate(
-        [j(
-            rvecs_cams.ravel(),
-            tvecs_cams.ravel(),
-            cam_matrices.ravel(),
-            ks.ravel(),
-            rvecs_boards.ravel(),
-            tvecs_boards.ravel(),
-            boards_coords_3d_0.ravel(),
-            corners.ravel()
-        ) for j in args['precalc']['jacobians']],
+        jacobians,
         axis=1
     )
 

@@ -94,30 +94,27 @@ class CamCalibrator:
         self.recordingIsLoaded = True
 
     def perform_multi_calibration(self):
-        # detect corners
-        corners_all, ids_all, frames_masks = \
-            detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
+        if self.opts["preoptimize"]:
+            # detect corners
+            corners_all, ids_all, frames_masks = \
+                detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
 
-        # # split into two frame sets
-        # # first set contains frames for single calibration
-        # # second set contains frames for multi calibration
-        # self.split_frame_sets()
+            # perform single calibration
+            calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frames_masks)
 
-        # perform single calibration
-        calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frames_masks)
+            # analytically estimate initial camera poses
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
-        # analytically estimate initial camera poses
-        calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
-
-        # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-        np.savez(self.dataPath + '/preoptim.npz', calibs_single, calibs_multi, corners_all, ids_all, frames_masks)
-        # preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
-        # calibs_single = preoptim['arr_0']
-        # # calibs_multi = preoptim['arr_1']
-        # corners_all = preoptim['arr_2']
-        # ids_all = preoptim['arr_3']
-        # frames_masks = preoptim['arr_4']
-        # calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
+            # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
+            np.savez(self.dataPath + '/preoptim.npz', calibs_single, calibs_multi, corners_all, ids_all, frames_masks)
+        else:
+            preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
+            calibs_single = preoptim['arr_0']
+            # calibs_multi = preoptim['arr_1']
+            corners_all = preoptim['arr_2']
+            ids_all = preoptim['arr_3']
+            frames_masks = preoptim['arr_4']
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
         print('START MULTI CAMERA CALIBRATION')
         calibs_fit, _, _, min_result, args = \

@@ -74,9 +74,15 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
 
     print('Starting optimization procedure')
 
+    if opts['use_autograd']:
+        jac = optimization.obj_fcn_jacobian_wrapper
+    else:
+        jac = '2-point'
+
+
     min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                                vars_free,
-                                               jac='2-point',  # optimization.obj_fcn_jacobian_wrapper,
+                                               jac=jac,
                                                bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
                                                args=[args],
                                                **opts['optimization'])
