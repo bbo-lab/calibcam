@@ -15,4 +15,5 @@ dependencies:
   - joblib
   - pip:
     - bbo-ccvtools
+    - bbo-calibcamlib
     - autograd

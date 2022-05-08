@@ -1,5 +1,5 @@
 import multiprocessing
-
+import cv2
 import imageio
 import numpy as np
 from ccvtools import rawio  # noqa
