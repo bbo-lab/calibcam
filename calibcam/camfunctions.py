@@ -71,7 +71,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
 
     # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
     test_objective_function(calibs_multi, vars_free, args, corners, board.make_board_points(board_params))
-    exit()
 
     print('Starting optimization procedure')
 
