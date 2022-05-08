@@ -1,5 +1,3 @@
-import sys
-
 import numpy as np
 from scipy.optimize import least_squares, OptimizeResult
 
@@ -126,7 +124,6 @@ def get_header_from_reader(reader):
 
 
 def test_objective_function(calibs, vars_free, args, corners_detection, board_points):
-    sys.path.insert(0, '/home/voit/code/calibcamlib')
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
@@ -137,8 +134,8 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     residuals_objfun[residuals_objfun == 0] = np.NaN
 
     pose_params = optimization.make_common_pose_params(calibs, args['frame_masks'])
-    rvecs_board = pose_params[0].reshape(-1, 3)
-    tvecs_board = pose_params[1].reshape(-1, 3)
+    rvecs_board = pose_params[0].reshape(-1, 3)  # noqa
+    tvecs_board = pose_params[1].reshape(-1, 3)  # noqa
     corners_cameralib = np.empty_like(residuals_objfun)
     corners_cameralib[:] = np.NaN
     cs = Camerasystem.from_calibs(calibs)
