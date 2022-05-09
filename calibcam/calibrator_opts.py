@@ -40,13 +40,13 @@ def get_default_opts():
         },
         'optimization': {
             'method': 'trf',
-            'ftol': np.finfo(np.float64).eps,  # machine epsilon
-            'xtol': np.finfo(np.float64).eps,  # machine epsilon
-            'gtol': np.finfo(np.float64).eps,  # machine epsilon
+            'ftol': 1e-4,
+            'xtol': 1e-8,
+            'gtol': 1e-8,
             'x_scale': 'jac',
             'loss': 'linear',
             'tr_solver': 'exact',
-            'max_nfev': np.inf,
+            'max_nfev': 100,
             'verbose': 2,
         },
     }
