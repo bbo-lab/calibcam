@@ -8,7 +8,6 @@
 from . import camfunctions_autograd as camfuncs_ag
 from .helper_autograd import rodrigues_as_rotmats
 
-
 def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards, boards_coords_3d_0, corners):
     rvecs_cams = rvecs_cams.reshape(-1, 3)
     tvecs_cams = tvecs_cams.reshape(-1, 3)
