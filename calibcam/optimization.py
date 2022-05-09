@@ -146,7 +146,7 @@ def make_initialization(calibs, frame_masks, opts, k_to_zero=True):
     # camera_params are raveled with one scalar parameter for all cams grouped
     # pose_params are raveled with first all rvecs and then all tvecs (for faster unraveling in obj_fun)
     vars_full = np.concatenate((camera_params.T.ravel(), pose_params.ravel()), axis=0)
-    mask_free = make_free_parameter_mask(calibs, frame_masks, opts_free_vars)
+    mask_free = make_free_parameter_mask(calibs, frame_masks, opts_free_vars, opts['coord_cam'])
     vars_free = vars_full[mask_free]
 
     return vars_free, vars_full, mask_free
@@ -170,7 +170,7 @@ def make_common_pose_params(calibs, frame_masks):
     return pose_params
 
 
-def make_free_parameter_mask(calibs, frame_masks, opts_free_vars):
+def make_free_parameter_mask(calibs, frame_masks, opts_free_vars, coord_cam_idx):
     camera_mask = np.ones(shape=(
         len(calibs),
         3 + 3 + 9 + 5  # r + t + A + k
@@ -180,6 +180,9 @@ def make_free_parameter_mask(calibs, frame_masks, opts_free_vars):
     camera_mask[:, 3:6] = opts_free_vars['cam_pose']
     camera_mask[:, 6:15] = opts_free_vars['A'].ravel()
     camera_mask[:, 10:15] = opts_free_vars['k']
+
+    # Position of coord cam is not free
+    camera_mask[coord_cam_idx, 0:6] = False
 
     pose_idxs = np.where(np.any(frame_masks, axis=0))[0]  # indexes into full frame range
     pose_mask = np.ones(shape=(pose_idxs.size, 2, 3), dtype=bool)
