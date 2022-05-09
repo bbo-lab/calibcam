@@ -1,7 +1,12 @@
+import multiprocessing
+from joblib import Parallel, delayed
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R  # noqa
-from autograd import jacobian  # noqa
+# from autograd import jacobian, elementwise_grad  # noqa
+from jax import jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
 
+import timeit
 from . import optimization_autograd as opt_ag
 
 
@@ -25,7 +30,7 @@ def obj_fcn_wrapper(vars_opt, args):
     # print(cam_matrices[2])
     # print(ks[2])
 
-    residuals = opt_ag.obj_fcn(
+    residuals = np.array(opt_ag.obj_fcn(
         rvecs_cams.ravel(),
         tvecs_cams.ravel(),
         cam_matrices.ravel(),
@@ -34,7 +39,7 @@ def obj_fcn_wrapper(vars_opt, args):
         tvecs_boards.ravel(),
         boards_coords_3d_0.ravel(),
         corners.ravel()
-    )
+    ))
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
@@ -46,7 +51,6 @@ def obj_fcn_wrapper(vars_opt, args):
 def obj_fcn_jacobian_wrapper(vars_opt, args):
     corners = args['precalc']['corners']
     corners_mask = np.isnan(corners)
-
     boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
@@ -56,31 +60,112 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     # and the return is in fact unnecessary!
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
-    jacobians = [j(
-        rvecs_cams.ravel(),
-        tvecs_cams.ravel(),
-        cam_matrices.ravel(),
-        ks.ravel(),
-        rvecs_boards.ravel(),
-        tvecs_boards.ravel(),
-        boards_coords_3d_0.ravel(),
-        corners.ravel()
-    ) for j in args['precalc']['jacobians']]
+    # All zero rotvec causes division by 0 problems. Usually, this usually does not matter since the ref cam
+    # orientation is not part of the free variables, but we apply this fix to avoid misleading errors
+    rvecs_cams = rvecs_cams.copy()
+    for i_cam in range(corners.shape[0]):
+        if np.all(rvecs_cams[i_cam] == 0):
+            rvecs_cams[i_cam][:] = np.finfo(np.float16).eps
 
-    for j in jacobians:
-        print(j.shape)
+    jacobians = args['precalc']['jacobians']
 
-    # Calculate the full jacobian
-    obj_fcn_jacobian = np.concatenate(
-        jacobians,
-        axis=4
-    )
+    tic = timeit.default_timer()
+
+    obj_fcn_jacobian_cam = calc_cam_jacobian(jacobians,
+                                             rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
+                                             boards_coords_3d_0, corners)
+    obj_fcn_jacobian_pose = calc_pose_jacobian(jacobians,
+                                               rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
+                                               boards_coords_3d_0, corners)
+
+    obj_fcn_jacobian = np.concatenate((
+        obj_fcn_jacobian_cam.reshape(corners.shape + (-1,)),
+        obj_fcn_jacobian_pose.reshape(corners.shape + (-1,)),
+    ), corners.ndim)
+
+    print(timeit.default_timer() - tic)
 
     # Residuals of untracked corners are invalid
     obj_fcn_jacobian[corners_mask] = 0
 
     # Return section of free variables
-    return obj_fcn_jacobian[:, args['mask_opt']].ravel()
+    obj_fcn_jacobian = obj_fcn_jacobian.reshape(np.prod(corners_mask.shape), -1)
+    return obj_fcn_jacobian[:, args['mask_opt']]
+
+
+def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
+                      boards_coords_3d_0, corners):
+    n_cam_param_list = np.array([3, 3, 9, 5])
+
+    obj_fcn_jacobian_cam = np.zeros(corners.shape + (corners.shape[0], n_cam_param_list.sum()), dtype=np.float16)
+    for i_cam in range(corners.shape[0]):
+        print(i_cam)
+        # jacs = [calc_jacobian(jacobians[i_param], (
+        jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
+            delayed(calc_jacobian)(jacobians[i_param], (
+                rvecs_cams[i_cam].ravel(),
+                tvecs_cams[i_cam].ravel(),
+                cam_matrices[i_cam].ravel(),
+                ks[i_cam].ravel(),
+                rvecs_boards[0:10].ravel(),
+                tvecs_boards[0:10].ravel(),
+                boards_coords_3d_0[i_cam, 0:10].ravel(),
+                corners[i_cam, 0:10].ravel()
+            ))
+            for i_param in range(len(n_cam_param_list)))
+
+        for i_param, (j, len_param) in enumerate(zip(jacs, n_cam_param_list)):
+            offset = n_cam_param_list[0:i_param].sum()
+            if np.any(np.isnan(j)):
+                print("In cam")
+                print(j)
+                print(j.shape)
+                print(i_cam)
+                print(i_param)
+                exit()
+            obj_fcn_jacobian_cam[[i_cam], 0:10, :, :, i_cam, offset:(offset + len_param)] = j
+
+    return obj_fcn_jacobian_cam
+
+
+def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
+                       boards_coords_3d_0, corners):
+    n_cam_param_list = np.array([3, 3, 9, 5])
+    n_pose_param_list = np.array([3, 3])
+
+    obj_fcn_jacobian_pose = np.zeros(corners.shape + (corners.shape[1], n_pose_param_list.sum()), dtype=np.float16)
+    for i_pose in range(corners.shape[1]):
+        print(i_pose)
+        # jacs = [calc_jacobian(jacobians[i_param + n_cam_param_list.size], (
+        jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
+            delayed(calc_jacobian)(jacobians[i_param + n_cam_param_list.size], (
+                rvecs_cams.ravel(),
+                tvecs_cams.ravel(),
+                cam_matrices.ravel(),
+                ks.ravel(),
+                rvecs_boards[i_pose].ravel(),
+                tvecs_boards[i_pose].ravel(),
+                boards_coords_3d_0[:, i_pose].ravel(),
+                corners[:, i_pose].ravel()
+            ))
+            for i_param in range(len(n_pose_param_list)))
+
+        for i_param, (j, len_param) in enumerate(zip(jacs, n_pose_param_list)):
+            if np.any(np.isnan(j)):
+                print("In pose")
+                print(j)
+                print(j.shape)
+                print(i_pose)
+                print(i_param)
+                exit()
+            offset = n_pose_param_list[0:i_param].sum()
+            obj_fcn_jacobian_pose[:, i_pose, :, :, i_pose, offset:offset + len_param] = j[:, 0]
+
+    return obj_fcn_jacobian_pose
+
+
+def calc_jacobian(jac, parameters):
+    return jac(*parameters)
 
 
 def make_vars_full(vars_opt, args):
