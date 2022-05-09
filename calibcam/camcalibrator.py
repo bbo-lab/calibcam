@@ -106,6 +106,8 @@ class CamCalibrator:
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
+            # TODO Put this in a format that is at least semi-compatible (same calib structure, different metadata,
+            #  perhaps) to final output
             np.savez(self.dataPath + '/preoptim.npz', calibs_single, calibs_multi, corners_all, ids_all, frames_masks)
         else:
             preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
@@ -114,6 +116,7 @@ class CamCalibrator:
             corners_all = preoptim['arr_2']
             ids_all = preoptim['arr_3']
             frames_masks = preoptim['arr_4']
+            # We just redo this since it is fast and the output may help
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
         print('START MULTI CAMERA CALIBRATION')
