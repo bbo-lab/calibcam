@@ -123,7 +123,9 @@ class CamCalibrator:
         calibs_fit, _, _, min_result, args = \
             self.start_optimization(corners_all, ids_all, calibs_multi, frames_masks)
 
-        result = self.build_result(calibs_fit, frames_masks=frames_masks, tvecs_boards=None, min_result=min_result, args=args)
+        result = self.build_result(calibs_fit, frames_masks=frames_masks, tvecs_boards=None, min_result=min_result,
+                                   args=args,
+                                   other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi})
 
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration(result)
@@ -208,7 +210,8 @@ class CamCalibrator:
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
     def build_result(self, calibs,
-                     frames_masks=None, rvecs_boards=None, tvecs_boards=None, min_result=None, args=None):  # noqa
+                     frames_masks=None, rvecs_boards=None, tvecs_boards=None, min_result=None, args=None,  # noqa
+                     other=None):
         result = {
             'version': 2.0,
             'calibs': calibs,
@@ -220,6 +223,7 @@ class CamCalibrator:
                 'optimality_final': np.NaN,
                 'frames_masks': np.array([], dtype=bool),
                 'opts': self.opts,
+                'other': [],
             }
         }
 
@@ -229,6 +233,9 @@ class CamCalibrator:
 
         if frames_masks is not None:
             result['info']['frames_masks'] = frames_masks
+
+        if other is not None:
+            result['info']['other'] = other
 
         return result
 
