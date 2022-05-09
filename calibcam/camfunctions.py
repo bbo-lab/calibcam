@@ -146,14 +146,14 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     cs = Camerasystem.from_calibs(calibs)
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
-        cam_frame_idxs = np.where(calibs[i_cam]['frame_mask'])[0]
-        b = board_points @ R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
-            calibs[i_cam]['tvecs'].reshape(-1, 1, 3)
-        corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam].transpose((0, 2, 1))
-        # # This calculates from common camera board estimations
-        # b = board_points @ R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
-        #     tvecs_board.reshape(-1, 1, 3)
-        # corners_cameralib[i_cam, :] = cs.project(b)[i_cam].transpose((0, 2, 1))
+        # cam_frame_idxs = np.where(calibs[i_cam]['frame_mask'])[0]
+        # b = board_points @ R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
+        #     calibs[i_cam]['tvecs'].reshape(-1, 1, 3)
+        # corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam].transpose((0, 2, 1))
+        # This calculates from common camera board estimations
+        b = board_points @ R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
+            tvecs_board.reshape(-1, 1, 3)
+        corners_cameralib[i_cam, :] = cs.project(b)[i_cam].transpose((0, 2, 1))
 
     residuals_cameralib = np.abs(corners_detection - corners_cameralib)
 
