@@ -121,12 +121,13 @@ class CamCalibrator:
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
         print('START MULTI CAMERA CALIBRATION')
-        calibs_fit, _, _, min_result, args = \
+        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
             self.start_optimization(corners_all, ids_all, calibs_multi, frames_masks)
 
         result = self.build_result(calibs_fit,
                                    frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
                                    min_result=min_result, args=args,
+                                   rvecs_boards=rvecs_boards, tvecs_boards=tvecs_boards,
                                    other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi})
 
         print('SAVE MULTI CAMERA CALIBRATION')

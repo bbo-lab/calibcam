@@ -1,6 +1,7 @@
 name: calibcam-2
 channels:
   - defaults
+  - conda-forge
 dependencies:
   - python=3.9
   - matplotlib
@@ -13,6 +14,7 @@ dependencies:
   - imageio
   - pyqt
   - joblib
+  - jax
   - pip:
     - bbo-ccvtools
     - bbo-calibcamlib
