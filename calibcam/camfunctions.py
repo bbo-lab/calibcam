@@ -4,9 +4,9 @@ from scipy.optimize import least_squares, OptimizeResult
 import time
 
 from calibcam import optfunctions_jacfwd as optfunctions
-from calibcam import optimization
-from calibcam import board
+from calibcam import optimization, board
 from .exceptions import *
+from .helper import make_corners_array
 
 
 def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, opts, board_params):
@@ -15,10 +15,9 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     board_coords_3d_0 = board.make_board_points(board_params)
 
     used_frames_mask = np.any(frames_masks, axis=0)
-    used_frame_idxs = np.where(used_frames_mask)[0]
     n_used_frames = used_frames_mask.sum(dtype=int)
     n_cams = len(calibs_multi)
-    n_corner = board_coords_3d_0.shape[0]
+    n_corners = board_coords_3d_0.shape[0]
 
     # Generate vectors of all and of free variables
     vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frames_masks, opts)
@@ -29,22 +28,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
                                  (n_cams, n_used_frames, 1, 1))  # Note transpose for later linalg
 
     # Prepare array of corners (non-existing frames for individual cameras are filled with NaN)
-    corners = np.empty(shape=(n_cams, n_used_frames, 2, n_corner))
-    corners[:] = np.NaN
-    for i_cam, frames_mask_cam in enumerate(frames_masks):
-        frame_idxs_cam = np.where(frames_mask_cam)[0]
-
-        for i_frame, f_idx in enumerate(used_frame_idxs):
-            # print(ids_all[i_cam][i_frame].ravel())
-            # print(corners[i_cam, f_idx].shape)
-            # print(corners_all[i_cam][i_frame].shape)
-            cam_fr_idx = np.where(frame_idxs_cam == f_idx)[0]
-            if cam_fr_idx.size < 1:
-                continue
-
-            cam_fr_idx = int(cam_fr_idx)
-            corners[i_cam, i_frame][:, ids_all[i_cam][cam_fr_idx].ravel()] = \
-                corners_all[i_cam][cam_fr_idx][:, 0, :].T  # Note transpose for later linalg
+    corners = make_corners_array(corners_all, ids_all, n_corners, frames_masks)
 
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions

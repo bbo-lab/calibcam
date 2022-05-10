@@ -34,9 +34,6 @@ def detect_corners_cam(video, opts, board_params):
     ids_cam = []
     frames_mask = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
 
-    # get offset
-    offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
-
     # Detect corners over cams
     for (i_frame, frame) in enumerate(reader):
         # color management
@@ -76,6 +73,10 @@ def detect_corners_cam(video, opts, board_params):
             continue
 
         # add offset
+        # We take offset into consideration at corner detection level. This means that the calibration parameters always
+        # refer to the offset-free pixel positions and offsets do NOT have to be taken into account anywhere in
+        # this calibration procedure or when working with the 
+        offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
         charuco_corners[:, :, 0] = charuco_corners[:, :, 0] + offset_x
         charuco_corners[:, :, 1] = charuco_corners[:, :, 1] + offset_y
 
