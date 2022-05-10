@@ -221,7 +221,6 @@ def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvec
                 print(i_pose)
                 print(i_param)
                 exit()
-            offset = n_pose_param_list[0:i_param].sum()
             obj_fcn_jacobian_pose[:, i_pose, :, :, i_param, i_pose, :] = j[:, 0]
 
     return obj_fcn_jacobian_pose
