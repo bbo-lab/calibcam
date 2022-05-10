@@ -43,6 +43,7 @@ def obj_fcn_wrapper(vars_opt, args):
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
+    print(np.unravel_index(np.argmax(np.abs(residuals)),shape=residuals.shape))
     print(np.max(np.abs(residuals)))
     return residuals.ravel()
 
@@ -92,9 +93,6 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     obj_fcn_jacobian[corners_mask] = 0
 
     # Return section of free variables
-    print(obj_fcn_jacobian.shape)
-    print(corners_mask.shape)
-    print(args['mask_opt'])
     obj_fcn_jacobian = obj_fcn_jacobian.reshape(np.prod(corners_mask.shape), -1)
     return obj_fcn_jacobian[:, args['mask_opt']]
 
