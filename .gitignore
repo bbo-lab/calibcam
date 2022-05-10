@@ -132,3 +132,5 @@ dmypy.json
 *.kate-swp
 
 .idea/
+*.swp
+*.swo
