@@ -6,9 +6,10 @@ from scipy.spatial.transform import Rotation as R  # noqa
 # from autograd import jacobian, elementwise_grad  # noqa
 from jax import jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
 
-import timeit
-from . import optfunctions_jacfwd_ag as opt_ag
 from . import optimization
+from . import optfunctions_jacfwd_ag as opt_ag
+
+import timeit
 
 
 def obj_fcn_wrapper(vars_opt, args):

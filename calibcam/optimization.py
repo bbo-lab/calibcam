@@ -2,8 +2,9 @@
 # from joblib import Parallel, delayed
 
 import numpy as np
-from scipy.spatial.transform import Rotation as R  # noqa
-# from autograd import jacobian, elementwise_grad  # noqa
+from calibcam import optfunctions_vmapgrad as optfunctions  # noqa
+
+from optfunctions_jacfwd import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # noqa
 
 
 def make_vars_full(vars_opt, args):
@@ -85,7 +86,7 @@ def make_common_pose_params(calibs, frames_masks):
     # frames_mask_cam = frames_masks[opts['coord_cam']]
     for i_pose, pose_idx in enumerate(pose_idxs):  # Loop through the poses (frames that have a board pose)
         for calib, frames_mask_cam in zip(calibs, frames_masks):  # Loop through cameras ...
-            if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame is present
+            if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame present
                 frame_idxs_cam = np.where(frames_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
                 pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
                 pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
