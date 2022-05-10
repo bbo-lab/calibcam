@@ -102,11 +102,11 @@ def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx
     camera_mask[:, 0:3] = opts_free_vars['cam_pose']
     camera_mask[:, 3:6] = opts_free_vars['cam_pose']
     camera_mask[:, 6:15] = opts_free_vars['A'].ravel()
-    camera_mask[:, 10:15] = opts_free_vars['k']
+    camera_mask[:, 15:20] = opts_free_vars['k']
 
     # Position of coord cam is not free
     camera_mask[coord_cam_idx, 0:6] = False
-
+    
     pose_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
     pose_mask = np.ones(shape=(pose_idxs.size, 2, 3), dtype=bool)
     pose_mask[:] = opts_free_vars['board_poses']
