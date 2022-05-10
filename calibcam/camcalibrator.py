@@ -15,7 +15,7 @@ from joblib import Parallel, delayed
 
 from .detection import detect_corners
 from .exceptions import *
-from . import helper, camfunctions, board
+from . import helper, camfunctions, board, optimization
 
 from .calibrator_opts import get_default_opts
 from .pose_estimation import estimate_cam_poses
@@ -105,10 +105,12 @@ class CamCalibrator:
             # analytically estimate initial camera poses
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
+            # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
+            pose_params = optimization.make_common_pose_params(calibs_multi, frames_masks)
             result = self.build_result(calibs_multi,
                                        frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
+                                       rvecs_boards=pose_params[0], tvecs_boards=pose_params[1],
                                        other={'calibs_single': calibs_single})
-            # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
             self.save_multicalibration(result, 'preoptim')
         else:
             preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True).item()
@@ -168,14 +170,14 @@ class CamCalibrator:
                 'rvecs': np.asarray(rvecs),
                 'tvecs': np.asarray(tvecs),
                 'repro_error': retval,
-                'frame_mask': mask,
+                'frames_mask': mask,
             }
             print('Finished single camera calibration.')
             return cal
         else:
             return []
 
-    def perform_single_cam_calibrations(self, corners_all, ids_all, frame_mask):
+    def perform_single_cam_calibrations(self, corners_all, ids_all, frames_mask):
         print('PERFORM SINGLE CAMERA CALIBRATION')
 
         # calibs_single = [self.calibrate_single_camera(corners_all[i_cam],
@@ -194,21 +196,21 @@ class CamCalibrator:
             for i_cam in range(len(self.readers)))
 
         for i_cam, calib in enumerate(calibs_single):
-            calib['frame_mask'] = frame_mask[i_cam].copy()
-            assert calib['frame_mask'].sum(dtype=int) == calib['tvecs'].shape[0], "Sizes do not match, check masks."
+            calib['frames_mask'] = frames_mask[i_cam].copy()
+            assert calib['frames_mask'].sum(dtype=int) == calib['tvecs'].shape[0], "Sizes do not match, check masks."
             print(
-                f'Used {calib["frame_mask"].sum(dtype=int):03d} frames for single cam calibration for cam {i_cam:02d}')
+                f'Used {calib["frames_mask"].sum(dtype=int):03d} frames for single cam calibration for cam {i_cam:02d}')
 
         return calibs_single
 
-    def start_optimization(self, corners_all, ids_all, calibs_multi, frame_masks, opts=None, board_params=None):
+    def start_optimization(self, corners_all, ids_all, calibs_multi, frames_masks, opts=None, board_params=None):
         if opts is None:
             opts = self.opts
         if board_params is None:
             board_params = self.board_params
 
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args =\
-            camfunctions.optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks,
+            camfunctions.optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks,
                                                    opts=opts, board_params=board_params)
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args

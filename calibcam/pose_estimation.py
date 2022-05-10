@@ -8,8 +8,8 @@ def estimate_cam_poses(calibs_single, coord_cam):
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[coord_cam] = True
 
-    frame_masks = np.asarray([cal['frame_mask'] for cal in calibs], dtype=bool)
-    common_frame_mat = calc_common_frame_mat(frame_masks)
+    frames_masks = np.asarray([cal['frames_mask'] for cal in calibs], dtype=bool)
+    common_frame_mat = calc_common_frame_mat(frames_masks)
 
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
@@ -30,9 +30,9 @@ def estimate_cam_poses(calibs_single, coord_cam):
         print(f"Orienting cam {oricam_idx} on cam {refcam_idx}")
 
         # Determine common frames
-        common_frame_idxs = np.logical_and(frame_masks[refcam_idx], frame_masks[oricam_idx])
-        refcam_common_mask = common_frame_idxs[frame_masks[refcam_idx]]
-        oricam_common_mask = common_frame_idxs[frame_masks[oricam_idx]]
+        common_frame_idxs = np.logical_and(frames_masks[refcam_idx], frames_masks[oricam_idx])
+        refcam_common_mask = common_frame_idxs[frames_masks[refcam_idx]]
+        oricam_common_mask = common_frame_idxs[frames_masks[oricam_idx]]
 
         # Calculate average transformation  from oricam to refcam coordinate system
         Rs_trans = (  # noqa
@@ -67,13 +67,13 @@ def estimate_cam_poses(calibs_single, coord_cam):
     return calibs
 
 
-def calc_common_frame_mat(frame_masks):
-    n_cams = frame_masks.shape[0]
+def calc_common_frame_mat(frames_masks):
+    n_cams = frames_masks.shape[0]
     common_frame_mat = np.zeros(shape=(n_cams, n_cams), dtype=int)
 
     for i in range(n_cams):
         for j in range(i, n_cams):
-            common_frame_mat[i, j] = np.sum(frame_masks[i, :] & frame_masks[j, :])
+            common_frame_mat[i, j] = np.sum(frames_masks[i, :] & frames_masks[j, :])
             common_frame_mat[j, i] = common_frame_mat[i, j]
 
     return common_frame_mat

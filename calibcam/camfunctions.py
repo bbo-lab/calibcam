@@ -9,19 +9,19 @@ from calibcam import board
 from .exceptions import *
 
 
-def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, opts, board_params):
+def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, opts, board_params):
     start_time = time.time()
 
     board_coords_3d_0 = board.make_board_points(board_params)
 
-    used_frame_mask = np.any(frame_masks, axis=0)
-    used_frame_idxs = np.where(used_frame_mask)[0]
-    n_used_frames = used_frame_mask.sum(dtype=int)
+    used_frames_mask = np.any(frames_masks, axis=0)
+    used_frame_idxs = np.where(used_frames_mask)[0]
+    n_used_frames = used_frames_mask.sum(dtype=int)
     n_cams = len(calibs_multi)
     n_corner = board_coords_3d_0.shape[0]
 
     # Generate vectors of all and of free variables
-    vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frame_masks, opts)
+    vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frames_masks, opts)
 
     # Prepare ideal boards for each cam and frame. This costs almost 3x the necessary memory, but makes
     # further autograd compatible code much easier
@@ -31,8 +31,8 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
     # Prepare array of corners (non-existing frames for individual cameras are filled with NaN)
     corners = np.empty(shape=(n_cams, n_used_frames, 2, n_corner))
     corners[:] = np.NaN
-    for i_cam, frame_mask_cam in enumerate(frame_masks):
-        frame_idxs_cam = np.where(frame_mask_cam)[0]
+    for i_cam, frames_mask_cam in enumerate(frames_masks):
+        frame_idxs_cam = np.where(frames_mask_cam)[0]
 
         for i_frame, f_idx in enumerate(used_frame_idxs):
             # print(ids_all[i_cam][i_frame].ravel())
@@ -49,7 +49,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
         'mask_opt': mask_free,  # Mask of free vars within all vars
-        'frame_masks': frame_masks,
+        'frames_masks': frames_masks,
         'opts_free_vars': opts['free_vars'],
         'precalc': {  # Stuff that can be precalculated
             'boards_coords_3d_0': boards_coords_3d_0,  # Board points in z plane
@@ -133,13 +133,13 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
-    used_frame_mask = np.any(args['frame_masks'], axis=0)
-    used_frame_idxs = np.where(used_frame_mask)[0]  # noqa
+    used_frames_mask = np.any(args['frames_masks'], axis=0)
+    used_frame_idxs = np.where(used_frames_mask)[0]  # noqa
 
     residuals_objfun = np.abs(optfunctions.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
     residuals_objfun[residuals_objfun == 0] = np.NaN
 
-    pose_params = optimization.make_common_pose_params(calibs, args['frame_masks'])
+    pose_params = optimization.make_common_pose_params(calibs, args['frames_masks'])
     rvecs_board = pose_params[0].reshape(-1, 3)  # noqa
     tvecs_board = pose_params[1].reshape(-1, 3)  # noqa
     corners_cameralib = np.empty_like(residuals_objfun)
@@ -147,7 +147,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     cs = Camerasystem.from_calibs(calibs)
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
-        # cam_frame_idxs = np.where(calibs[i_cam]['frame_mask'])[0]
+        # cam_frame_idxs = np.where(calibs[i_cam]['frames_mask'])[0]
         # b = board_points @ R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
         #     calibs[i_cam]['tvecs'].reshape(-1, 1, 3)
         # corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam].transpose((0, 2, 1))

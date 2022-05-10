@@ -44,7 +44,7 @@ def unravel_vars_full(vars_full, n_cams):
     return rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
 
 
-def make_initialization(calibs, frame_masks, opts, k_to_zero=True):
+def make_initialization(calibs, frames_masks, opts, k_to_zero=True):
     # k_to_zero determines if non-free ks get set to 0 (for limited distortion model) or are kept (usually
     # when not optimizing distortion at all in the given step)
     opts_free_vars = opts['free_vars']
@@ -64,36 +64,36 @@ def make_initialization(calibs, frame_masks, opts, k_to_zero=True):
         else:
             param[15:20] = calib['k']
 
-    pose_params = make_common_pose_params(calibs, frame_masks)
+    pose_params = make_common_pose_params(calibs, frames_masks)
 
     # camera_params are raveled with one scalar parameter for all cams grouped
     # pose_params are raveled with first all rvecs and then all tvecs (for faster unraveling in obj_fun)
     vars_full = np.concatenate((camera_params.T.ravel(), pose_params.ravel()), axis=0)
-    mask_free = make_free_parameter_mask(calibs, frame_masks, opts_free_vars, opts['coord_cam'])
+    mask_free = make_free_parameter_mask(calibs, frames_masks, opts_free_vars, opts['coord_cam'])
     vars_free = vars_full[mask_free]
 
     return vars_free, vars_full, mask_free
 
 
-def make_common_pose_params(calibs, frame_masks):
-    pose_idxs = np.where(np.any(frame_masks, axis=0))[0]  # indexes into full frame range
+def make_common_pose_params(calibs, frames_masks):
+    pose_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
     pose_params = np.zeros(shape=(2, pose_idxs.size, 3))
     # TODO Instead using pose from first available cam, it should be averaged over all available cams.
     # See pose_estimation.estimate_cam_poses for averaging poses
     # This might require fixing the other cam poses in calibration, see respective TODO in pose_estimation
     # calib = calibs[opts['coord_cam']]
-    # frame_mask_cam = frame_masks[opts['coord_cam']]
+    # frames_mask_cam = frames_masks[opts['coord_cam']]
     for i_pose, pose_idx in enumerate(pose_idxs):  # Loop through the poses (frames that have a board pose)
-        for calib, frame_mask_cam in zip(calibs, frame_masks):  # Loop through cameras ...
-            if np.all(pose_params[0, i_pose, :] == 0) and frame_mask_cam[pose_idx]:  # ... and check if frame is present
-                frame_idxs_cam = np.where(frame_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
+        for calib, frames_mask_cam in zip(calibs, frames_masks):  # Loop through cameras ...
+            if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame is present
+                frame_idxs_cam = np.where(frames_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
                 pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
                 pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
 
     return pose_params
 
 
-def make_free_parameter_mask(calibs, frame_masks, opts_free_vars, coord_cam_idx):
+def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx):
     camera_mask = np.ones(shape=(
         len(calibs),
         3 + 3 + 9 + 5  # r + t + A + k
@@ -107,7 +107,7 @@ def make_free_parameter_mask(calibs, frame_masks, opts_free_vars, coord_cam_idx)
     # Position of coord cam is not free
     camera_mask[coord_cam_idx, 0:6] = False
 
-    pose_idxs = np.where(np.any(frame_masks, axis=0))[0]  # indexes into full frame range
+    pose_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
     pose_mask = np.ones(shape=(pose_idxs.size, 2, 3), dtype=bool)
     pose_mask[:] = opts_free_vars['board_poses']
 
