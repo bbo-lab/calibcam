@@ -4,10 +4,12 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R  # noqa
 # from autograd import jacobian, elementwise_grad  # noqa
-from jax import jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
+from jax import jacfwd as grad
+
+from . import optimization
+from . import optfunctions_vmapgrad_ag as opt_ag
 
 import timeit
-from . import optfunctions_jacfwd_ag as opt_ag, optimization
 
 
 def obj_fcn_wrapper(vars_opt, args):
@@ -20,6 +22,8 @@ def obj_fcn_wrapper(vars_opt, args):
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
 
+    n_cams, n_frames, _, n_bcorners = corners.shape
+
     # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
     # and the return is in fact unnecessary!
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = \
@@ -31,14 +35,29 @@ def obj_fcn_wrapper(vars_opt, args):
     # print(cam_matrices[2])
     # print(ks[2])
 
+    rvecs_cams_tile = np.tile(rvecs_cams[:, np.newaxis, np.newaxis, np.newaxis, :],
+                              (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 3).T
+
+    tvecs_cams_tile = np.tile(tvecs_cams[:, np.newaxis, np.newaxis, np.newaxis, :],
+                              (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 3).T
+    cam_matrices_tile = np.tile(cam_matrices[:, np.newaxis, np.newaxis, np.newaxis, :],
+                                (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 9).T
+    ks_tile = np.tile(ks[:, np.newaxis, np.newaxis, np.newaxis, :],
+                      (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 5).T
+
+    rvecs_boards_tile = np.tile(rvecs_boards[np.newaxis, :, np.newaxis, np.newaxis, :],
+                                (n_cams, 1, 1, n_bcorners, 1)).reshape(-1, 3).T
+    tvecs_boards_tile = np.tile(tvecs_boards[np.newaxis, :, np.newaxis, np.newaxis, :],
+                                (n_cams, 1, 1, n_bcorners, 1)).reshape(-1, 3).T
+
     residuals = np.array(opt_ag.obj_fcn(
-        rvecs_cams.ravel(),
-        tvecs_cams.ravel(),
-        cam_matrices.ravel(),
-        ks.ravel(),
-        rvecs_boards.ravel(),
-        tvecs_boards.ravel(),
-        boards_coords_3d_0.ravel(),
+        *rvecs_cams_tile,
+        *tvecs_cams_tile,
+        *cam_matrices_tile,
+        *ks_tile,
+        *rvecs_boards_tile,
+        *tvecs_boards_tile,
+        *boards_coords_3d_0[0, 0],
         corners.ravel()
     ))
 
@@ -69,161 +88,11 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
         if np.all(rvecs_cams[i_cam] == 0):
             rvecs_cams[i_cam][:] = np.finfo(np.float16).eps
 
-    jacobians = args['precalc']['jacobians']
+    derivatives = args['precalc']['derivatives']
 
-    tic = timeit.default_timer()
-
-    obj_fcn_jacobian_cam_pose, obj_fcn_jacobian_cam_mat, obj_fcn_jacobian_cam_k = \
-        calc_cam_jacobian(jacobians,
-                          rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                          boards_coords_3d_0, corners)
-    obj_fcn_jacobian_pose = \
-        calc_pose_jacobian(jacobians,
-                           rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                           boards_coords_3d_0, corners)
-
-    obj_fcn_jacobian = np.concatenate((
-        obj_fcn_jacobian_cam_pose.reshape(corners.shape + (-1,)),
-        obj_fcn_jacobian_cam_mat.reshape(corners.shape + (-1,)),
-        obj_fcn_jacobian_cam_k.reshape(corners.shape + (-1,)),
-        obj_fcn_jacobian_pose.reshape(corners.shape + (-1,)),
-    ), corners.ndim)
-
-    print(timeit.default_timer() - tic)
-
-    # Residuals of untracked corners are invalid
-    obj_fcn_jacobian[corners_mask] = 0
-
-    # Return section of free variables
-    obj_fcn_jacobian = obj_fcn_jacobian.reshape(np.prod(corners_mask.shape), -1)
+    obj_fcn_jacobian = []
     return obj_fcn_jacobian[:, args['mask_opt']]
 
 
-def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                      boards_coords_3d_0, corners):
-    n_cam_param_list = np.array([3, 3, 9, 5])
-
-    obj_fcn_jacobian_cam_pose = np.zeros(corners.shape + (2, corners.shape[0], 3), dtype=np.float16)
-    offset = 0
-    for i_cam in range(corners.shape[0]):
-        jacs = [calc_jacobian(jacobians[offset + i_param], (
-            # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
-            #     delayed(calc_jacobian)(jacobians[i_param], (
-            rvecs_cams[i_cam].ravel(),
-            tvecs_cams[i_cam].ravel(),
-            cam_matrices[i_cam].ravel(),
-            ks[i_cam].ravel(),
-            rvecs_boards[0:10].ravel(),
-            tvecs_boards[0:10].ravel(),
-            boards_coords_3d_0[i_cam, 0:10].ravel(),
-            corners[i_cam, 0:10].ravel()
-        ))
-                for i_param in range(2)]
-
-        for i_param, j in enumerate(jacs):
-            if np.any(np.isnan(j)):
-                print("In cam")
-                print(j)
-                print(j.shape)
-                print(i_cam)
-                print(i_param)
-                exit()
-            obj_fcn_jacobian_cam_pose[i_cam, 0:10, :, :, i_param, i_cam, :] = j
-
-    offset = offset + 2 
-    obj_fcn_jacobian_cam_mat = np.zeros(corners.shape + (1, corners.shape[0], 9), dtype=np.float16)
-    for i_cam in range(corners.shape[0]):
-        jacs = [calc_jacobian(jacobians[offset + i_param], (
-            # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
-            #     delayed(calc_jacobian)(jacobians[i_param], (
-            rvecs_cams[i_cam].ravel(),
-            tvecs_cams[i_cam].ravel(),
-            cam_matrices[i_cam].ravel(),
-            ks[i_cam].ravel(),
-            rvecs_boards[0:10].ravel(),
-            tvecs_boards[0:10].ravel(),
-            boards_coords_3d_0[i_cam, 0:10].ravel(),
-            corners[i_cam, 0:10].ravel()
-        ))
-                for i_param in range(1)]
-
-        for i_param, j in enumerate(jacs):
-            if np.any(np.isnan(j)):
-                print("In cam")
-                print(j)
-                print(j.shape)
-                print(i_cam)
-                print(i_param)
-                exit()
-            obj_fcn_jacobian_cam_mat[i_cam, 0:10, :, :, i_param, i_cam, :] = j
-
-    offset = offset + 1
-    obj_fcn_jacobian_cam_k = np.zeros(corners.shape + (1, corners.shape[0], 5), dtype=np.float16)
-    for i_cam in range(corners.shape[0]):
-        jacs = [calc_jacobian(jacobians[offset + i_param], (
-            # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
-            #     delayed(calc_jacobian)(jacobians[i_param], (
-            rvecs_cams[i_cam].ravel(),
-            tvecs_cams[i_cam].ravel(),
-            cam_matrices[i_cam].ravel(),
-            ks[i_cam].ravel(),
-            rvecs_boards[0:10].ravel(),
-            tvecs_boards[0:10].ravel(),
-            boards_coords_3d_0[i_cam, 0:10].ravel(),
-            corners[i_cam, 0:10].ravel()
-        ))
-                for i_param in range(1)]
-
-        for i_param, j in enumerate(jacs):
-            if np.any(np.isnan(j)):
-                print("In cam")
-                print(j)
-                print(j.shape)
-                print(i_cam)
-                print(i_param)
-                exit()
-            obj_fcn_jacobian_cam_k[i_cam, 0:10, :, :, i_param, i_cam, :] = j
-
-    return obj_fcn_jacobian_cam_pose, obj_fcn_jacobian_cam_mat, obj_fcn_jacobian_cam_k
-
-
-def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                       boards_coords_3d_0, corners):
-    n_cam_param_list = np.array([3, 3, 9, 5])
-    n_pose_param_list = np.array([3, 3])
-
-    obj_fcn_jacobian_pose = np.zeros(corners.shape + (n_pose_param_list.size, corners.shape[1], 3), dtype=np.float16)
-    for i_pose in range(corners.shape[1]):
-        jacs = [calc_jacobian(jacobians[i_param + n_cam_param_list.size], (
-            # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
-            #     delayed(calc_jacobian)(jacobians[i_param + n_cam_param_list.size], (
-            rvecs_cams.ravel(),
-            tvecs_cams.ravel(),
-            cam_matrices.ravel(),
-            ks.ravel(),
-            rvecs_boards[i_pose].ravel(),
-            tvecs_boards[i_pose].ravel(),
-            boards_coords_3d_0[:, i_pose].ravel(),
-            corners[:, i_pose].ravel()
-        ))
-                for i_param in range(len(n_pose_param_list))]
-
-        for i_param, (j, len_param) in enumerate(zip(jacs, n_pose_param_list)):
-            if np.any(np.isnan(j)):
-                print("In pose")
-                print(j)
-                print(j.shape)
-                print(i_pose)
-                print(i_param)
-                exit()
-            obj_fcn_jacobian_pose[:, i_pose, :, :, i_param, i_pose, :] = j[:, 0]
-
-    return obj_fcn_jacobian_pose
-
-
-def calc_jacobian(jac, parameters):
-    return jac(*parameters)
-
-
-def get_obj_fcn_jacobians():
-    return [jacobian(opt_ag.obj_fcn, i_var) for i_var in range(6)]
+def get_obj_fcn_derivatives():
+    return [grad(opt_ag.obj_fcn, i_var) for i_var in range(3 + 3 + 9 + 5)]
