@@ -104,7 +104,6 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
     obj_fcn_jacobian_cam_pose = np.zeros(corners.shape + (2, corners.shape[0], 3), dtype=np.float16)
     offset = 0
     for i_cam in range(corners.shape[0]):
-        print(i_cam)
         jacs = [calc_jacobian(jacobians[offset + i_param], (
             # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
             #     delayed(calc_jacobian)(jacobians[i_param], (
@@ -120,7 +119,6 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
                 for i_param in range(2)]
 
         for i_param, j in enumerate(jacs):
-            offset = n_cam_param_list[0:i_param].sum()
             if np.any(np.isnan(j)):
                 print("In cam")
                 print(j)
@@ -130,10 +128,9 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
                 exit()
             obj_fcn_jacobian_cam_pose[i_cam, 0:10, :, :, i_param, i_cam, :] = j
 
-    offset = offset + 6
-    obj_fcn_jacobian_cam_mat = np.zeros(corners.shape + (2, corners.shape[0], 9), dtype=np.float16)
+    offset = offset + 2 
+    obj_fcn_jacobian_cam_mat = np.zeros(corners.shape + (1, corners.shape[0], 9), dtype=np.float16)
     for i_cam in range(corners.shape[0]):
-        print(i_cam)
         jacs = [calc_jacobian(jacobians[offset + i_param], (
             # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
             #     delayed(calc_jacobian)(jacobians[i_param], (
@@ -146,7 +143,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
             boards_coords_3d_0[i_cam, 0:10].ravel(),
             corners[i_cam, 0:10].ravel()
         ))
-                for i_param in range(9)]
+                for i_param in range(1)]
 
         for i_param, j in enumerate(jacs):
             if np.any(np.isnan(j)):
@@ -158,10 +155,9 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
                 exit()
             obj_fcn_jacobian_cam_mat[i_cam, 0:10, :, :, i_param, i_cam, :] = j
 
-    offset = offset + 9
-    obj_fcn_jacobian_cam_k = np.zeros(corners.shape + (2, corners.shape[0], 5), dtype=np.float16)
+    offset = offset + 1
+    obj_fcn_jacobian_cam_k = np.zeros(corners.shape + (1, corners.shape[0], 5), dtype=np.float16)
     for i_cam in range(corners.shape[0]):
-        print(i_cam)
         jacs = [calc_jacobian(jacobians[offset + i_param], (
             # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
             #     delayed(calc_jacobian)(jacobians[i_param], (
@@ -174,7 +170,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
             boards_coords_3d_0[i_cam, 0:10].ravel(),
             corners[i_cam, 0:10].ravel()
         ))
-                for i_param in range(5)]
+                for i_param in range(1)]
 
         for i_param, j in enumerate(jacs):
             if np.any(np.isnan(j)):
@@ -194,9 +190,8 @@ def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvec
     n_cam_param_list = np.array([3, 3, 9, 5])
     n_pose_param_list = np.array([3, 3])
 
-    obj_fcn_jacobian_pose = np.zeros(corners.shape + (n_pose_param_list.size(), corners.shape[1], 3), dtype=np.float16)
+    obj_fcn_jacobian_pose = np.zeros(corners.shape + (n_pose_param_list.size, corners.shape[1], 3), dtype=np.float16)
     for i_pose in range(corners.shape[1]):
-        print(i_pose)
         jacs = [calc_jacobian(jacobians[i_param + n_cam_param_list.size], (
             # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
             #     delayed(calc_jacobian)(jacobians[i_param + n_cam_param_list.size], (
