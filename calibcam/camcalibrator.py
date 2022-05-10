@@ -105,17 +105,18 @@ class CamCalibrator:
             # analytically estimate initial camera poses
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
+            result = self.build_result(calibs_multi,
+                                       frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
+                                       other={'calibs_single': calibs_single})
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-            # TODO Put this in a format that is at least semi-compatible (same calib structure, different metadata,
-            #  perhaps) to final output
-            np.savez(self.dataPath + '/preoptim.npz', calibs_single, calibs_multi, corners_all, ids_all, frames_masks)
+            self.save_multicalibration(result, 'preoptim')
         else:
-            preoptim = np.load(self.dataPath + '/preoptim.npz', allow_pickle=True)
-            calibs_single = preoptim['arr_0']
+            preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True).item
+            calibs_single = preoptim['info']['other']['calibs_single']
             # calibs_multi = preoptim['arr_1']
-            corners_all = preoptim['arr_2']
-            ids_all = preoptim['arr_3']
-            frames_masks = preoptim['arr_4']
+            corners_all = preoptim['info']['corners']
+            ids_all = preoptim['info']['corner_ids']
+            frames_masks = preoptim['info']['frames_masks']
             # We just redo this since it is fast and the output may help
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
@@ -123,8 +124,9 @@ class CamCalibrator:
         calibs_fit, _, _, min_result, args = \
             self.start_optimization(corners_all, ids_all, calibs_multi, frames_masks)
 
-        result = self.build_result(calibs_fit, frames_masks=frames_masks, tvecs_boards=None, min_result=min_result,
-                                   args=args,
+        result = self.build_result(calibs_fit,
+                                   frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
+                                   min_result=min_result, args=args,
                                    other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi})
 
         print('SAVE MULTI CAMERA CALIBRATION')
@@ -210,7 +212,8 @@ class CamCalibrator:
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
     def build_result(self, calibs,
-                     frames_masks=None, rvecs_boards=None, tvecs_boards=None, min_result=None, args=None,  # noqa
+                     frames_masks=None, corners=None, corner_ids=None,
+                     rvecs_boards=None, tvecs_boards=None, min_result=None, args=None,  # noqa
                      other=None):
         result = {
             'version': 2.0,
@@ -222,6 +225,10 @@ class CamCalibrator:
                 'cost_val_final': np.NaN,
                 'optimality_final': np.NaN,
                 'frames_masks': np.array([], dtype=bool),
+                'corners': np.array([], dtype=bool),
+                'corner_ids': np.array([], dtype=bool),
+                'rvecs_boards': np.array([], dtype=bool),
+                'tvecs_boards': np.array([], dtype=bool),
                 'opts': self.opts,
                 'other': [],
             }
@@ -234,14 +241,26 @@ class CamCalibrator:
         if frames_masks is not None:
             result['info']['frames_masks'] = frames_masks
 
+        if corners is not None:
+            result['info']['corners'] = corners
+
+        if corner_ids is not None:
+            result['info']['corner_ids'] = corner_ids
+
+        if rvecs_boards is not None:
+            result['info']['rvecs_boards'] = rvecs_boards
+
+        if tvecs_boards is not None:
+            result['info']['tvecs_boards'] = tvecs_boards
+
         if other is not None:
             result['info']['other'] = other
 
         return result
 
-    def save_multicalibration(self, result):
+    def save_multicalibration(self, result, filename="multicam_calibration"):
         # save
-        result_path = self.dataPath + '/multicam_calibration'
+        result_path = self.dataPath + '/' + filename
         np.save(result_path+'.npy', result)
         scipy_io_savemat(result_path + '.mat', result)
         print('Saved multi camera calibration to file {:s}'.format(result_path))
