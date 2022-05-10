@@ -120,7 +120,6 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
                 for i_param in range(2)]
 
         for i_param, j in enumerate(jacs):
-            offset = n_cam_param_list[0:i_param].sum()
             if np.any(np.isnan(j)):
                 print("In cam")
                 print(j)
@@ -134,6 +133,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
     obj_fcn_jacobian_cam_mat = np.zeros(corners.shape + (2, corners.shape[0], 9), dtype=np.float16)
     for i_cam in range(corners.shape[0]):
         print(i_cam)
+        print(offset + i_parami)
         jacs = [calc_jacobian(jacobians[offset + i_param], (
             # jacs = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2) - 2))(
             #     delayed(calc_jacobian)(jacobians[i_param], (
