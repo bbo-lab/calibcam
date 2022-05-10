@@ -128,7 +128,8 @@ class CamCalibrator:
                                    frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
                                    min_result=min_result, args=args,
                                    rvecs_boards=rvecs_boards, tvecs_boards=tvecs_boards,
-                                   other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi})
+                                   other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi,
+                                          'board_coords_3d_0': board.make_board_points(self.board_params)})
 
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration(result)
