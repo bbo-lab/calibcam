@@ -36,10 +36,10 @@ def make_board_points(board_params):
 
     n_corners = (board_width - 1) * (board_height - 1)
 
-    M_0 = np.repeat(np.arange(1, board_width).reshape(1, board_width - 1), board_height - 1,
-                    axis=0).ravel().reshape(n_corners, 1)
-    M_1 = np.repeat(np.arange(1, board_height), board_width - 1, axis=0).reshape(n_corners, 1)
-    M_2 = np.zeros(n_corners).reshape(n_corners, 1)
-    M = np.concatenate([M_0, M_1, M_2], 1) * square_size
+    board_0 = np.repeat(np.arange(1, board_width).reshape(1, board_width - 1), board_height - 1,
+                        axis=0).ravel().reshape(n_corners, 1)
+    board_1 = np.repeat(np.arange(1, board_height), board_width - 1, axis=0).reshape(n_corners, 1)
+    board_2 = np.zeros(n_corners).reshape(n_corners, 1)
+    board = np.concatenate([board_0, board_1, board_2], 1) * square_size
 
-    return M  # n_corners x 3
+    return board  # n_corners x 3

@@ -8,6 +8,7 @@
 # import autograd.numpy as np
 import jax.numpy as np
 
+
 # Converts array of rotation vectors to array of rotation matrices
 def rodrigues_as_rotmats(r):
     # noinspection PyUnresolvedReferences

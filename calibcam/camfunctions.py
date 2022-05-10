@@ -3,7 +3,9 @@ from scipy.optimize import least_squares, OptimizeResult
 
 import time
 
-from calibcam import optimization, board
+from calibcam import optfunctions_jacfwd as optfunctions
+from calibcam import optimization
+from calibcam import board
 from .exceptions import *
 
 
@@ -52,7 +54,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
         'precalc': {  # Stuff that can be precalculated
             'boards_coords_3d_0': boards_coords_3d_0,  # Board points in z plane
             'corners': corners,
-            'jacobians': optimization.get_obj_fcn_jacobians(),
+            'jacobians': optfunctions.get_obj_fcn_jacobians(),
         },
         # Inapplicable tue to autograd slice limitations
         # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
@@ -75,11 +77,11 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
     print('Starting optimization procedure')
 
     if opts['use_autograd']:
-        jac = optimization.obj_fcn_jacobian_wrapper
+        jac = optfunctions.obj_fcn_jacobian_wrapper
     else:
         jac = '2-point'
 
-    min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
+    min_result: OptimizeResult = least_squares(optfunctions.obj_fcn_wrapper,
                                                vars_free,
                                                jac=jac,
                                                bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
@@ -134,7 +136,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     used_frame_mask = np.any(args['frame_masks'], axis=0)
     used_frame_idxs = np.where(used_frame_mask)[0]  # noqa
 
-    residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
+    residuals_objfun = np.abs(optfunctions.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
     residuals_objfun[residuals_objfun == 0] = np.NaN
 
     pose_params = optimization.make_common_pose_params(calibs, args['frame_masks'])
