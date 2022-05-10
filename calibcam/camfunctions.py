@@ -79,7 +79,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frame_masks, o
     else:
         jac = '2-point'
 
-
     min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                                vars_free,
                                                jac=jac,
