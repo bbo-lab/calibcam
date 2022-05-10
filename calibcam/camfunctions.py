@@ -38,7 +38,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
         'precalc': {  # Stuff that can be precalculated
             'boards_coords_3d_0': boards_coords_3d_0,  # Board points in z plane
             'corners': corners,
-            'jacobians': optfunctions.get_obj_fcn_jacobians(),
+            'derivatives': optfunctions.get_obj_fcn_derivatives(),
         },
         # Inapplicable tue to autograd slice limitations
         # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation

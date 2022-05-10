@@ -7,7 +7,8 @@ from scipy.spatial.transform import Rotation as R  # noqa
 from jax import jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
 
 import timeit
-from . import optfunctions_jacfwd_ag as opt_ag, optimization
+from . import optfunctions_jacfwd_ag as opt_ag
+from . import optimization
 
 
 def obj_fcn_wrapper(vars_opt, args):
@@ -69,7 +70,7 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
         if np.all(rvecs_cams[i_cam] == 0):
             rvecs_cams[i_cam][:] = np.finfo(np.float16).eps
 
-    jacobians = args['precalc']['jacobians']
+    jacobians = args['precalc']['derivatives']
 
     tic = timeit.default_timer()
 
@@ -225,5 +226,5 @@ def calc_jacobian(jac, parameters):
     return jac(*parameters)
 
 
-def get_obj_fcn_jacobians():
+def get_obj_fcn_derivatives():
     return [jacobian(opt_ag.obj_fcn, i_var) for i_var in range(6)]
