@@ -8,7 +8,7 @@ from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian
 # from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
 
 def make_vars_full(vars_opt, args):
-    n_cams = len(args['precalc']['boards_coords_3d_0'])
+    n_cams = len(args['precalc']['board_coords_3d_0'])
 
     # Update full set of vars with free wars
     vars_full = args['vars_full']

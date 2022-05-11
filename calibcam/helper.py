@@ -43,7 +43,7 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
     used_frames_mask = np.any(frames_masks, axis=0)
     used_frame_idxs = np.where(used_frames_mask)[0]
 
-    corners = np.empty(shape=(frames_masks.shape[0], used_frames_mask.sum(), 2, n_corners))
+    corners = np.empty(shape=(frames_masks.shape[0], used_frames_mask.sum(), n_corners, 2))
     corners[:] = np.NaN
     for i_cam, frames_mask_cam in enumerate(frames_masks):
         frame_idxs_cam = np.where(frames_mask_cam)[0]
@@ -57,6 +57,6 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
                 continue
 
             cam_fr_idx = int(cam_fr_idx)
-            corners[i_cam, i_frame][:, ids_all[i_cam][cam_fr_idx].ravel()] = \
-                corners_all[i_cam][cam_fr_idx][:, 0, :].T  # Note transpose for later linalg
+            corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
+                corners_all[i_cam][cam_fr_idx][:, 0, :]
     return corners

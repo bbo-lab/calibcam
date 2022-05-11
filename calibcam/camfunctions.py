@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.optimize import least_squares, OptimizeResult
 
-import time
+import timeit
 
 from calibcam import optimization, board, helper, calibrator_opts
 from .exceptions import *
@@ -13,7 +13,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
         opts = {}
     opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts())
 
-    start_time = time.time()
+    start_time = timeit.default_timer()
 
     board_coords_3d_0 = board.make_board_points(board_params)
 
@@ -25,11 +25,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     # Generate vectors of all and of free variables
     vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frames_masks, opts)
 
-    # Prepare ideal boards for each cam and frame. This costs almost 3x the necessary memory, but makes
-    # further autograd compatible code much easier
-    boards_coords_3d_0 = np.tile(board_coords_3d_0.T,
-                                 (n_cams, n_used_frames, 1, 1))  # Note transpose for later linalg
-
     # Prepare array of corners (non-existing frames for individual cameras are filled with NaN)
     corners = make_corners_array(corners_all, ids_all, n_corners, frames_masks)
 
@@ -39,7 +34,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
         'frames_masks': frames_masks,
         'opts_free_vars': opts['free_vars'],
         'precalc': {  # Stuff that can be precalculated
-            'boards_coords_3d_0': boards_coords_3d_0,  # Board points in z plane
+            'board_coords_3d_0': board_coords_3d_0,  # Board points in z plane
             'corners': corners,
             'derivatives': optimization.get_obj_fcn_derivatives(),
         },
@@ -74,7 +69,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
                                                bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
                                                args=[args],
                                                **opts['optimization'])
-    current_time = time.time()
+    current_time = timeit.default_timer()
     print('Optimization algorithm converged:\t{:s}'.format(str(min_result.success)))
     print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
 
@@ -125,6 +120,13 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
 
     residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
     residuals_objfun[residuals_objfun == 0] = np.NaN
+
+    # tic = timeit.default_timer()
+    # for i in range(100):
+    #     optimization.obj_fcn_wrapper(vars_free, args)
+    # print(timeit.default_timer()-tic)
+    #
+    # exit()
 
     pose_params = optimization.make_common_pose_params(calibs, args['frames_masks'])
     rvecs_board = pose_params[0].reshape(-1, 3)  # noqa

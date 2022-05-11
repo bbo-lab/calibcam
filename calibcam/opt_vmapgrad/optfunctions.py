@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R  # noqa
 # from autograd import jacobian, elementwise_grad  # noqa
-from jax import jacfwd as grad
+from jax import grad, vmap
 
 from calibcam import optimization
 from calibcam.opt_vmapgrad import optfunctions_ag as opt_ag
@@ -15,12 +15,12 @@ def obj_fcn_wrapper(vars_opt, args):
     # will be replaced with 0 globally  TODO find more efficient solution
     corners_mask = np.isnan(corners)
     corners[corners_mask] = 0
-    boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
+    board_coords_3d_0 = args['precalc']['board_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
 
-    n_cams, n_frames, _, n_bcorners = corners.shape
+    n_cams, n_frames, n_bcorners, _ = corners.shape
 
     # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
     # and the return is in fact unnecessary!
@@ -33,43 +33,51 @@ def obj_fcn_wrapper(vars_opt, args):
     # print(cam_matrices[2])
     # print(ks[2])
 
-    rvecs_cams_tile = np.tile(rvecs_cams[:, np.newaxis, np.newaxis, np.newaxis, :],
-                              (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 3).T
+    rvecs_cams_tile = np.tile(rvecs_cams[:, np.newaxis, np.newaxis, :],
+                              (1, n_frames, n_bcorners, 1))#.reshape(-1, 3)
+    tvecs_cams_tile = np.tile(tvecs_cams[:, np.newaxis, np.newaxis, :],
+                              (1, n_frames, n_bcorners, 1))#.reshape(-1, 3)
+    cam_matrices_tile = np.tile(cam_matrices[:, np.newaxis, np.newaxis, :, :],
+                                (1, n_frames, n_bcorners, 1, 1))
+    cam_matrices_tile = cam_matrices_tile.reshape(cam_matrices_tile.shape[0:-2]+(-1,))#.reshape(-1, 9)
+    ks_tile = np.tile(ks[:, np.newaxis, np.newaxis, :],
+                      (1, n_frames, n_bcorners, 1))#.reshape(-1, 5)
+    rvecs_boards_tile = np.tile(rvecs_boards[np.newaxis, :, np.newaxis, :],
+                                (n_cams, 1, n_bcorners, 1))#.reshape(-1, 3)
+    tvecs_boards_tile = np.tile(tvecs_boards[np.newaxis, :, np.newaxis, :],
+                                (n_cams, 1, n_bcorners, 1))#.reshape(-1, 3)
 
-    tvecs_cams_tile = np.tile(tvecs_cams[:, np.newaxis, np.newaxis, np.newaxis, :],
-                              (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 3).T
-    cam_matrices_tile = np.tile(cam_matrices[:, np.newaxis, np.newaxis, np.newaxis, :],
-                                (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 9).T
-    ks_tile = np.tile(ks[:, np.newaxis, np.newaxis, np.newaxis, :],
-                      (1, n_frames, 1, n_bcorners, 1)).reshape(-1, 5).T
-
-    rvecs_boards_tile = np.tile(rvecs_boards[np.newaxis, :, np.newaxis, np.newaxis, :],
-                                (n_cams, 1, 1, n_bcorners, 1)).reshape(-1, 3).T
-    tvecs_boards_tile = np.tile(tvecs_boards[np.newaxis, :, np.newaxis, np.newaxis, :],
-                                (n_cams, 1, 1, n_bcorners, 1)).reshape(-1, 3).T
+    residual_func = vmap(opt_ag.obj_fcn, in_axes=(
+        (0, 1, 2), (0, 1, 2), (0, 1, 2),
+        (0, 1, 2), (0, 1, 2), (0, 1, 2),
+        (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2),
+        (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2),
+        (0, 1, 2), (0, 1, 2), (0, 1, 2),
+        (0, 1, 2), (0, 1, 2), (0, 1, 2),
+        None,
+        None,
+    ), out_axes=0)
 
     residuals = np.array(opt_ag.obj_fcn(
-        *rvecs_cams_tile,
-        *tvecs_cams_tile,
-        *cam_matrices_tile,
-        *ks_tile,
-        *rvecs_boards_tile,
-        *tvecs_boards_tile,
-        *boards_coords_3d_0[0, 0],
-        corners.ravel()
+        *np.moveaxis(rvecs_cams_tile, -1, 0),
+        *np.moveaxis(tvecs_cams_tile, -1, 0),
+        *np.moveaxis(cam_matrices_tile, -1, 0),
+        *np.moveaxis(ks_tile, -1, 0),
+        *np.moveaxis(rvecs_boards_tile, -1, 0),
+        *np.moveaxis(tvecs_boards_tile, -1, 0),
+        board_coords_3d_0,
+        corners
     ))
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
-    print(np.unravel_index(np.argmax(np.abs(residuals)), shape=residuals.shape))
-    print(np.max(np.abs(residuals)))
     return residuals.ravel()
 
 
 def obj_fcn_jacobian_wrapper(vars_opt, args):
     corners = args['precalc']['corners']
     corners_mask = np.isnan(corners)
-    boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
+    board_coords_3d_0 = args['precalc']['boards_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)

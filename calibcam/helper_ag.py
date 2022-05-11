@@ -7,10 +7,13 @@
 
 # import autograd.numpy as np
 import jax.numpy as np
+# import numpy as np
 
 
 # Converts array of rotation vectors to array of rotation matrices
 def rodrigues_as_rotmats(r):
+    r_shape = r.shape
+    r = r.reshape(-1, 3)
     # noinspection PyUnresolvedReferences
     theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
     # noinspection PyUnresolvedReferences
@@ -52,5 +55,7 @@ def rodrigues_as_rotmats(r):
     rotmat = np.concatenate([rotmat_0,
                              rotmat_1,
                              rotmat_2], 1)
+
+    rotmat = rotmat.reshape(r_shape[0:-1]+(3, 3))
 
     return rotmat

@@ -17,7 +17,7 @@ def obj_fcn_wrapper(vars_opt, args):
     # will be replaced with 0 globally  TODO find more efficient solution
     corners_mask = np.isnan(corners)
     corners[corners_mask] = 0
-    boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
+    board_coords_3d_0 = args['precalc']['board_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
@@ -40,7 +40,7 @@ def obj_fcn_wrapper(vars_opt, args):
         ks.ravel(),
         rvecs_boards.ravel(),
         tvecs_boards.ravel(),
-        boards_coords_3d_0.ravel(),
+        board_coords_3d_0.ravel(),
         corners.ravel()
     ))
 
@@ -54,7 +54,7 @@ def obj_fcn_wrapper(vars_opt, args):
 def obj_fcn_jacobian_wrapper(vars_opt, args):
     corners = args['precalc']['corners']
     corners_mask = np.isnan(corners)
-    boards_coords_3d_0 = args['precalc']['boards_coords_3d_0']
+    board_coords_3d_0 = args['precalc']['board_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
@@ -78,11 +78,11 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     obj_fcn_jacobian_cam_pose, obj_fcn_jacobian_cam_mat, obj_fcn_jacobian_cam_k = \
         calc_cam_jacobian(jacobians,
                           rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                          boards_coords_3d_0, corners)
+                          board_coords_3d_0, corners)
     obj_fcn_jacobian_pose = \
         calc_pose_jacobian(jacobians,
                            rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                           boards_coords_3d_0, corners)
+                           board_coords_3d_0, corners)
 
     obj_fcn_jacobian = np.concatenate((
         obj_fcn_jacobian_cam_pose.reshape(corners.shape + (-1,)),
@@ -102,7 +102,7 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
 
 
 def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                      boards_coords_3d_0, corners):
+                      board_coords_3d_0, corners):
     # n_cam_param_list = np.array([3, 3, 9, 5])
 
     obj_fcn_jacobian_cam_pose = np.zeros(corners.shape + (2, corners.shape[0], 3), dtype=np.float16)
@@ -117,7 +117,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
             ks[i_cam].ravel(),
             rvecs_boards[0:10].ravel(),
             tvecs_boards[0:10].ravel(),
-            boards_coords_3d_0[i_cam, 0:10].ravel(),
+            board_coords_3d_0[i_cam, 0:10].ravel(),
             corners[i_cam, 0:10].ravel()
         ))
                 for i_param in range(2)]
@@ -144,7 +144,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
             ks[i_cam].ravel(),
             rvecs_boards[0:10].ravel(),
             tvecs_boards[0:10].ravel(),
-            boards_coords_3d_0[i_cam, 0:10].ravel(),
+            board_coords_3d_0[i_cam, 0:10].ravel(),
             corners[i_cam, 0:10].ravel()
         ))
                 for i_param in range(1)]
@@ -171,7 +171,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
             ks[i_cam].ravel(),
             rvecs_boards[0:10].ravel(),
             tvecs_boards[0:10].ravel(),
-            boards_coords_3d_0[i_cam, 0:10].ravel(),
+            board_coords_3d_0[i_cam, 0:10].ravel(),
             corners[i_cam, 0:10].ravel()
         ))
                 for i_param in range(1)]
@@ -190,7 +190,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
 
 
 def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
-                       boards_coords_3d_0, corners):
+                       board_coords_3d_0, corners):
     n_cam_param_list = np.array([3, 3, 9, 5])
     n_pose_param_list = np.array([3, 3])
 
@@ -205,7 +205,7 @@ def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvec
             ks.ravel(),
             rvecs_boards[i_pose].ravel(),
             tvecs_boards[i_pose].ravel(),
-            boards_coords_3d_0[:, i_pose].ravel(),
+            board_coords_3d_0[:, i_pose].ravel(),
             corners[:, i_pose].ravel()
         ))
                 for i_param in range(len(n_pose_param_list))]
