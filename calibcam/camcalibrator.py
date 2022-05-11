@@ -187,6 +187,8 @@ class CamCalibrator:
         #                                               self.opts,
         #                                               mask)
         #                  for i_cam in range(len(self.readers))]
+
+        # Camera calibration seems to be strictly single core. We avoid multithreading, though
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2)))(
             delayed(self.calibrate_single_camera)(corners_all[i_cam],
                                                   ids_all[i_cam],
