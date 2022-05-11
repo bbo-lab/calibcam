@@ -5,7 +5,7 @@
 # - Do not use for loops
 # - Do not use array assignment, e.g. A[i,j] = x
 
-from calibcam.opt_jacfwd import camfunctions_ag as camfuncs_ag
+from calibcam import camfunctions_ag as camfuncs_ag
 from calibcam.helper_ag import rodrigues_as_rotmats
 
 
