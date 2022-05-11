@@ -4,6 +4,7 @@ from scipy.optimize import least_squares, OptimizeResult
 import timeit
 
 from calibcam import optimization, board, helper, calibrator_opts
+from .camfunctions_ag import map_ideal_board_to_world
 from .exceptions import *
 from .helper import make_corners_array
 
@@ -137,13 +138,13 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
         # cam_frame_idxs = np.where(calibs[i_cam]['frames_mask'])[0]
-        # b = board_points @ R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
+        # b = np.einsum('fij,bj->fbi', R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix(), board_points) + \
         #     calibs[i_cam]['tvecs'].reshape(-1, 1, 3)
         # corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam].transpose((0, 2, 1))
         # This calculates from common camera board estimations
-        b = board_points @ R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix().transpose((0, 2, 1)) + \
+        b = np.einsum('fij,bj->fbi', R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix(), board_points) + \
             tvecs_board.reshape(-1, 1, 3)
-        corners_cameralib[i_cam, :] = cs.project(b)[i_cam].transpose((0, 2, 1))
+        corners_cameralib[i_cam, :] = cs.project(b)[i_cam]
 
     residuals_cameralib = np.abs(corners_detection - corners_cameralib)
 

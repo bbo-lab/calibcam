@@ -6,8 +6,8 @@
 # - Do not use array assignment, e.g. A[i,j] = x
 
 # import autograd.numpy as np
-import jax.numpy as np
-# import numpy as np
+# import jax.numpy as np
+import numpy as np
 
 
 def map_ideal_board_to_world(board_coords_3d_0, rotmats_boards, tvecs_boards):
