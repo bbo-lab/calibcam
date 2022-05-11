@@ -2,10 +2,8 @@
 # from joblib import Parallel, delayed
 
 import numpy as np
-from calibcam import optfunctions_vmapgrad as optfunctions  # noqa
 
-from optfunctions_jacfwd import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # noqa
-
+from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # noqa
 
 def make_vars_full(vars_opt, args):
     n_cams = len(args['precalc']['boards_coords_3d_0'])

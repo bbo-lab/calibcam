@@ -5,8 +5,8 @@
 # - Do not use for loops
 # - Do not use array assignment, e.g. A[i,j] = x
 
-from . import camfunctions_jacfwd_ag as camfuncs_ag
-from .helper_ag import rodrigues_as_rotmats
+from calibcam.opt_jacfwd import camfunctions_ag as camfuncs_ag
+from calibcam.helper_ag import rodrigues_as_rotmats
 
 
 def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards, boards_coords_3d_0, corners):

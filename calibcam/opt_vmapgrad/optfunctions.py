@@ -6,10 +6,8 @@ from scipy.spatial.transform import Rotation as R  # noqa
 # from autograd import jacobian, elementwise_grad  # noqa
 from jax import jacfwd as grad
 
-from . import optimization
-from . import optfunctions_vmapgrad_ag as opt_ag
-
-import timeit
+from calibcam import optimization
+from calibcam.opt_vmapgrad import optfunctions_ag as opt_ag
 
 
 def obj_fcn_wrapper(vars_opt, args):

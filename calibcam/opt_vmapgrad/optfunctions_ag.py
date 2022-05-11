@@ -5,9 +5,8 @@
 # - Do not use for loops
 # - Do not use array assignment, e.g. A[i,j] = x
 
-from . import camfunctions_jacfwd_ag as camfuncs_ag
 from jax import numpy as np
-from .helper_ag import rodrigues_as_rotmats
+from calibcam.helper_ag import rodrigues_as_rotmats
 
 
 def obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,

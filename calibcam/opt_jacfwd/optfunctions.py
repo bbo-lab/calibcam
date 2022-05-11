@@ -6,8 +6,8 @@ from scipy.spatial.transform import Rotation as R  # noqa
 # from autograd import jacobian, elementwise_grad  # noqa
 from jax import jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
 
-from . import optimization
-from . import optfunctions_jacfwd_ag as opt_ag
+from calibcam import optimization
+from calibcam.opt_jacfwd import optfunctions_ag as opt_ag
 
 import timeit
 
