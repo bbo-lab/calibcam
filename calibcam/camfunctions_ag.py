@@ -27,8 +27,8 @@ def board_to_ideal_plane(boards_coords_3d):
     # TODO find more elegant way. This appears difficult since we cannot use a[a==0] = ... due to autograd limitations
     eps = np.finfo(np.float64).eps
     boards_coords_3d = np.concatenate((
-        boards_coords_3d[:, :, (0,), :] / (boards_coords_3d[:, :, (2,), :]+eps),
-        boards_coords_3d[:, :, (1,), :] / (boards_coords_3d[:, :, (2,), :]+eps),
+        boards_coords_3d[:, :, (0,), :] / (boards_coords_3d[:, :, (2,), :] + eps),
+        boards_coords_3d[:, :, (1,), :] / (boards_coords_3d[:, :, (2,), :] + eps),
         np.ones_like(boards_coords_3d[:, :, (2,), :]),
     ), 2)
     return boards_coords_3d
@@ -41,9 +41,9 @@ def distort(boards_coords_ideal, ks):
 
     def distort_dim(b_d):
         return (
-                   b_d * (1 + ks[:, (0,)] * r2 + ks[:, (1,)] * r2 ** 2 + ks[:, (2,)] * r2 ** 3) +
-                   2 * ks[:, (3,)] * b[:, :, (0,), :] * b[:, :, (1,), :] +
-                   ks[:, (4,)] * (r2 + 2 * b_d ** 2)
+                b_d * (1 + ks[:, (0,)] * r2 + ks[:, (1,)] * r2 ** 2 + ks[:, (2,)] * r2 ** 3) +
+                2 * ks[:, (3,)] * b[:, :, (0,), :] * b[:, :, (1,), :] +
+                ks[:, (4,)] * (r2 + 2 * b_d ** 2)
         )
 
     boards_coords_dist = np.concatenate((
