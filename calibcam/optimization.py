@@ -3,7 +3,9 @@
 
 import numpy as np
 
+# This could also be done dynamically, based on opts ...
 from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # noqa
+# from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # Calculating Jacobians would be much more straightforward, but seems to be prohibitivey slow ...
 
 def make_vars_full(vars_opt, args):
     n_cams = len(args['precalc']['boards_coords_3d_0'])
