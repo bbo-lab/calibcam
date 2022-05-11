@@ -209,9 +209,9 @@ class CamCalibrator:
         if board_params is None:
             board_params = self.board_params
 
-        calibs_fit, rvecs_boards, tvecs_boards, min_result, args =\
+        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
             camfunctions.optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks,
-                                                   opts=opts, board_params=board_params)
+                                                   board_params=board_params, opts=opts)
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 

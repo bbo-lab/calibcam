@@ -3,12 +3,16 @@ from scipy.optimize import least_squares, OptimizeResult
 
 import time
 
-from calibcam import optimization, board
+from calibcam import optimization, board, helper, calibrator_opts
 from .exceptions import *
 from .helper import make_corners_array
 
 
-def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, opts, board_params):
+def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, board_params, opts=None):
+    if opts is None:
+        opts = {}
+    opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts())
+
     start_time = time.time()
 
     board_coords_3d_0 = board.make_board_points(board_params)
