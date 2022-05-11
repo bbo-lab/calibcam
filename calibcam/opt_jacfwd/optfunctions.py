@@ -103,7 +103,7 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
 
 def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards,
                       boards_coords_3d_0, corners):
-    n_cam_param_list = np.array([3, 3, 9, 5])
+    # n_cam_param_list = np.array([3, 3, 9, 5])
 
     obj_fcn_jacobian_cam_pose = np.zeros(corners.shape + (2, corners.shape[0], 3), dtype=np.float16)
     offset = 0

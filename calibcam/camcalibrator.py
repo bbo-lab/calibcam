@@ -113,7 +113,7 @@ class CamCalibrator:
                                        other={'calibs_single': calibs_single})
             self.save_multicalibration(result, 'preoptim')
         else:
-            preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True).item()
+            preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True)[()]
             calibs_single = preoptim['info']['other']['calibs_single']
             # calibs_multi = preoptim['arr_1']
             corners_all = preoptim['info']['corners']
