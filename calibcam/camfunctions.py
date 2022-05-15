@@ -10,6 +10,8 @@ from .helper import make_corners_array
 
 
 def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, board_params, opts=None):
+    frames_masks = frames_masks.astype(bool)  # TODO find out why this ends up here as float and shange to bool
+
     if opts is None:
         opts = {}
     opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts())
@@ -58,7 +60,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     print(f"Objective function took {timeit.default_timer()-tic} s: squaresum {np.sum(result**2)} over {result.size} residuals.")
 
     # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
-    test_objective_function(calibs_multi, vars_free, args, corners, board.make_board_points(board_params))
+    test_objective_function(calibs_multi, vars_free, args, corners, board_coords_3d_0)
 
     print('Starting optimization procedure')
 
@@ -78,6 +80,17 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
 
     calibs_fit, rvecs_boards, tvecs_boards = optimization.unravel_to_calibs(min_result.x, args)
+
+    # We don't include poses in the calibs_fit dictionary, as the final calibration structure should be independent
+    #  of the calibration process
+    calibs_test = [
+        calibs_fit[i_cam] | {
+            'rvecs': rvecs_boards[i_cam, frames_masks[i_cam]],
+            'tvecs': tvecs_boards[i_cam, frames_masks[i_cam]],
+        }
+        for i_cam in range(len(calibs_fit))
+    ]
+    test_objective_function(calibs_test, min_result.x, args, corners, board_coords_3d_0)
 
     return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 

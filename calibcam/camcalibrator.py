@@ -222,12 +222,12 @@ class CamCalibrator:
                      rvecs_boards=None, tvecs_boards=None, min_result=None, args=None,  # noqa
                      other=None):
         result = {
-            'version': 2.0,
-            'calibs': calibs,
-            'board_params': self.board_params,
-            'rec_file_names': self.rec_file_names,
-            'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],
-            'info': {
+            'version': 2.0,  # Increase when this structure changes
+            'calibs': calibs,  # This field shall always hold all intrinsically necessary information to project and triangulate.
+            'board_params': self.board_params,  # All parameters to recreate the board
+            'rec_file_names': self.rec_file_names,  # Recording filenames, may be used for cam names
+            'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],  # Headers. No content structure guaranteed
+            'info': {  # Additional nonessential info from the calibration process
                 'cost_val_final': np.NaN,
                 'optimality_final': np.NaN,
                 'frames_masks': np.array([], dtype=bool),
@@ -236,7 +236,7 @@ class CamCalibrator:
                 'rvecs_boards': np.array([], dtype=bool),
                 'tvecs_boards': np.array([], dtype=bool),
                 'opts': self.opts,
-                'other': [],
+                'other': [],  # Additional info without guaranteed structure
             }
         }
 

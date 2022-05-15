@@ -124,7 +124,7 @@ def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx
 
 def unravel_to_calibs(vars_opt, args):
     # Fill vars_full from initialization with vars_opts
-    vars_full, n_cams = make_vars_full(vars_opt, args, verbose=True)
+    vars_full, n_cams = make_vars_full(vars_opt, args, verbose=False)
 
     # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
     # and the return is in fact unnecessary!

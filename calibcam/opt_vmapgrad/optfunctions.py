@@ -34,20 +34,20 @@ def obj_fcn_wrapper(vars_opt, args):
     # print(ks[2])
 
     rvecs_cams_tile = np.tile(rvecs_cams[:, np.newaxis, np.newaxis, :],
-                              (1, n_frames, n_bcorners, 1))  # .reshape(-1, 3)
+                              (1, n_frames, n_bcorners, 1))
     tvecs_cams_tile = np.tile(tvecs_cams[:, np.newaxis, np.newaxis, :],
-                              (1, n_frames, n_bcorners, 1))  # .reshape(-1, 3)
+                              (1, n_frames, n_bcorners, 1))
     cam_matrices_tile = np.tile(cam_matrices[:, np.newaxis, np.newaxis, :, :],
                                 (1, n_frames, n_bcorners, 1, 1))
-    cam_matrices_tile = cam_matrices_tile.reshape(cam_matrices_tile.shape[0:-2] + (-1,))  # .reshape(-1, 9)
+    cam_matrices_tile = cam_matrices_tile.reshape(cam_matrices_tile.shape[0:-2] + (-1,))
     ks_tile = np.tile(ks[:, np.newaxis, np.newaxis, :],
-                      (1, n_frames, n_bcorners, 1))  # .reshape(-1, 5)
+                      (1, n_frames, n_bcorners, 1))
     rvecs_boards_tile = np.tile(rvecs_boards[np.newaxis, :, np.newaxis, :],
-                                (n_cams, 1, n_bcorners, 1))  # .reshape(-1, 3)
+                                (n_cams, 1, n_bcorners, 1))
     tvecs_boards_tile = np.tile(tvecs_boards[np.newaxis, :, np.newaxis, :],
-                                (n_cams, 1, n_bcorners, 1))  # .reshape(-1, 3)
+                                (n_cams, 1, n_bcorners, 1))
     board_coords_3d_0_tile = np.tile(board_coords_3d_0[np.newaxis, np.newaxis, :, :],
-                                     (n_cams, n_frames, 1, 1))  # .reshape(-1, 3)
+                                     (n_cams, n_frames, 1, 1))
 
     #residuals = np.array(opt_ag.obj_fcn(  # This seems slower by a factor of ~30
     residuals = np.array(args['precalc']['obj_fun'](
