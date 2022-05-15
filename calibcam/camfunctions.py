@@ -34,11 +34,9 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
         'mask_opt': mask_free,  # Mask of free vars within all vars
         'frames_masks': frames_masks,
         'opts_free_vars': opts['free_vars'],
-        'precalc': {  # Stuff that can be precalculated
-            'board_coords_3d_0': board_coords_3d_0,  # Board points in z plane
-            'corners': corners,
-            'derivatives': optimization.get_obj_fcn_derivatives(),
-        },
+        'board_coords_3d_0': board_coords_3d_0,  # Board points in z plane
+        'corners': corners,
+        'precalc': optimization.get_precalc(),
         # Inapplicable tue to autograd slice limitations
         # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
         #     'residuals': np.zeros_like(corners),
@@ -53,6 +51,11 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     # print(calibs_multi[2]['tvec_cam'])
     # print(calibs_multi[2]['A'])
     # print(calibs_multi[2]['k'])
+
+    optimization.obj_fcn_wrapper(vars_free, args)
+    tic = timeit.default_timer()
+    result = optimization.obj_fcn_wrapper(vars_free, args)
+    print(f"Objective function took {timeit.default_timer()-tic} s: squaresum {np.sum(result**2)} over {result.size} residuals.")
 
     # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
     test_objective_function(calibs_multi, vars_free, args, corners, board.make_board_points(board_params))
