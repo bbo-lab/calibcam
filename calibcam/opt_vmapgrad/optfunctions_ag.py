@@ -36,6 +36,7 @@ def obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,
     ks = np.moveaxis(np.array([ks_1, ks_2, ks_3, ks_4, ks_5]), 0, -1)
 
     rotmats_cams = rodrigues_as_rotmats(rvecs_cams)
+
     rotmats_boards = rodrigues_as_rotmats(rvecs_boards)
 
     boards_coords = camfuncs_ag.map_ideal_board_to_world(board_coords_3d_0, rotmats_boards, tvecs_boards)
@@ -43,7 +44,6 @@ def obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,
     boards_coords = camfuncs_ag.board_to_ideal_plane(boards_coords)
     boards_coords = camfuncs_ag.distort(boards_coords, ks)
     boards_coords = camfuncs_ag.ideal_to_sensor(boards_coords, cam_matrices)
-
     boards_coords = corners - boards_coords
 
     return boards_coords

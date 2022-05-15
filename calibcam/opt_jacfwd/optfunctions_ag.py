@@ -16,8 +16,8 @@ def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
     ks = ks.reshape(-1, 5)
     rvecs_boards = rvecs_boards.reshape(-1, 3)
     tvecs_boards = tvecs_boards.reshape(-1, 3)
-    board_coords_3d_0 = board_coords_3d_0.reshape(3, -1)
-    corners = corners.reshape(rvecs_cams.shape[0], rvecs_boards.shape[0], 2, -1)
+    board_coords_3d_0 = board_coords_3d_0.reshape(-1, 3)
+    corners = corners.reshape(rvecs_cams.shape[0], rvecs_boards.shape[0], -1, 2)
 
     rotmats_cams = rodrigues_as_rotmats(rvecs_cams)
     rotmats_boards = rodrigues_as_rotmats(rvecs_boards)

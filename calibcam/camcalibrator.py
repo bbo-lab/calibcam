@@ -124,7 +124,7 @@ class CamCalibrator:
 
         print('START MULTI CAMERA CALIBRATION')
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
-            self.start_optimization(corners_all, ids_all, calibs_multi, frames_masks)
+            self.optimize_calibration(corners_all, ids_all, calibs_multi, frames_masks)
 
         result = self.build_result(calibs_fit,
                                    frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
@@ -205,7 +205,7 @@ class CamCalibrator:
 
         return calibs_single
 
-    def start_optimization(self, corners_all, ids_all, calibs_multi, frames_masks, opts=None, board_params=None):
+    def optimize_calibration(self, corners_all, ids_all, calibs_multi, frames_masks, opts=None, board_params=None):
         if opts is None:
             opts = self.opts
         if board_params is None:

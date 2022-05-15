@@ -7,13 +7,19 @@ import numpy as np
 from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # noqa
 # from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
 
-def make_vars_full(vars_opt, args):
-    n_cams = len(args['precalc']['board_coords_3d_0'])
+def make_vars_full(vars_opt, args, verbose=False):
+    n_cams = len(args['frames_masks'])
 
     # Update full set of vars with free wars
     vars_full = args['vars_full']
+    if verbose:
+        print(vars_full[0:7])
     mask_opt = args['mask_opt']
     vars_full[mask_opt] = vars_opt
+
+    if verbose:
+        print(mask_opt[0:7])
+        print(vars_full[0:7])
 
     return vars_full, n_cams
 
@@ -65,11 +71,12 @@ def make_initialization(calibs, frames_masks, opts, k_to_zero=True):
         else:
             param[15:20] = calib['k']
 
-    pose_params = make_common_pose_params(calibs, frames_masks)
-
     # camera_params are raveled with one scalar parameter for all cams grouped
     # pose_params are raveled with first all rvecs and then all tvecs (for faster unraveling in obj_fun)
-    vars_full = np.concatenate((camera_params.T.ravel(), pose_params.ravel()), axis=0)
+    camera_params = camera_params.T.ravel()
+    pose_params = make_common_pose_params(calibs, frames_masks).ravel()
+
+    vars_full = np.concatenate((camera_params, pose_params), axis=0)
     mask_free = make_free_parameter_mask(calibs, frames_masks, opts_free_vars, opts['coord_cam'])
     vars_free = vars_full[mask_free]
 
@@ -112,12 +119,12 @@ def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx
     pose_mask = np.ones(shape=(pose_idxs.size, 2, 3), dtype=bool)
     pose_mask[:] = opts_free_vars['board_poses']
 
-    return np.concatenate((camera_mask.ravel(), pose_mask.ravel()), axis=0)
+    return np.concatenate((camera_mask.T.ravel(), pose_mask.ravel()), axis=0)
 
 
 def unravel_to_calibs(vars_opt, args):
     # Fill vars_full from initialization with vars_opts
-    vars_full, n_cams = make_vars_full(vars_opt, args)
+    vars_full, n_cams = make_vars_full(vars_opt, args, verbose=True)
 
     # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
     # and the return is in fact unnecessary!

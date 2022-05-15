@@ -47,16 +47,16 @@ def obj_fcn_wrapper(vars_opt, args):
     tvecs_boards_tile = np.tile(tvecs_boards[np.newaxis, :, np.newaxis, :],
                                 (n_cams, 1, n_bcorners, 1))#.reshape(-1, 3)
 
-    residual_func = vmap(opt_ag.obj_fcn, in_axes=(
-        (0, 1, 2), (0, 1, 2), (0, 1, 2),
-        (0, 1, 2), (0, 1, 2), (0, 1, 2),
-        (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2),
-        (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2),
-        (0, 1, 2), (0, 1, 2), (0, 1, 2),
-        (0, 1, 2), (0, 1, 2), (0, 1, 2),
-        None,
-        None,
-    ), out_axes=0)
+    # residual_func = vmap(opt_ag.obj_fcn, in_axes=(
+    #     (0, 1, 2), (0, 1, 2), (0, 1, 2),
+    #     (0, 1, 2), (0, 1, 2), (0, 1, 2),
+    #     (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2),
+    #     (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2), (0, 1, 2),
+    #     (0, 1, 2), (0, 1, 2), (0, 1, 2),
+    #     (0, 1, 2), (0, 1, 2), (0, 1, 2),
+    #     None,
+    #     None,
+    # ), out_axes=0)
 
     residuals = np.array(opt_ag.obj_fcn(
         *np.moveaxis(rvecs_cams_tile, -1, 0),
@@ -71,6 +71,13 @@ def obj_fcn_wrapper(vars_opt, args):
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
+
+    if np.any(np.isnan(residuals)) or np.any(np.isinf(residuals)):
+        print("Found nans or infs in objective function result, aborting")
+        print(np.where(np.isnan(residuals)))
+        print(np.where(np.isinf(residuals)))
+        exit()
+
     return residuals.ravel()
 
 

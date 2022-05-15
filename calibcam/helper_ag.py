@@ -11,6 +11,8 @@ import jax.numpy as np
 
 
 # Converts array of rotation vectors to array of rotation matrices
+# TODO: This function results in nan for all zero vectors and will thus
+#  cause problems when optimizing starting from identity matrix
 def rodrigues_as_rotmats(r):
     r_shape = r.shape
     r = r.reshape(-1, 3)
