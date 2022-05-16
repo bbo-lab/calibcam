@@ -83,14 +83,17 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
 
     # We don't include poses in the calibs_fit dictionary, as the final calibration structure should be independent
     #  of the calibration process
+    # used_frames_mask = np.any(args['frames_masks'], axis=0)
+    # used_frame_idxs = np.where(used_frames_mask)[0]  # noqa
     calibs_test = [
         calibs_fit[i_cam] | {
-            'rvecs': rvecs_boards[i_cam, frames_masks[i_cam]],
-            'tvecs': tvecs_boards[i_cam, frames_masks[i_cam]],
+            'rvecs': rvecs_boards,
+            'tvecs': tvecs_boards,
+            'frames_mask': used_frames_mask
         }
         for i_cam in range(len(calibs_fit))
     ]
-    test_objective_function(calibs_test, min_result.x, args, corners, board_coords_3d_0)
+    test_objective_function(calibs_test, min_result.x, args, corners, board_coords_3d_0, individual_poses=True)
 
     return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
@@ -128,14 +131,14 @@ def get_header_from_reader(reader):
     return header
 
 
-def test_objective_function(calibs, vars_free, args, corners_detection, board_points):
+def test_objective_function(calibs, vars_free, args, corners_detection, board_points, individual_poses=False):
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
     used_frames_mask = np.any(args['frames_masks'], axis=0)
     used_frame_idxs = np.where(used_frames_mask)[0]  # noqa
 
-    residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
+    residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args, radius=False).reshape(corners_detection.shape))
     residuals_objfun[residuals_objfun == 0] = np.NaN
 
     # tic = timeit.default_timer()
@@ -145,28 +148,33 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     #
     # exit()
 
-    pose_params = optimization.make_common_pose_params(calibs, args['frames_masks'])
-    rvecs_board = pose_params[0].reshape(-1, 3)  # noqa
-    tvecs_board = pose_params[1].reshape(-1, 3)  # noqa
     corners_cameralib = np.empty_like(residuals_objfun)
     corners_cameralib[:] = np.NaN
     cs = Camerasystem.from_calibs(calibs)
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
-        # cam_frame_idxs = np.where(calibs[i_cam]['frames_mask'])[0]
-        # b = np.einsum('fij,bj->fbi', R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix(), board_points) + \
-        #     calibs[i_cam]['tvecs'].reshape(-1, 1, 3)
-        # corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam].transpose((0, 2, 1))
+        if individual_poses:
+            cam_frame_idxs = np.where(calibs[i_cam]['frames_mask'])[0]
+            b = np.einsum('fij,bj->fbi', R.from_rotvec(calibs[i_cam]['rvecs'].reshape(-1, 3)).as_matrix(), board_points) + \
+                calibs[i_cam]['tvecs'].reshape(-1, 1, 3)
+            corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam]
         # This calculates from common camera board estimations
-        b = np.einsum('fij,bj->fbi', R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix(), board_points) + \
-            tvecs_board.reshape(-1, 1, 3)
-        corners_cameralib[i_cam, :] = cs.project(b)[i_cam]
+        else:
+            pose_params = optimization.make_common_pose_params(calibs, args['frames_masks'])
+            rvecs_board = pose_params[0].reshape(-1, 3)
+            tvecs_board = pose_params[1].reshape(-1, 3)
+
+            b = np.einsum('fij,bj->fbi', R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix(), board_points) + \
+                tvecs_board.reshape(-1, 1, 3)
+            corners_cameralib[i_cam, :] = cs.project(b)[i_cam]
 
     residuals_cameralib = np.abs(corners_detection - corners_cameralib)
 
     res_diff = residuals_cameralib - residuals_objfun
 
-    print("Testing objective function vs cameralib (minor differences expected due to common board pose in objfun)")
+    print("Testing objective function vs cameralib")
+    if individual_poses:
+        print("(Minor differences possible due to common board pose in objfun)")
     print("Cam | "
           "n objfun      | "
           "n cameralib   | "

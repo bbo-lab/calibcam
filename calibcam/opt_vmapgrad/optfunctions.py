@@ -10,7 +10,7 @@ from calibcam import optimization
 from calibcam.opt_vmapgrad import optfunctions_ag as opt_ag
 
 
-def obj_fcn_wrapper(vars_opt, args):
+def obj_fcn_wrapper(vars_opt, args, radius=False):
     corners = args['corners'].copy()  # copy is necessary since this is a reference, so further down, nans
     # will be replaced with 0 globally  TODO find more efficient solution
     corners_mask = np.isnan(corners)
@@ -71,6 +71,9 @@ def obj_fcn_wrapper(vars_opt, args):
         print(np.where(np.isnan(residuals)))
         print(np.where(np.isinf(residuals)))
         exit()
+
+    if radius:  # This seems to lead to a worse optimisation result, probably because we destroy directional information
+        residuals = np.sqrt(np.sum(residuals**2, axis=3))
 
     return residuals.ravel()
 
