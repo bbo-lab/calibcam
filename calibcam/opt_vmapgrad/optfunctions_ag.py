@@ -20,7 +20,6 @@ def obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,
             tvec_boards_1, tvec_boards_2, tvec_boards_3,
             board_coords_3d_0_1, board_coords_3d_0_2, board_coords_3d_0_3,
             corners_1, corners_2):
-
     rvecs_cams = np.moveaxis(np.array([rvec_cams_1, rvec_cams_2, rvec_cams_3]), 0, -1)
     tvecs_cams = np.moveaxis(np.array([tvec_cams_1, tvec_cams_2, tvec_cams_3]), 0, -1)
 
@@ -51,3 +50,44 @@ def obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,
     boards_coords = corners - boards_coords
 
     return boards_coords
+
+# Most of the calculations for residuals have to be repeated anyway when separating x und y. For the sake of
+#  easy code, we just calc everything twice.
+def obj_fcn_x(rvec_cams_1, rvec_cams_2, rvec_cams_3,
+              tvec_cams_1, tvec_cams_2, tvec_cams_3,
+              cam_matrices_1, cam_matrices_2, cam_matrices_3, cam_matrices_4, cam_matrices_5,
+              cam_matrices_6, cam_matrices_7, cam_matrices_8, cam_matrices_9,
+              ks_1, ks_2, ks_3, ks_4, ks_5,
+              rvec_boards_1, rvec_boards_2, rvec_boards_3,
+              tvec_boards_1, tvec_boards_2, tvec_boards_3,
+              board_coords_3d_0_1, board_coords_3d_0_2, board_coords_3d_0_3,
+              corners_1, corners_2):
+    return obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,
+            tvec_cams_1, tvec_cams_2, tvec_cams_3,
+            cam_matrices_1, cam_matrices_2, cam_matrices_3, cam_matrices_4, cam_matrices_5,
+            cam_matrices_6, cam_matrices_7, cam_matrices_8, cam_matrices_9,
+            ks_1, ks_2, ks_3, ks_4, ks_5,
+            rvec_boards_1, rvec_boards_2, rvec_boards_3,
+            tvec_boards_1, tvec_boards_2, tvec_boards_3,
+            board_coords_3d_0_1, board_coords_3d_0_2, board_coords_3d_0_3,
+            corners_1, corners_2)[..., 0]
+
+
+def obj_fcn_y(rvec_cams_1, rvec_cams_2, rvec_cams_3,
+              tvec_cams_1, tvec_cams_2, tvec_cams_3,
+              cam_matrices_1, cam_matrices_2, cam_matrices_3, cam_matrices_4, cam_matrices_5,
+              cam_matrices_6, cam_matrices_7, cam_matrices_8, cam_matrices_9,
+              ks_1, ks_2, ks_3, ks_4, ks_5,
+              rvec_boards_1, rvec_boards_2, rvec_boards_3,
+              tvec_boards_1, tvec_boards_2, tvec_boards_3,
+              board_coords_3d_0_1, board_coords_3d_0_2, board_coords_3d_0_3,
+              corners_1, corners_2):
+    return obj_fcn(rvec_cams_1, rvec_cams_2, rvec_cams_3,
+            tvec_cams_1, tvec_cams_2, tvec_cams_3,
+            cam_matrices_1, cam_matrices_2, cam_matrices_3, cam_matrices_4, cam_matrices_5,
+            cam_matrices_6, cam_matrices_7, cam_matrices_8, cam_matrices_9,
+            ks_1, ks_2, ks_3, ks_4, ks_5,
+            rvec_boards_1, rvec_boards_2, rvec_boards_3,
+            tvec_boards_1, tvec_boards_2, tvec_boards_3,
+            board_coords_3d_0_1, board_coords_3d_0_2, board_coords_3d_0_3,
+            corners_1, corners_2)[..., 1]
