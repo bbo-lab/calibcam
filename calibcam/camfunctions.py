@@ -4,9 +4,7 @@ from scipy.optimize import least_squares, OptimizeResult
 import timeit
 
 from calibcam import optimization, board, helper, calibrator_opts
-from .camfunctions_ag import map_ideal_board_to_world
 from .exceptions import *
-from .helper import make_corners_array
 
 
 def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, board_params, opts=None):
@@ -29,13 +27,14 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frames_masks, opts)
 
     # Prepare array of corners (non-existing frames for individual cameras are filled with NaN)
-    corners = make_corners_array(corners_all, ids_all, n_corners, frames_masks)
+    corners = helper.make_corners_array(corners_all, ids_all, n_corners, frames_masks)
 
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
         'mask_opt': mask_free,  # Mask of free vars within all vars
         'frames_masks': frames_masks,
         'opts_free_vars': opts['free_vars'],
+        'coord_cam': opts['coord_cam'],  # This is currently only required due to unsolved jacobian issue
         'board_coords_3d_0': board_coords_3d_0,  # Board points in z plane
         'corners': corners,
         'precalc': optimization.get_precalc(),
@@ -48,13 +47,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
         # }
     }
 
-    # For comparison with unraveled data, tested correct
-    # print(calibs_multi[2]['rvec_cam'])
-    # print(calibs_multi[2]['tvec_cam'])
-    # print(calibs_multi[2]['A'])
-    # print(calibs_multi[2]['k'])
-
-    optimization.obj_fcn_wrapper(vars_free, args)
     tic = timeit.default_timer()
     result = optimization.obj_fcn_wrapper(vars_free, args)
     print(f"Objective function took {timeit.default_timer()-tic} s: squaresum {np.sum(result**2)} over {result.size} residuals.")
@@ -138,7 +130,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     used_frames_mask = np.any(args['frames_masks'], axis=0)
     used_frame_idxs = np.where(used_frames_mask)[0]  # noqa
 
-    residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args, radius=False).reshape(corners_detection.shape))
+    residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
     residuals_objfun[residuals_objfun == 0] = np.NaN
 
     # tic = timeit.default_timer()

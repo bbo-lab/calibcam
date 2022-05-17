@@ -82,6 +82,7 @@ def obj_fcn_wrapper(vars_opt, args, radius=False):
 def obj_fcn_jacobian_wrapper(vars_opt, args):
     return obj_fcn_jacobian_wrapper_grad(vars_opt, args)
 
+
 def obj_fcn_jacobian_wrapper_grad(vars_opt, args):
     corners = args['corners'].copy()  # copy is necessary since this is a reference, so further down, nans
     # will be replaced with 0 globally  TODO find more efficient solution
@@ -122,7 +123,7 @@ def obj_fcn_jacobian_wrapper_grad(vars_opt, args):
     for i_var in range(20):
         for i_cam in range(corners.shape[0]):
             for i_dim in range(2):
-                obj_fcn_jacobian[i_cam, :, :, i_dim, i_var*corners.shape[0] + i_cam] = \
+                obj_fcn_jacobian[i_cam, :, :, i_dim, i_var * corners.shape[0] + i_cam] = \
                     args['precalc']['grads'][i_dim][i_var](
                         *np.moveaxis(rvecs_cams_tile[i_cam], -1, 0).reshape(3, -1),
                         *np.moveaxis(tvecs_cams_tile[i_cam], -1, 0).reshape(3, -1),
@@ -137,8 +138,8 @@ def obj_fcn_jacobian_wrapper_grad(vars_opt, args):
     for i_var in range(3):
         for i_pose in range(corners.shape[0]):
             for i_dim in range(2):
-                obj_fcn_jacobian[:, i_pose, :, i_dim, corners.shape[0]*20 + i_var*corners.shape[1] + i_pose] = \
-                    args['precalc']['grads'][i_dim][i_var+20](
+                obj_fcn_jacobian[:, i_pose, :, i_dim, corners.shape[0] * 20 + i_var * corners.shape[1] + i_pose] = \
+                    args['precalc']['grads'][i_dim][i_var + 20](
                         *np.moveaxis(rvecs_cams_tile[:, i_pose], -1, 0).reshape(3, -1),
                         *np.moveaxis(tvecs_cams_tile[:, i_pose], -1, 0).reshape(3, -1),
                         *np.moveaxis(cam_matrices_tile[:, i_pose], -1, 0).reshape(9, -1),
@@ -152,8 +153,8 @@ def obj_fcn_jacobian_wrapper_grad(vars_opt, args):
     for i_var in range(3):
         for i_pose in range(corners.shape[0]):
             for i_dim in range(2):
-                obj_fcn_jacobian[:, i_pose, :, i_dim, corners.shape[0]*20 + (i_var+3)*corners.shape[1] + i_pose] = \
-                    args['precalc']['grads'][i_dim][i_var+23](
+                obj_fcn_jacobian[:, i_pose, :, i_dim, corners.shape[0] * 20 + (i_var + 3) * corners.shape[1] + i_pose] = \
+                    args['precalc']['grads'][i_dim][i_var + 23](
                         *np.moveaxis(rvecs_cams_tile[:, i_pose], -1, 0).reshape(3, -1),
                         *np.moveaxis(tvecs_cams_tile[:, i_pose], -1, 0).reshape(3, -1),
                         *np.moveaxis(cam_matrices_tile[:, i_pose], -1, 0).reshape(9, -1),
@@ -163,19 +164,6 @@ def obj_fcn_jacobian_wrapper_grad(vars_opt, args):
                         *np.moveaxis(board_coords_3d_0_tile[:, i_pose], -1, 0).reshape(3, -1),
                         *np.moveaxis(corners[:, i_pose], -1, 0).reshape(2, -1)
                     ).reshape((corners.shape[0], corners.shape[2]))
-    #
-    # grads = [
-    #     np.asarray(args['precalc']['grads_x'][i_var](
-    #         *np.moveaxis(rvecs_cams_tile, -1, 0).reshape(3, -1),
-    #         *np.moveaxis(tvecs_cams_tile, -1, 0).reshape(3, -1),
-    #         *np.moveaxis(cam_matrices_tile, -1, 0).reshape(9, -1),
-    #         *np.moveaxis(ks_tile, -1, 0).reshape(5, -1),
-    #         *np.moveaxis(rvecs_boards_tile, -1, 0).reshape(3, -1),
-    #         *np.moveaxis(tvecs_boards_tile, -1, 0).reshape(3, -1),
-    #         *np.moveaxis(board_coords_3d_0_tile, -1, 0).reshape(3, -1),  # TODO: This should be possible without tiling
-    #         *np.moveaxis(corners, -1, 0).reshape(2, -1)
-    #     ))
-    #     for i_var in range(3 + 3 + 9 + 5 + 3 + 3)]
 
     # Residuals of untracked corners are invalid
     obj_fcn_jacobian[corners_mask, :] = 0

@@ -7,6 +7,8 @@
 
 # import autograd.numpy as np
 import jax.numpy as np
+
+
 # import numpy as np
 
 
@@ -16,39 +18,29 @@ import jax.numpy as np
 def rodrigues_as_rotmats(r):
     r_shape = r.shape
     r = r.reshape(-1, 3)
-    # noinspection PyUnresolvedReferences
+
     theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
-    # noinspection PyUnresolvedReferences
     u = r / (theta + -np.abs(np.sign(theta)) + 1).reshape(-1, 1)
 
     # row 1
-    # noinspection PyUnresolvedReferences
     rotmat_00 = np.cos(theta) + u[:, 0] ** 2 * (1 - np.cos(theta))
-    # noinspection PyUnresolvedReferences
     rotmat_01 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) - u[:, 2] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
     rotmat_02 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) + u[:, 1] * np.sin(theta)
     rotmat_0 = np.concatenate([rotmat_00.reshape(-1, 1, 1),
                                rotmat_01.reshape(-1, 1, 1),
                                rotmat_02.reshape(-1, 1, 1)], 2)
 
     # row 2
-    # noinspection PyUnresolvedReferences
     rotmat_10 = u[:, 0] * u[:, 1] * (1 - np.cos(theta)) + u[:, 2] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
     rotmat_11 = np.cos(theta) + u[:, 1] ** 2 * (1 - np.cos(theta))
-    # noinspection PyUnresolvedReferences
     rotmat_12 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) - u[:, 0] * np.sin(theta)
     rotmat_1 = np.concatenate([rotmat_10.reshape(-1, 1, 1),
                                rotmat_11.reshape(-1, 1, 1),
                                rotmat_12.reshape(-1, 1, 1)], 2)
 
     # row 3
-    # noinspection PyUnresolvedReferences
     rotmat_20 = u[:, 0] * u[:, 2] * (1 - np.cos(theta)) - u[:, 1] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
     rotmat_21 = u[:, 1] * u[:, 2] * (1 - np.cos(theta)) + u[:, 0] * np.sin(theta)
-    # noinspection PyUnresolvedReferences
     rotmat_22 = np.cos(theta) + u[:, 2] ** 2 * (1 - np.cos(theta))
     rotmat_2 = np.concatenate([rotmat_20.reshape(-1, 1, 1),
                                rotmat_21.reshape(-1, 1, 1),
@@ -58,6 +50,6 @@ def rodrigues_as_rotmats(r):
                              rotmat_1,
                              rotmat_2], 1)
 
-    rotmat = rotmat.reshape(r_shape[0:-1]+(3, 3))
+    rotmat = rotmat.reshape(r_shape[0:-1] + (3, 3))
 
     return rotmat

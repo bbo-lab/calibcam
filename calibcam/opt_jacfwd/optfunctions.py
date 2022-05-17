@@ -4,7 +4,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R  # noqa
 # from autograd import jacobian, elementwise_grad  # noqa
-from jax import jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
+from jax import jit, jacfwd as jacobian  # jacfwd is recommended for 'tall' Jacobians, jacrev for 'wide'
 
 from calibcam import optimization
 from calibcam.opt_jacfwd import optfunctions_ag as opt_ag
@@ -12,12 +12,18 @@ from calibcam.opt_jacfwd import optfunctions_ag as opt_ag
 import timeit
 
 
+def get_precalc():
+    return {
+        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var)) for i_var in range(6)]
+    }
+
+
 def obj_fcn_wrapper(vars_opt, args):
-    corners = args['precalc']['corners'].copy()  # copy is necessary since this is a reference, so further down, nans
+    corners = args['corners'].copy()  # copy is necessary since this is a reference, so further down, nans
     # will be replaced with 0 globally  TODO find more efficient solution
     corners_mask = np.isnan(corners)
     corners[corners_mask] = 0
-    board_coords_3d_0 = args['precalc']['board_coords_3d_0']
+    board_coords_3d_0 = args['board_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
@@ -46,15 +52,17 @@ def obj_fcn_wrapper(vars_opt, args):
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
-    print(np.unravel_index(np.argmax(np.abs(residuals)), shape=residuals.shape))
-    print(np.max(np.abs(residuals)))
     return residuals.ravel()
 
 
 def obj_fcn_jacobian_wrapper(vars_opt, args):
-    corners = args['precalc']['corners']
+    return obj_fcn_jacobian_wrapper_full(vars_opt, args)
+
+
+def obj_fcn_jacobian_wrapper_full(vars_opt, args):
+    corners = args['corners']
     corners_mask = np.isnan(corners)
-    board_coords_3d_0 = args['precalc']['board_coords_3d_0']
+    board_coords_3d_0 = args['board_coords_3d_0']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
@@ -64,14 +72,44 @@ def obj_fcn_jacobian_wrapper(vars_opt, args):
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = \
         optimization.unravel_vars_full(vars_full, n_cams)
 
-    # All zero rotvec causes division by 0 problems. Usually, this usually does not matter since the ref cam
-    # orientation is not part of the free variables, but we apply this fix to avoid misleading errors
-    rvecs_cams = rvecs_cams.copy()
-    for i_cam in range(corners.shape[0]):
-        if np.all(rvecs_cams[i_cam] == 0):
-            rvecs_cams[i_cam][:] = np.finfo(np.float16).eps
+    obj_fcn_jacobian = [
+        np.array(args['precalc']['jacobians'][i_var](
+            rvecs_cams.ravel(),
+            tvecs_cams.ravel(),
+            cam_matrices.ravel(),
+            ks.ravel(),
+            rvecs_boards.ravel(),
+            tvecs_boards.ravel(),
+            board_coords_3d_0.ravel(),
+            corners.ravel()
+        )) for i_var in range(6)]
 
-    jacobians = args['precalc']['derivatives']
+    obj_fcn_jacobian = np.concatenate(
+        obj_fcn_jacobian,
+        axis=4)
+
+    # TODO: Find out why Jacobian of coord_cam pose values is nan ...
+    obj_fcn_jacobian[args['coord_cam']] = 0
+
+    # Set undetected corners to 0
+    obj_fcn_jacobian[corners_mask, :] = 0
+    return obj_fcn_jacobian.reshape(corners_mask.size, args['mask_opt'].size)[:, args['mask_opt']]
+
+
+def obj_fcn_jacobian_wrapper_sparse(vars_opt, args):
+    corners = args['corners']
+    corners_mask = np.isnan(corners)
+    board_coords_3d_0 = args['board_coords_3d_0']
+
+    # Fill vars_full from initialization with vars_opts
+    vars_full, n_cams = optimization.make_vars_full(vars_opt, args)
+
+    # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
+    # and the return is in fact unnecessary!
+    rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = \
+        optimization.unravel_vars_full(vars_full, n_cams)
+
+    jacobians = args['jacobians']
 
     tic = timeit.default_timer()
 
@@ -132,7 +170,7 @@ def calc_cam_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs
                 exit()
             obj_fcn_jacobian_cam_pose[i_cam, 0:10, :, :, i_param, i_cam, :] = j
 
-    offset = offset + 2 
+    offset = offset + 2
     obj_fcn_jacobian_cam_mat = np.zeros(corners.shape + (1, corners.shape[0], 9), dtype=np.float16)
     for i_cam in range(corners.shape[0]):
         jacs = [calc_jacobian(jacobians[offset + i_param], (
@@ -225,7 +263,3 @@ def calc_pose_jacobian(jacobians, rvecs_cams, tvecs_cams, cam_matrices, ks, rvec
 
 def calc_jacobian(jac, parameters):
     return jac(*parameters)
-
-
-def get_obj_fcn_derivatives():
-    return [jacobian(opt_ag.obj_fcn, i_var) for i_var in range(6)]

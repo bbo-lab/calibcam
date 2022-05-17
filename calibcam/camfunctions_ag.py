@@ -5,6 +5,9 @@
 # - Do not use for loops
 # - Do not use array assignment, e.g. A[i,j] = x
 
+# These functions will properly broadcast as long as skipped dimensions are inserted as singular axes into input data.
+#  E.g. rotmats_cams (n_cams, 3, 3) -> (n_cams, 1, 1, 3, 3)
+
 import jax.numpy as np
 
 

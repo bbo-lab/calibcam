@@ -4,8 +4,10 @@
 import numpy as np
 
 # This could also be done dynamically, based on opts ...
-from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
-# from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_obj_fcn_derivatives  # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
+# from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
+# Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
+from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  #noqa
+
 
 def make_vars_full(vars_opt, args, verbose=False):
     n_cams = len(args['frames_masks'])

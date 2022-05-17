@@ -22,11 +22,25 @@ def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
     rotmats_cams = rodrigues_as_rotmats(rvecs_cams)
     rotmats_boards = rodrigues_as_rotmats(rvecs_boards)
 
-    boards_coords = camfuncs_ag.map_ideal_board_to_world(board_coords_3d_0, rotmats_boards, tvecs_boards)
-    boards_coords = camfuncs_ag.map_world_board_to_cams(boards_coords, rotmats_cams, tvecs_cams)
+    boards_coords = camfuncs_ag.map_ideal_board_to_world(
+        board_coords_3d_0.reshape((1, 1, corners.shape[2], 3)),
+        rotmats_boards.reshape((1, corners.shape[1], 1, 3, 3)),
+        tvecs_boards.reshape((1, corners.shape[1], 1, 3))
+    )
+    boards_coords = camfuncs_ag.map_world_board_to_cams(
+        boards_coords,
+        rotmats_cams.reshape((corners.shape[0], 1, 1, 3, 3)),
+        tvecs_cams.reshape((corners.shape[0], 1, 1, 3))
+    )
     boards_coords = camfuncs_ag.board_to_ideal_plane(boards_coords)
-    boards_coords = camfuncs_ag.distort(boards_coords, ks)
-    boards_coords = camfuncs_ag.ideal_to_sensor(boards_coords, cam_matrices)
+    boards_coords = camfuncs_ag.distort(
+        boards_coords,
+        ks.reshape(corners.shape[0], 1, 1, 5)
+    )
+    boards_coords = camfuncs_ag.ideal_to_sensor(
+        boards_coords,
+        cam_matrices.reshape(corners.shape[0], 1, 1, 3, 3)
+    )
 
     boards_coords = corners - boards_coords
 

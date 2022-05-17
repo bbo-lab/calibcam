@@ -13,12 +13,12 @@ from ccvtools import rawio  # noqa
 import multiprocessing
 from joblib import Parallel, delayed
 
-from .detection import detect_corners
-from .exceptions import *
-from . import helper, camfunctions, board, optimization
+from calibcam.detection import detect_corners
+from calibcam.exceptions import *
+from calibcam import helper, camfunctions, board, optimization
 
-from .calibrator_opts import get_default_opts
-from .pose_estimation import estimate_cam_poses
+from calibcam.calibrator_opts import get_default_opts
+from calibcam.pose_estimation import estimate_cam_poses
 
 
 class CamCalibrator:

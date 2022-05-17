@@ -10,12 +10,14 @@ dependencies:
   - py-opencv
   - pyyaml
   - scipy
-  - pip
   - imageio
   - pyqt
   - joblib
-  - jax
+  - cudatoolkit
+  - pip
   - pip:
+    - jaxlib
+    - jax
     - bbo-ccvtools
     - bbo-calibcamlib
     - autograd
