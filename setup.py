@@ -9,7 +9,7 @@ README = (HERE / "README.md").read_text()
 # This call to setup() does all the work
 setup(
     name="bbo-calibcam",
-    version="1.2.1",
+    version="2.0.0",
     description="Calibrate intrinsic and extrinsic parameters of cameras with charuco boards",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -20,9 +20,7 @@ setup(
     classifiers=[
         "License :: OSI Approved :: BSD License",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.6",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.10",
     ],
     packages=['calibcam'],
     include_package_data=True,
