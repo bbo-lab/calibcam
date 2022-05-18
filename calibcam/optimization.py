@@ -6,7 +6,7 @@ import numpy as np
 # This could also be done dynamically, based on opts ...
 # from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
-from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  #noqa
+from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
 
 
 def make_vars_full(vars_opt, args, verbose=False):
@@ -30,21 +30,18 @@ def unravel_vars_full(vars_full, n_cams):
     n_cam_param_list = np.array([3, 3, 9, 5])  # r, t, A, k
     n_cam_params = n_cam_param_list.sum(dtype=int)
 
-    p_idx = 0
-    st_idx = n_cam_param_list[0:p_idx].sum(dtype=int) * n_cams
-    rvecs_cams = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(n_cam_param_list[p_idx], -1).T
+    start_idx = 0
+    cam_pose_vars = vars_full[start_idx:start_idx + n_cams * 6]
+    rvecs_cams = cam_pose_vars[0:int(cam_pose_vars.size / 2)].reshape(-1, 3)
+    tvecs_cams = cam_pose_vars[int(cam_pose_vars.size / 2):].reshape(-1, 3)
 
-    p_idx = 1
-    st_idx = n_cam_param_list[0:p_idx].sum(dtype=int) * n_cams
-    tvecs_cams = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(n_cam_param_list[p_idx], -1).T
+    start_idx = start_idx + n_cams * 6
+    cam_mats_vars = vars_full[start_idx:start_idx + n_cams * 9]
+    cam_matrices = cam_mats_vars.reshape(-1, 3, 3)
 
-    p_idx = 2
-    st_idx = n_cam_param_list[0:p_idx].sum(dtype=int) * n_cams
-    cam_matrices = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(3, 3, -1).transpose((2, 0, 1))
-
-    p_idx = 3
-    st_idx = n_cam_param_list[0:p_idx].sum(dtype=int) * n_cams
-    ks = vars_full[st_idx:st_idx + n_cam_param_list[p_idx] * n_cams].reshape(n_cam_param_list[p_idx], -1).T
+    start_idx = start_idx + n_cams * 9
+    ks_vars = vars_full[start_idx:start_idx + n_cams * 5]
+    ks = ks_vars.reshape(-1, 5)
 
     board_pose_vars = vars_full[n_cams * n_cam_params:]
     rvecs_boards = board_pose_vars[0:int(board_pose_vars.size / 2)].reshape(-1, 3)
@@ -54,35 +51,45 @@ def unravel_vars_full(vars_full, n_cams):
 
 
 def make_initialization(calibs, frames_masks, opts, k_to_zero=True):
-    # k_to_zero determines if non-free ks get set to 0 (for limited distortion model) or are kept (usually
-    # when not optimizing distortion at all in the given step)
     opts_free_vars = opts['free_vars']
 
-    camera_params = np.zeros(shape=(
-        len(calibs),
-        3 + 3 + 9 + 5  # r + t + A + k
-    ))
-
-    for calib, param in zip(calibs, camera_params):
-        param[0:3] = calib['rvec_cam']
-        param[3:6] = calib['tvec_cam']
-        param[6:15] = calib['A'].ravel()
-        if k_to_zero:
-            idxs = (15 + np.where(opts_free_vars['k'])[0])
-            param[idxs] = calib['k'][0][opts_free_vars['k']]
-        else:
-            param[15:20] = calib['k']
-
-    # camera_params are raveled with one scalar parameter for all cams grouped
-    # pose_params are raveled with first all rvecs and then all tvecs (for faster unraveling in obj_fun)
-    camera_params = camera_params.T.ravel()
+    # camera_params are raveled with first all rvecs, then tvecs, then A, then k
+    camera_params = make_cam_params(calibs, opts_free_vars, k_to_zero)
+    # pose_params are raveled with first all rvecs and then all tvecs
     pose_params = make_common_pose_params(calibs, frames_masks).ravel()
 
     vars_full = np.concatenate((camera_params, pose_params), axis=0)
-    mask_free = make_free_parameter_mask(calibs, frames_masks, opts_free_vars, opts['coord_cam'])
-    vars_free = vars_full[mask_free]
+    mask_free_input = make_free_parameter_mask(calibs, frames_masks, opts_free_vars, opts['coord_cam'])
+    vars_free = vars_full[mask_free_input]
 
-    return vars_free, vars_full, mask_free
+    return vars_free, vars_full, mask_free_input
+
+
+def make_cam_params(calibs, opts_free_vars, k_to_zero=True):
+    # k_to_zero determines if non-free ks get set to 0 (for limited distortion model) or are kept (usually
+    # when not optimizing distortion at all in the given step)
+
+    rvecs_cam = np.zeros(shape=(len(calibs), 3))
+    tvecs_cam = np.zeros(shape=(len(calibs), 3))
+    cam_mats = np.zeros(shape=(len(calibs), 3, 3))
+    ks = np.zeros(shape=(len(calibs), 5))
+
+    for calib, r, t, cm, k in zip(calibs, rvecs_cam, tvecs_cam, cam_mats, ks):
+        r[:] = calib['rvec_cam']
+        t[:] = calib['tvec_cam']
+        cm[:] = calib['A']
+        k[:] = calib['k']
+        if k_to_zero:
+            k[~opts_free_vars['k']] = 0
+
+    camera_params = np.concatenate((
+        rvecs_cam.ravel(),
+        tvecs_cam.ravel(),
+        cam_mats.ravel(),
+        ks.ravel(),
+    ), axis=0)
+
+    return camera_params
 
 
 def make_common_pose_params(calibs, frames_masks):
@@ -109,19 +116,29 @@ def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx
         3 + 3 + 9 + 5  # r + t + A + k
     ), dtype=bool)
 
-    camera_mask[:, 0:3] = opts_free_vars['cam_pose']
-    camera_mask[:, 3:6] = opts_free_vars['cam_pose']
-    camera_mask[:, 6:15] = opts_free_vars['A'].ravel()
-    camera_mask[:, 15:20] = opts_free_vars['k']
+    rvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
+    rvecs_cam_mask[:] = opts_free_vars['cam_pose']
+    tvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
+    tvecs_cam_mask[:] = opts_free_vars['cam_pose']
+    cam_mats_mask = np.zeros(shape=(len(calibs), 3, 3), dtype=bool)
+    cam_mats_mask[:] = opts_free_vars['A']
+    ks_mask = np.zeros(shape=(len(calibs), 5), dtype=bool)
+    ks_mask[:] = opts_free_vars['k']
 
     # Position of coord cam is not free
-    camera_mask[coord_cam_idx, 0:6] = False
-    
-    pose_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
-    pose_mask = np.ones(shape=(pose_idxs.size, 2, 3), dtype=bool)
+    rvecs_cam_mask[coord_cam_idx, :] = False
+    tvecs_cam_mask[coord_cam_idx, :] = False
+
+    pose_mask = np.ones(shape=(np.any(frames_masks, axis=0).sum(dtype=int), 2, 3), dtype=bool)
     pose_mask[:] = opts_free_vars['board_poses']
 
-    return np.concatenate((camera_mask.T.ravel(), pose_mask.ravel()), axis=0)
+    return np.concatenate((
+        rvecs_cam_mask.ravel(),
+        tvecs_cam_mask.ravel(),
+        cam_mats_mask.ravel(),
+        ks_mask.ravel(),
+        pose_mask.ravel()),
+        axis=0)
 
 
 def unravel_to_calibs(vars_opt, args):

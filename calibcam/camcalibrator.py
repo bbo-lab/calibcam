@@ -94,7 +94,16 @@ class CamCalibrator:
         self.recordingIsLoaded = True
 
     def perform_multi_calibration(self):
-        if self.opts["preoptimize"]:
+        if self.opts["optimize_only"]:  # We expect that detections and single cam calibs are already present
+            preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True)[()]
+            calibs_single = preoptim['info']['other']['calibs_single']
+            # calibs_multi = preoptim['arr_1']
+            corners_all = preoptim['info']['corners']
+            ids_all = preoptim['info']['corner_ids']
+            frames_masks = preoptim['info']['frames_masks']
+            # We just redo this since it is fast and the output may help
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
+        else:
             # detect corners
             corners_all, ids_all, frames_masks = \
                 detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
@@ -112,15 +121,6 @@ class CamCalibrator:
                                        rvecs_boards=pose_params[0], tvecs_boards=pose_params[1],
                                        other={'calibs_single': calibs_single})
             self.save_multicalibration(result, 'preoptim')
-        else:
-            preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True)[()]
-            calibs_single = preoptim['info']['other']['calibs_single']
-            # calibs_multi = preoptim['arr_1']
-            corners_all = preoptim['info']['corners']
-            ids_all = preoptim['info']['corner_ids']
-            frames_masks = preoptim['info']['frames_masks']
-            # We just redo this since it is fast and the output may help
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
 
         print('START MULTI CAMERA CALIBRATION')
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \

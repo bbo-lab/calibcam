@@ -7,7 +7,7 @@
 
 from calibcam import camfunctions_ag as camfuncs_ag
 from calibcam.helper_ag import rodrigues_as_rotmats
-
+from jax import numpy as np
 
 def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards, board_coords_3d_0, corners):
     rvecs_cams = rvecs_cams.reshape(-1, 3)
@@ -35,7 +35,7 @@ def obj_fcn(rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
     boards_coords = camfuncs_ag.board_to_ideal_plane(boards_coords)
     boards_coords = camfuncs_ag.distort(
         boards_coords,
-        ks.reshape(corners.shape[0], 1, 1, 5)
+        ks.reshape((corners.shape[0], 1, 1, 5))
     )
     boards_coords = camfuncs_ag.ideal_to_sensor(
         boards_coords,

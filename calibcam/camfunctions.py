@@ -24,14 +24,15 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     n_corners = board_coords_3d_0.shape[0]
 
     # Generate vectors of all and of free variables
-    vars_free, vars_full, mask_free = optimization.make_initialization(calibs_multi, frames_masks, opts)
+    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, frames_masks, opts)
 
     # Prepare array of corners (non-existing frames for individual cameras are filled with NaN)
     corners = helper.make_corners_array(corners_all, ids_all, n_corners, frames_masks)
 
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
-        'mask_opt': mask_free,  # Mask of free vars within all vars
+        'mask_opt': mask_free_input,  # Mask of free vars within all vars
+        # TODO check if we can reshape vars to match simply raveled output
         'frames_masks': frames_masks,
         'opts_free_vars': opts['free_vars'],
         'coord_cam': opts['coord_cam'],  # This is currently only required due to unsolved jacobian issue
@@ -47,19 +48,31 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
         # }
     }
 
+    # This triggers JIT compilation
+    optimization.obj_fcn_wrapper(vars_free, args)
+    # This times
     tic = timeit.default_timer()
     result = optimization.obj_fcn_wrapper(vars_free, args)
-    print(f"Objective function took {timeit.default_timer()-tic} s: squaresum {np.sum(result**2)} over {result.size} residuals.")
+    print(
+        f"Objective function took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals.")
+
+    if opts['numerical_jacobian']:
+        jac = '2-point'
+    else:
+        jac = optimization.obj_fcn_jacobian_wrapper
+        # This triggers JIT compilation
+        jac(vars_free, args)
+        # This times
+        tic = timeit.default_timer()
+        result = jac(vars_free, args)
+        print(
+            f"Jacobian took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals.")
 
     # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
     test_objective_function(calibs_multi, vars_free, args, corners, board_coords_3d_0)
 
     print('Starting optimization procedure')
 
-    if opts['use_autograd']:
-        jac = optimization.obj_fcn_jacobian_wrapper
-    else:
-        jac = '2-point'
 
     min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                                vars_free,
@@ -67,6 +80,7 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
                                                bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
                                                args=[args],
                                                **opts['optimization'])
+
     current_time = timeit.default_timer()
     print('Optimization algorithm converged:\t{:s}'.format(str(min_result.success)))
     print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
