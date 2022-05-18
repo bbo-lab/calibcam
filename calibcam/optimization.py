@@ -111,11 +111,6 @@ def make_common_pose_params(calibs, frames_masks):
 
 
 def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx):
-    camera_mask = np.ones(shape=(
-        len(calibs),
-        3 + 3 + 9 + 5  # r + t + A + k
-    ), dtype=bool)
-
     rvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
     rvecs_cam_mask[:] = opts_free_vars['cam_pose']
     tvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)

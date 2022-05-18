@@ -19,8 +19,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     board_coords_3d_0 = board.make_board_points(board_params)
 
     used_frames_mask = np.any(frames_masks, axis=0)
-    n_used_frames = used_frames_mask.sum(dtype=int)
-    n_cams = len(calibs_multi)
     n_corners = board_coords_3d_0.shape[0]
 
     # Generate vectors of all and of free variables
@@ -72,7 +70,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     test_objective_function(calibs_multi, vars_free, args, corners, board_coords_3d_0)
 
     print('Starting optimization procedure')
-
 
     min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                                vars_free,

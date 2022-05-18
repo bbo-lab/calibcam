@@ -100,3 +100,10 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
     obj_fcn_jacobian = obj_fcn_jacobian[:, args['mask_opt']]
 
     return obj_fcn_jacobian
+
+
+# Given that the jacobian is very sparse, an alternative solution would be to calculate the respective submatricies.
+# Given the performance of obj_fcn_jacobian_wrapper_full and the very reasonable memory footprint, this seems utterly
+# unnecessary at the moment.
+def obj_fcn_jacobian_wrapper_sparse(vars_opt, args):
+    pass
