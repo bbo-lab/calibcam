@@ -3,15 +3,13 @@ channels:
   - defaults
   - conda-forge
 dependencies:
-  - python=3.9
-  - matplotlib
+  - python=3.10
   - numpy
   - opencv
   - py-opencv
   - pyyaml
   - scipy
   - imageio
-  - pyqt
   - joblib
   - cudatoolkit
   - pip
@@ -20,4 +18,3 @@ dependencies:
     - jax
     - bbo-ccvtools
     - bbo-calibcamlib
-    - autograd
