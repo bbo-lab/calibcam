@@ -5,12 +5,7 @@
 # - Do not use for loops
 # - Do not use array assignment, e.g. A[i,j] = x
 
-# import autograd.numpy as np
 import jax.numpy as np
-
-
-# import numpy as np
-
 
 # Converts array of rotation vectors to array of rotation matrices
 # TODO: This function results in nan for all zero vectors and will thus

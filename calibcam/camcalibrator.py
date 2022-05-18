@@ -20,7 +20,6 @@ from calibcam import helper, camfunctions, board, optimization
 from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
 
-
 class CamCalibrator:
     def __init__(self, board_name=None, opts=None):
         if opts is None:
@@ -135,6 +134,8 @@ class CamCalibrator:
 
         print('SAVE MULTI CAMERA CALIBRATION')
         self.save_multicalibration(result)
+        # Builds a part of the v1 result that is necessary for other software
+        self.save_multicalibration(helper.build_v1_result(result), 'multicalibration_v1')
 
         print('FINISHED MULTI CAMERA CALIBRATION')
         return

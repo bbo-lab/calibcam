@@ -1,8 +1,6 @@
 # calibcam
 A charuco based calibrator for camera setups (intrinsic and extrinsic coordinates).
 
-Note: The is currently no exporter for the old format required by ACM. Use version [1.1.4](https://github.com/bbo-lab/calibcam/releases/tag/v1.1.4) in this case.
-
 # Installation
 
 ## Windows

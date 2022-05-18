@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation as R  # noqa
 
 
 # Detection may not lie on a single line
@@ -60,3 +61,15 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
             corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
                 corners_all[i_cam][cam_fr_idx][:, 0, :]
     return corners
+
+
+def build_v1_result(result):
+    return {
+        'A_fit': np.array([c['A'] for c in result['calibs']]),
+        'k_fit': np.array([c['k'] for c in result['calibs']]),
+        'rX1_fit': np.array([c['rvec_cam'] for c in result['calibs']]),
+        'RX1_fit': R.from_rotvec(np.array([c['rvec_cam'] for c in result['calibs']])).as_matrix(),
+        'tX1_fit': np.array([c['tvec_cam'] for c in result['calibs']]),
+        'nCameras': len(result['calibs']),
+        'version': 1.0,
+    }
