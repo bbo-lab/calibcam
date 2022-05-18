@@ -9,8 +9,7 @@ Note: The is currently no exporter for the old format required by ACM. Use versi
 
 1. (If not already done:) [Install Anaconda](https://docs.anaconda.com/anaconda/install/windows/)
 2. Create conda env `conda env create -f https://raw.githubusercontent.com/bbo-lab/calibcam/main/environment.yml`
-3. Switch to multitrackpy environment: `conda activate calibcam`
-4. Install with `pip install bbo-calibcam`
+3. Switch to calibcam environment: `conda activate calibcam`
 
 
 # Usage

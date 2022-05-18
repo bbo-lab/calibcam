@@ -18,3 +18,4 @@ dependencies:
     - jax
     - bbo-ccvtools
     - bbo-calibcamlib
+    - bbo-calibcam
