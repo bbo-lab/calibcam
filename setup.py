@@ -1,5 +1,5 @@
 import pathlib
-from setuptools import find_packages, setup
+from setuptools import setup
 # The directory containing this file
 HERE = pathlib.Path(__file__).parent
 
@@ -26,5 +26,5 @@ setup(
     ],
     packages=['calibcam'],
     include_package_data=True,
-    install_requires=["matplotlib", "numpy", "pyyaml", "scipy", "bbo-ccvtools", "pyqt5", "autograd", "imageio", "bbo-ccvtools"],
+    install_requires=["numpy", "pyyaml", "scipy", "bbo-calibcamlib", "jax", "jaxlib", "imageio", "bbo-ccvtools"],
 )

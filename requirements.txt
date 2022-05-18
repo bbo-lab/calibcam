@@ -1,0 +1,10 @@
+numpy
+matplotlib
+imageio
+autograd
+scipy
+setuptools
+joblib
+cv2
+PyQT5
+jax
