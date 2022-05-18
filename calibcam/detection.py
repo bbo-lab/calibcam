@@ -11,7 +11,7 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 def detect_corners(rec_file_names, n_frames, board_params, opts):
     print('DETECTING FEATURES')
-    frames_mask = np.zeros(shape=(len(rec_file_names), n_frames))
+    frames_mask = np.zeros(shape=(len(rec_file_names), n_frames), dtype=bool)
     corners_all = []
     ids_all = []
 

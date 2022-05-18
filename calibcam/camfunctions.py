@@ -8,8 +8,6 @@ from .exceptions import *
 
 
 def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, board_params, opts=None):
-    frames_masks = frames_masks.astype(bool)  # TODO find out why this ends up here as float and shange to bool
-
     if opts is None:
         opts = {}
     opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts())
@@ -30,7 +28,6 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
         'mask_opt': mask_free_input,  # Mask of free vars within all vars
-        # TODO check if we can reshape vars to match simply raveled output
         'frames_masks': frames_masks,
         'opts_free_vars': opts['free_vars'],
         'coord_cam': opts['coord_cam'],  # This is currently only required due to unsolved jacobian issue
@@ -117,7 +114,7 @@ def get_header_from_reader(reader):
     header = reader.get_meta_data()
     # Add required headers that are not normally part of standard video formats but are required information
     # for a full calibration
-    # TODO add option to supply this via options. Currently, compressed
+    # TODO add option to supply this via options. Currently, compressed videos may lack this info
     if "sensor" in header:
         header['offset'] = tuple(header['sensor']['offset'])
         header['sensorsize'] = tuple(header['sensor']['size'])

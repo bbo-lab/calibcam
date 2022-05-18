@@ -81,9 +81,8 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
         ).reshape(corners.shape + (-1,))  # Ravel over input dimensions
                  ) for i_var in range(6)]
 
-    # # TODO: Find out why Jacobian of coord_cam pose values is nan ...
+    # TODO: Find out why Jacobian of coord_cam pose values is nan ...
     obj_fcn_jacobian[0][args['coord_cam']] = 0
-    # obj_fcn_jacobian[1][args['coord_cam']] = 0
 
     # Concatenate along input dimensions
     obj_fcn_jacobian = np.concatenate(

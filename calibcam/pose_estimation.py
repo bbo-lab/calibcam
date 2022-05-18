@@ -49,8 +49,6 @@ def estimate_cam_poses(calibs_single, coord_cam):
         t_trans = ts_trans.mean(axis=0).reshape((1, 3))
         print(f"Mean tvec deviation: {np.mean(np.abs(ts_trans - t_trans), axis=0)}")
 
-        # TODO check if this is really correct. rvecs and tvecs should be really similar between cams in the same frames
-        # (but not necessary idxs, as different cams can contain different frame idxs)
         calibs[oricam_idx]['rvecs'] = (
                 R_trans *
                 R.from_rotvec(calibs[oricam_idx]['rvecs'][:, :, 0])

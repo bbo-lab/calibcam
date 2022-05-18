@@ -90,7 +90,7 @@ class CamCalibrator:
             # calibs_multi = preoptim['arr_1']
             corners_all = preoptim['info']['corners']
             ids_all = preoptim['info']['corner_ids']
-            frames_masks = preoptim['info']['frames_masks']
+            frames_masks = preoptim['info']['frames_masks'].astype(bool)
             # We just redo this since it is fast and the output may help
             calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
         else:
