@@ -21,14 +21,11 @@ from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
 
 class CamCalibrator:
-    def __init__(self, board_name=None, opts=None):
+    def __init__(self, recordings, board_name=None, opts=None):
         if opts is None:
             opts = {}
 
         self.board_name = board_name  # Currently, recordings are needed to determine the board path in most cases
-
-        # Options
-        self.opts = helper.deepmerge_dicts(opts, get_default_opts())
 
         # Board
         self.board_params = None
@@ -36,10 +33,13 @@ class CamCalibrator:
         # Videos
         self.readers = None
         self.rec_file_names = None
-        self.recordingIsLoaded = False
-        self.dataPath = None
+        self.data_path = None
         self.n_frames = np.NaN
-        self.reset_recordings()  # SPOT principle, previous defaults are irrelevant and only there for initial type
+
+        # Options
+        self.opts = helper.deepmerge_dicts(opts, get_default_opts())
+
+        self.set_recordings(recordings)
 
         return
 
@@ -50,13 +50,6 @@ class CamCalibrator:
             board_params = board.get_board_params(Path(self.rec_file_names[0]).parent)
         return board_params
 
-    def reset_recordings(self):
-        self.readers = None
-        self.rec_file_names = None
-        self.recordingIsLoaded = False
-        self.dataPath = None
-        self.n_frames = np.NaN
-
     def set_recordings(self, recordings):
         # check if input files are valid files
         try:
@@ -65,7 +58,7 @@ class CamCalibrator:
             print('At least one unsupported format supplied')
             raise UnsupportedFormatException
 
-        self.dataPath = os.path.dirname(recordings[0])
+        self.data_path = os.path.dirname(recordings[0])
         self.rec_file_names = recordings
 
         # find frame numbers
@@ -90,11 +83,9 @@ class CamCalibrator:
 
         self.board_params = self.get_board_params_from_name(self.board_name)
 
-        self.recordingIsLoaded = True
-
     def perform_multi_calibration(self):
         if self.opts["optimize_only"]:  # We expect that detections and single cam calibs are already present
-            preoptim = np.load(self.dataPath + '/preoptim.npy', allow_pickle=True)[()]
+            preoptim = np.load(self.data_path + '/preoptim.npy', allow_pickle=True)[()]
             calibs_single = preoptim['info']['other']['calibs_single']
             # calibs_multi = preoptim['arr_1']
             corners_all = preoptim['info']['corners']
@@ -159,7 +150,7 @@ class CamCalibrator:
                                                        sensor_size,
                                                        None,
                                                        None,
-                                                       **opts['aruco_calibration'])
+                                                       **opts['detection']['aruco_calibration'])
 
             retval, A, k, rvecs, tvecs = cal_res[0:5]
 
@@ -267,7 +258,7 @@ class CamCalibrator:
 
     def save_multicalibration(self, result, filename="multicam_calibration"):
         # save
-        result_path = self.dataPath + '/' + filename
+        result_path = self.data_path + '/' + filename
         np.save(result_path+'.npy', result)
         scipy_io_savemat(result_path + '.mat', result)
         print('Saved multi camera calibration to file {:s}'.format(result_path))

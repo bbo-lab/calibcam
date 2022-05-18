@@ -45,7 +45,7 @@ def detect_corners_cam(video, opts, board_params):
         corners, ids, rejected_img_points = \
             cv2.aruco.detectMarkers(frame,  # noqa
                                     cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
-                                    **finalize_aruco_detector_opts(opts['aruco_detect']))
+                                    **finalize_aruco_detector_opts(opts['detection']['aruco_detect']))
 
         if len(corners) == 0:
             continue
@@ -57,7 +57,7 @@ def detect_corners_cam(video, opts, board_params):
                                             corners,
                                             ids,
                                             rejected_img_points,
-                                            **finalize_aruco_detector_opts(opts['aruco_refine']))[0:2]
+                                            **finalize_aruco_detector_opts(opts['detection']['aruco_refine']))[0:2]
 
         # corner interpolation
         retval, charuco_corners, charuco_ids = \
@@ -65,7 +65,7 @@ def detect_corners_cam(video, opts, board_params):
                                                 ids_ref,
                                                 frame,
                                                 board.make_board(board_params),
-                                                **opts['aruco_interpolate'])
+                                                **opts['detection']['aruco_interpolate'])
         if charuco_corners is None:
             continue
 
@@ -97,7 +97,7 @@ def detect_corners_cam(video, opts, board_params):
                 dist = np.sqrt(np.sum(diff ** 2, 1))
                 print(dist)
                 dist_max = np.max(dist)
-                if not (dist_max > 0.0):
+                if np.max(dist) < opts['detection']['inter_frame_dist']:
                     continue
 
         frames_mask[i_frame] = True

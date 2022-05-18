@@ -17,19 +17,12 @@ def main():
 
     args = parser.parse_args()
 
-    if args.videos is not None:
-        opts = calibrator_opts.get_default_opts()
-        opts['optimize_only'] = args.optimize_only
-        opts['numerical_jacobian'] = args.numerical_jacobian
-        calibrator = CamCalibrator(board_name=args.board[0], opts=opts)
-        recFileNames = sorted(args.videos)
-        calibrator.set_recordings(recFileNames)
-        if calibrator.recordingIsLoaded:
-            calibrator.perform_multi_calibration()
-    # else:
-    #     print('Starting viewer')
-    #     from .gui import main as gui_main
-    #     gui_main(calibrator)
+    opts = calibrator_opts.get_default_opts()
+    opts['optimize_only'] = args.optimize_only
+    opts['numerical_jacobian'] = args.numerical_jacobian
+    recFileNames = sorted(args.videos)
+    calibrator = CamCalibrator(recFileNames, board_name=args.board[0], opts=opts)
+    calibrator.perform_multi_calibration()
 
     toc = timeit.default_timer()
 

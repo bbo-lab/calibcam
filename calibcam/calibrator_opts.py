@@ -20,23 +20,26 @@ def get_default_opts():
             'k': np.asarray([True, True, False, False, False]),  # This also determines the supported degree of
                                                                  # distortion. Others will be set to 0.
         },
-        'aruco_calibration': {
-            'flags': (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3),
-            'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
-                         30,
-                         float(np.finfo(np.float32).eps)),
-        },
-        'aruco_detect': {
-            'parameters': get_detector_parameters_opts(),
-        },
-        'aruco_refine': {
-            'minRepDistance': 10.0,
-            'errorCorrectionRate': 3.0,
-            'checkAllOrders': True,
-            'parameters': get_detector_parameters_opts(),
-        },
-        'aruco_interpolate': {
-            'minMarkers': 2,
+        'detection': {
+            'inter_frame_dist': 0.0,
+            'aruco_calibration': {
+                'flags': (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3),
+                'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
+                             30,
+                             float(np.finfo(np.float32).eps)),
+            },
+            'aruco_detect': {
+                'parameters': get_detector_parameters_opts(),
+            },
+            'aruco_refine': {
+                'minRepDistance': 10.0,
+                'errorCorrectionRate': 3.0,
+                'checkAllOrders': True,
+                'parameters': get_detector_parameters_opts(),
+            },
+            'aruco_interpolate': {
+                'minMarkers': 2,
+            },
         },
         'optimization': {
             'method': 'trf',
