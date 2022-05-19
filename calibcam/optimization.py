@@ -95,8 +95,9 @@ def make_cam_params(calibs, opts_free_vars, k_to_zero=True):
 def make_common_pose_params(calibs, frames_masks):
     used_frame_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
     pose_params = np.zeros(shape=(2, used_frame_idxs.size, 3))
-    # TODO Instead using pose from first available cam, it should be averaged over all available cams.
-    # See pose_estimation.estimate_cam_poses for averaging poses
+    # TODO Instead using pose from first available cam, it come from the cam with the most detections, or even from an
+    #  average of the cams with the most detections
+    #  See pose_estimation.estimate_cam_poses for averaging poses
     for i_pose, pose_idx in enumerate(used_frame_idxs):  # Loop through the poses (frames that have a board pose)
         for calib, frames_mask_cam in zip(calibs, frames_masks):  # Loop through cameras ...
             if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame present
