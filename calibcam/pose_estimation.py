@@ -9,13 +9,21 @@ def estimate_cam_poses(calibs_single, coord_cam, corner_ids=None, required_corne
     cams_oriented[coord_cam] = True
 
     frames_masks = np.asarray([cal['frames_mask'] for cal in calibs], dtype=bool)
-    frames_masks_req = get_required_corners_masks(frames_masks, corner_ids=corner_ids, required_corners=required_corners)
+    frames_masks_req = get_required_corners_masks(frames_masks, corner_ids=corner_ids,
+                                                  required_corners=required_corners)
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
 
+    rs = np.empty(shape=frames_masks.shape + (3,))
+    rs[:] = np.nan
+    ts = np.empty(shape=frames_masks.shape + (3,))
+    ts[:] = np.nan
+    for i_cam, calib in enumerate(calibs_single):
+        rs[i_cam][calib['frames_mask']] = calib['rvecs'][..., 0]
+        ts[i_cam][calib['frames_mask']] = calib['tvecs'][..., 0]
 
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
-    common_frame_mat[:, coord_cam] = common_frame_mat[:, coord_cam]*1.1
+    common_frame_mat[:, coord_cam] = common_frame_mat[:, coord_cam] * 1.5
     common_frame_mat[coord_cam, :] = common_frame_mat[:, coord_cam].T
 
     while not np.all(cams_oriented):
@@ -28,22 +36,19 @@ def estimate_cam_poses(calibs_single, coord_cam, corner_ids=None, required_corne
 
         # Determine common frames
         common_frame_mask = frames_masks_req[refcam_idx] & frames_masks_req[oricam_idx]
-        refcam_common_mask = common_frame_mask[frames_masks[refcam_idx]]
-        oricam_common_mask = common_frame_mask[frames_masks[oricam_idx]]
 
-        # Calculate average transformation  from oricam to refcam coordinate system
-        Rs_trans = (  # noqa
-                R.from_rotvec(calibs[refcam_idx]['rvecs'][refcam_common_mask, :, 0]) *
-                R.from_rotvec(calibs[oricam_idx]['rvecs'][oricam_common_mask, :, 0]).inv()
+        # Calculate average transformation from oricam to refcam coordinate system
+        Rs_trans = (
+                R.from_rotvec(rs[refcam_idx, common_frame_mask]) *
+                R.from_rotvec(rs[oricam_idx, common_frame_mask]).inv()
         )
         R_trans = Rs_trans.mean()
         print(f"Mean rvec deviation: {np.mean(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=0)}")
         ts_trans = (
-                -R_trans.apply(
-                    calibs[oricam_idx]['tvecs'][oricam_common_mask, :, 0]) +
-                calibs[refcam_idx]['tvecs'][refcam_common_mask, :, 0]
+                ts[refcam_idx, common_frame_mask]
+                - R_trans.apply(ts[oricam_idx, common_frame_mask])
         )
-        t_trans = ts_trans[0:10].mean(axis=0).reshape((1, 3))
+        t_trans = ts_trans.mean(axis=0).reshape((1, 3))
         print(f"Mean tvec deviation: {np.mean(np.abs(ts_trans - t_trans), axis=0)}")
 
         calibs[oricam_idx]['rvecs'] = (
@@ -84,6 +89,6 @@ def get_required_corners_masks(frames_masks, corner_ids=None, required_corners=N
     for i_cam, frames_mask in enumerate(frames_masks_req):
         frames_idxs = np.where(frames_mask)[0]
         for i_cpose, frames_idx in enumerate(frames_idxs):
-            frames_mask[frames_idx] = np.all(np.isin(required_corners,corner_ids[i_cam][i_cpose]))
+            frames_mask[frames_idx] = np.all(np.isin(required_corners, corner_ids[i_cam][i_cpose]))
 
     return frames_masks_req

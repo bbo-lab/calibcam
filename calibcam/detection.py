@@ -11,7 +11,7 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 def detect_corners(rec_file_names, n_frames, board_params, opts):
     print('DETECTING FEATURES')
-    frames_mask = np.zeros(shape=(len(rec_file_names), n_frames), dtype=bool)
+    frames_masks = np.zeros(shape=(len(rec_file_names), n_frames), dtype=bool)
     corners_all = []
     ids_all = []
 
@@ -22,10 +22,10 @@ def detect_corners(rec_file_names, n_frames, board_params, opts):
     for i_cam, detection in enumerate(detections):
         corners_all.append(detection[0])
         ids_all.append(detection[1])
-        frames_mask[i_cam, :] = detection[2]
-        print(f'Detected features in {np.sum(frames_mask[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
+        frames_masks[i_cam, :] = detection[2]
+        print(f'Detected features in {np.sum(frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
 
-    return corners_all, ids_all, frames_mask
+    return corners_all, ids_all, frames_masks
 
 
 def detect_corners_cam(video, opts, board_params):
@@ -33,7 +33,7 @@ def detect_corners_cam(video, opts, board_params):
 
     corners_cam = []
     ids_cam = []
-    frames_mask = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
+    frames_masks = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
 
     # Detect corners over cams
     for (i_frame, frame) in enumerate(reader):
@@ -83,7 +83,7 @@ def detect_corners_cam(video, opts, board_params):
 
         # check against last used frame
         # TODO check functionality of this code and determine actual value for maxdist
-        used_frame_idxs = np.where(frames_mask)
+        used_frame_idxs = np.where(frames_masks)
         if not len(used_frame_idxs) > 0:
             last_used_frame_idx = used_frame_idxs[-1]
 
@@ -100,8 +100,8 @@ def detect_corners_cam(video, opts, board_params):
                 if np.max(dist) < opts['detection']['inter_frame_dist']:
                     continue
 
-        frames_mask[i_frame] = True
+        frames_masks[i_frame] = True
         corners_cam.append(charuco_corners)
         ids_cam.append(charuco_ids)
 
-    return corners_cam, ids_cam, frames_mask
+    return corners_cam, ids_cam, frames_masks

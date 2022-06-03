@@ -89,7 +89,7 @@ class CamCalibrator:
                             self.board_params["boardWidth"] - 1,
                             (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
                             (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
-                            ] # Corners that we require to be detected for pose estimation
+                            ]  # Corners that we require to be detected for pose estimation
         if self.opts["optimize_only"]:  # We expect that detections and single cam calibs are already present
             preoptim = np.load(self.data_path + '/preoptim.npy', allow_pickle=True)[()]
             calibs_single = preoptim['info']['other']['calibs_single']
@@ -98,7 +98,8 @@ class CamCalibrator:
             ids_all = preoptim['info']['corner_ids']
             frames_masks = preoptim['info']['frames_masks'].astype(bool)
             # We just redo this since it is fast and the output may help
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'], corner_ids=ids_all, required_corners=required_corners)
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'], corner_ids=ids_all,
+                                              required_corners=required_corners)
         else:
             # detect corners
             corners_all, ids_all, frames_masks = \
@@ -108,7 +109,8 @@ class CamCalibrator:
             calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frames_masks)
 
             # analytically estimate initial camera poses
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'], corner_ids=ids_all, required_corners=required_corners)
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'], corner_ids=ids_all,
+                                              required_corners=required_corners)
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
             pose_params = optimization.make_common_pose_params(calibs_multi, corners_all, frames_masks)
@@ -144,36 +146,37 @@ class CamCalibrator:
 
         n_used_frames = np.sum(mask)
 
-        if n_used_frames > 0:  # do this to not run into indexing issues
-            corners_use = list(compress(corners_cam,
-                                        mask))
-
-            ids_use = list(compress(ids_cam,
-                                    mask))
-            cal_res = cv2.aruco.calibrateCameraCharuco(corners_use,  # noqa
-                                                       ids_use,
-                                                       board.make_board(board_params),
-                                                       sensor_size,
-                                                       None,
-                                                       None,
-                                                       **opts['detection']['aruco_calibration'])
-
-            retval, A, k, rvecs, tvecs = cal_res[0:5]
-
-            cal = {
-                'rvec_cam': np.asarray([0., 0., 0.]),
-                'tvec_cam': np.asarray([0., 0., 0.]),
-                'A': np.asarray(A),
-                'k': np.asarray(k),
-                'rvecs': np.asarray(rvecs),
-                'tvecs': np.asarray(tvecs),
-                'repro_error': retval,
-                'frames_mask': mask,
-            }
-            print('Finished single camera calibration.')
-            return cal
-        else:
+        if n_used_frames == 0:
             return []
+
+        corners_use = list(compress(corners_cam, mask))
+        ids_use = list(compress(ids_cam, mask))
+
+        cal_res = cv2.aruco.calibrateCameraCharucoExtended(corners_use,  # noqa
+                                                   ids_use,
+                                                   board.make_board(board_params),
+                                                   sensor_size,
+                                                   None,
+                                                   None,
+                                                   **opts['detection']['aruco_calibration'])
+
+        retval, A, k, rvecs, tvecs = cal_res[0:5]
+
+        cal = {
+            'rvec_cam': np.asarray([0., 0., 0.]),
+            'tvec_cam': np.asarray([0., 0., 0.]),
+            'A': np.asarray(A),
+            'k': np.asarray(k),
+            'rvecs': np.asarray(rvecs),
+            'tvecs': np.asarray(tvecs),
+            'repro_error': retval,
+            'std_intrinsics': cal_res[6],
+            'std_extrinsics': cal_res[7],
+            'per_view_errors': cal_res[8],
+            'frames_mask': mask,
+        }
+        print('Finished single camera calibration.')
+        return cal
 
     def perform_single_cam_calibrations(self, corners_all, ids_all, frames_mask):
         print('PERFORM SINGLE CAMERA CALIBRATION')
@@ -187,6 +190,13 @@ class CamCalibrator:
         #                  for i_cam in range(len(self.readers))]
 
         # Camera calibration seems to be strictly single core. We avoid multithreading, though
+        i_cam = 3
+        self.calibrate_single_camera(corners_all[i_cam],
+                                     ids_all[i_cam],
+                                     camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                         'sensorsize'],
+                                     self.board_params,
+                                     self.opts)
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2)))(
             delayed(self.calibrate_single_camera)(corners_all[i_cam],
                                                   ids_all[i_cam],
