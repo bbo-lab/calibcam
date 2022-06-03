@@ -2,11 +2,12 @@
 import argparse
 
 from calibcam import calibrator_opts
-from .camcalibrator import CamCalibrator
+from calibcam.camcalibrator import CamCalibrator
 import timeit
 
 
 def main():
+    print("Starting")
     tic = timeit.default_timer()
     # PArse command line arguments
     parser = argparse.ArgumentParser(description="Calibrate set of cameras")

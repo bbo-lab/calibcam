@@ -20,6 +20,7 @@ from calibcam import helper, camfunctions, board, optimization
 from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
 
+
 class CamCalibrator:
     def __init__(self, recordings, board_name=None, opts=None):
         if opts is None:
@@ -58,7 +59,7 @@ class CamCalibrator:
             print('At least one unsupported format supplied')
             raise UnsupportedFormatException
 
-        self.data_path = os.path.dirname(recordings[0])
+        self.data_path = os.path.expanduser(os.path.dirname(recordings[0]))
         self.rec_file_names = recordings
 
         # find frame numbers
@@ -84,6 +85,11 @@ class CamCalibrator:
         self.board_params = self.get_board_params_from_name(self.board_name)
 
     def perform_multi_calibration(self):
+        required_corners = [0,
+                            self.board_params["boardWidth"] - 1,
+                            (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
+                            (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
+                            ] # Corners that we require to be detected for pose estimation
         if self.opts["optimize_only"]:  # We expect that detections and single cam calibs are already present
             preoptim = np.load(self.data_path + '/preoptim.npy', allow_pickle=True)[()]
             calibs_single = preoptim['info']['other']['calibs_single']
@@ -92,7 +98,7 @@ class CamCalibrator:
             ids_all = preoptim['info']['corner_ids']
             frames_masks = preoptim['info']['frames_masks'].astype(bool)
             # We just redo this since it is fast and the output may help
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'], corner_ids=ids_all, required_corners=required_corners)
         else:
             # detect corners
             corners_all, ids_all, frames_masks = \
@@ -102,10 +108,10 @@ class CamCalibrator:
             calibs_single = self.perform_single_cam_calibrations(corners_all, ids_all, frames_masks)
 
             # analytically estimate initial camera poses
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'])
+            calibs_multi = estimate_cam_poses(calibs_single, self.opts['coord_cam'], corner_ids=ids_all, required_corners=required_corners)
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-            pose_params = optimization.make_common_pose_params(calibs_multi, frames_masks)
+            pose_params = optimization.make_common_pose_params(calibs_multi, corners_all, frames_masks)
             result = self.build_result(calibs_multi,
                                        frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
                                        rvecs_boards=pose_params[0], tvecs_boards=pose_params[1],
@@ -184,7 +190,8 @@ class CamCalibrator:
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2)))(
             delayed(self.calibrate_single_camera)(corners_all[i_cam],
                                                   ids_all[i_cam],
-                                                  camfunctions.get_header_from_reader(self.readers[i_cam])['sensorsize'],
+                                                  camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                                      'sensorsize'],
                                                   self.board_params,
                                                   self.opts)
             for i_cam in range(len(self.readers)))
@@ -215,10 +222,12 @@ class CamCalibrator:
                      other=None):
         result = {
             'version': 2.0,  # Increase when this structure changes
-            'calibs': calibs,  # This field shall always hold all intrinsically necessary information to project and triangulate.
+            'calibs': calibs,
+            # This field shall always hold all intrinsically necessary information to project and triangulate.
             'board_params': self.board_params,  # All parameters to recreate the board
             'rec_file_names': self.rec_file_names,  # Recording filenames, may be used for cam names
-            'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],  # Headers. No content structure guaranteed
+            'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],
+            # Headers. No content structure guaranteed
             'info': {  # Additional nonessential info from the calibration process
                 'cost_val_final': np.NaN,
                 'optimality_final': np.NaN,
@@ -259,7 +268,7 @@ class CamCalibrator:
     def save_multicalibration(self, result, filename="multicam_calibration"):
         # save
         result_path = self.data_path + '/' + filename
-        np.save(result_path+'.npy', result)
+        np.save(result_path + '.npy', result)
         scipy_io_savemat(result_path + '.mat', result)
         print('Saved multi camera calibration to file {:s}'.format(result_path))
         return

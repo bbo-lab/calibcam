@@ -50,13 +50,13 @@ def unravel_vars_full(vars_full, n_cams):
     return rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
 
 
-def make_initialization(calibs, frames_masks, opts, k_to_zero=True):
+def make_initialization(calibs, corners, frames_masks, opts, k_to_zero=True):
     opts_free_vars = opts['free_vars']
 
     # camera_params are raveled with first all rvecs, then tvecs, then A, then k
     camera_params = make_cam_params(calibs, opts_free_vars, k_to_zero)
     # pose_params are raveled with first all rvecs and then all tvecs
-    pose_params = make_common_pose_params(calibs, frames_masks).ravel()
+    pose_params = make_common_pose_params(calibs, corners, frames_masks).ravel()
 
     vars_full = np.concatenate((camera_params, pose_params), axis=0)
     mask_free_input = make_free_parameter_mask(calibs, frames_masks, opts_free_vars, opts['coord_cam'])
@@ -92,18 +92,23 @@ def make_cam_params(calibs, opts_free_vars, k_to_zero=True):
     return camera_params
 
 
-def make_common_pose_params(calibs, frames_masks):
+def make_common_pose_params(calibs, corners_array, frames_masks):
     used_frame_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
     pose_params = np.zeros(shape=(2, used_frame_idxs.size, 3))
-    # TODO Instead using pose from first available cam, it come from the cam with the most detections, or even from an
-    #  average of the cams with the most detections
-    #  See pose_estimation.estimate_cam_poses for averaging poses
+    # TODO Instead of using pose from cam with most points detected, this should use the pose with lowest reprojection
+    #  error
     for i_pose, pose_idx in enumerate(used_frame_idxs):  # Loop through the poses (frames that have a board pose)
-        for calib, frames_mask_cam in zip(calibs, frames_masks):  # Loop through cameras ...
-            if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame present
-                frame_idxs_cam = np.where(frames_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
-                pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
-                pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
+        frames_idxs = [np.where(frames_masks_cam)[0] for frames_masks_cam in frames_masks]
+        n_detected_corners = np.sum(~np.isnan(corners_array[:, i_pose, :, 0]), axis=1)
+        max_cam_idx = np.argmax(n_detected_corners)
+        pose_params[0, i_pose, :] = calibs[max_cam_idx]['rvecs'][frames_idxs[max_cam_idx] == pose_idx].ravel()
+        pose_params[1, i_pose, :] = calibs[max_cam_idx]['tvecs'][frames_idxs[max_cam_idx] == pose_idx].ravel()
+        #
+        # for calib, frames_mask_cam in zip(calibs, frames_masks):  # Loop through cameras ...
+        #     if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame present
+        #         frame_idxs_cam = np.where(frames_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
+        #         pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
+        #         pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
 
     return pose_params
 

@@ -10,7 +10,7 @@ def get_board_params(board_source):
     else:
         board_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../boards', board_source + '.npy')
 
-    board_params = np.load(board_path, allow_pickle=True).item()
+    board_params = np.load(os.path.expanduser(board_path), allow_pickle=True).item()
 
     if board_params is not None:
         board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']  # noqa

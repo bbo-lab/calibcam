@@ -4,7 +4,7 @@ from scipy.optimize import least_squares, OptimizeResult
 import timeit
 
 from calibcam import optimization, board, helper, calibrator_opts
-from .exceptions import *
+from calibcam.exceptions import *
 
 
 def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, board_params, opts=None):
@@ -19,11 +19,12 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     used_frames_mask = np.any(frames_masks, axis=0)
     n_corners = board_coords_3d_0.shape[0]
 
-    # Generate vectors of all and of free variables
-    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, frames_masks, opts)
-
     # Prepare array of corners (non-existing frames for individual cameras are filled with NaN)
     corners = helper.make_corners_array(corners_all, ids_all, n_corners, frames_masks)
+
+    # Generate vectors of all and of free variables
+    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, corners, frames_masks,
+                                                                             opts)
 
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
@@ -67,7 +68,9 @@ def optimize_calib_parameters(corners_all, ids_all, calibs_multi, frames_masks, 
     test_objective_function(calibs_multi, vars_free, args, corners, board_coords_3d_0)
 
     print('Starting optimization procedure')
-
+    # TODO Test if alternating optimization between camera parameters and poses with a breaking critierion on camera
+    #  params could be more efficient ... I think often cam params are optimal quite quickly and the opimization runs on
+    #  some rougue poses ...
     min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
                                                vars_free,
                                                jac=jac,
@@ -160,7 +163,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
             corners_cameralib[i_cam, np.isin(used_frame_idxs, cam_frame_idxs)] = cs.project(b)[i_cam]
         # This calculates from common camera board estimations
         else:
-            pose_params = optimization.make_common_pose_params(calibs, args['frames_masks'])
+            pose_params = optimization.make_common_pose_params(calibs, corners_detection, args['frames_masks'])
             rvecs_board = pose_params[0].reshape(-1, 3)
             tvecs_board = pose_params[1].reshape(-1, 3)
 
