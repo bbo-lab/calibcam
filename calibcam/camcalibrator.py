@@ -113,7 +113,8 @@ class CamCalibrator:
                                               required_corners=required_corners)
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-            pose_params = optimization.make_common_pose_params(calibs_multi, corners_all, frames_masks)
+            corners_array = helper.make_corners_array(corners_all, ids_all, (self.board_params["boardWidth"]-1)*(self.board_params["boardHeight"]-1), frames_masks)
+            pose_params = optimization.make_common_pose_params(calibs_multi, corners_array, frames_masks)
             result = self.build_result(calibs_multi,
                                        frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
                                        rvecs_boards=pose_params[0], tvecs_boards=pose_params[1],
@@ -170,9 +171,9 @@ class CamCalibrator:
             'rvecs': np.asarray(rvecs),
             'tvecs': np.asarray(tvecs),
             'repro_error': retval,
-            'std_intrinsics': cal_res[6],
-            'std_extrinsics': cal_res[7],
-            'per_view_errors': cal_res[8],
+            'std_intrinsics': cal_res[5],
+            'std_extrinsics': cal_res[6],
+            'per_view_errors': cal_res[7],
             'frames_mask': mask,
         }
         print('Finished single camera calibration.')
@@ -190,14 +191,14 @@ class CamCalibrator:
         #                  for i_cam in range(len(self.readers))]
 
         # Camera calibration seems to be strictly single core. We avoid multithreading, though
-        i_cam = 3
-        self.calibrate_single_camera(corners_all[i_cam],
-                                     ids_all[i_cam],
-                                     camfunctions.get_header_from_reader(self.readers[i_cam])[
-                                         'sensorsize'],
-                                     self.board_params,
-                                     self.opts)
-        calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / 2)))(
+        # i_cam = 3
+        # self.calibrate_single_camera(corners_all[i_cam],
+        #                              ids_all[i_cam],
+        #                              camfunctions.get_header_from_reader(self.readers[i_cam])[
+        #                                  'sensorsize'],
+        #                              self.board_params,
+        #                              self.opts)
+        calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
             delayed(self.calibrate_single_camera)(corners_all[i_cam],
                                                   ids_all[i_cam],
                                                   camfunctions.get_header_from_reader(self.readers[i_cam])[
