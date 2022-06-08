@@ -2,6 +2,8 @@ import numpy as np
 from copy import deepcopy
 from scipy.spatial.transform import Rotation as R  # noqa
 
+from calibcam import helper
+
 
 def estimate_cam_poses(calibs_single, coord_cam, corner_ids=None, required_corners=None):
     calibs = deepcopy(calibs_single)
@@ -18,8 +20,8 @@ def estimate_cam_poses(calibs_single, coord_cam, corner_ids=None, required_corne
     ts = np.empty(shape=frames_masks.shape + (3,))
     ts[:] = np.nan
     for i_cam, calib in enumerate(calibs_single):
-        rs[i_cam][calib['frames_mask']] = calib['rvecs'][..., 0]
-        ts[i_cam][calib['frames_mask']] = calib['tvecs'][..., 0]
+        rs[i_cam, calib['frames_mask']] = calib['rvecs'][..., 0]
+        ts[i_cam, calib['frames_mask']] = calib['tvecs'][..., 0]
 
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)

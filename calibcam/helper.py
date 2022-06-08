@@ -58,8 +58,12 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
                 continue
 
             cam_fr_idx = int(cam_fr_idx)
-            corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
-                corners_all[i_cam][cam_fr_idx][:, 0, :]
+            if ids_all is None:
+                corners[i_cam, i_frame] = \
+                    corners_all[i_cam][cam_fr_idx][:, 0, :]
+            else:
+                corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
+                    corners_all[i_cam][cam_fr_idx][:, 0, :]
     return corners
 
 

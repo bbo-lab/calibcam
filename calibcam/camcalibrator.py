@@ -113,7 +113,8 @@ class CamCalibrator:
                                               required_corners=required_corners)
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-            corners_array = helper.make_corners_array(corners_all, ids_all, (self.board_params["boardWidth"]-1)*(self.board_params["boardHeight"]-1), frames_masks)
+            corners_array = helper.make_corners_array(corners_all, ids_all, (self.board_params["boardWidth"] - 1) * (
+                        self.board_params["boardHeight"] - 1), frames_masks)
             pose_params = optimization.make_common_pose_params(calibs_multi, corners_array, frames_masks)
             result = self.build_result(calibs_multi,
                                        frames_masks=frames_masks, corners=corners_all, corner_ids=ids_all,
@@ -122,6 +123,9 @@ class CamCalibrator:
             self.save_multicalibration(result, 'preoptim')
 
         print('START MULTI CAMERA CALIBRATION')
+
+        # self.plot(calibs_single, corners_all, ids_all, self.board_params, 3, 35)
+
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
             self.optimize_calibration(corners_all, ids_all, calibs_multi, frames_masks)
 
@@ -154,12 +158,12 @@ class CamCalibrator:
         ids_use = list(compress(ids_cam, mask))
 
         cal_res = cv2.aruco.calibrateCameraCharucoExtended(corners_use,  # noqa
-                                                   ids_use,
-                                                   board.make_board(board_params),
-                                                   sensor_size,
-                                                   None,
-                                                   None,
-                                                   **opts['detection']['aruco_calibration'])
+                                                           ids_use,
+                                                           board.make_board(board_params),
+                                                           sensor_size,
+                                                           None,
+                                                           None,
+                                                           **opts['detection']['aruco_calibration'])
 
         retval, A, k, rvecs, tvecs = cal_res[0:5]
 
@@ -283,3 +287,33 @@ class CamCalibrator:
         scipy_io_savemat(result_path + '.mat', result)
         print('Saved multi camera calibration to file {:s}'.format(result_path))
         return
+
+    # Debug function
+    def plot(self, calibs, corners_all, ids_all, board_params, cidx, fidx):
+        import matplotlib.pyplot as plt
+        from scipy.spatial.transform import Rotation as R  # noqa
+        import camfunctions_ag
+
+        board_coords_3d_0 = board.make_board_points(board_params)
+
+        frames_idxs = np.where(calibs[cidx]['frames_mask'])[0]
+        print(f"{cidx} - {fidx} - {frames_idxs[fidx]} - {len(frames_idxs)} - {len(corners_all[cidx])}")
+        r = calibs[cidx]['rvecs'][fidx, :, 0]
+        t = calibs[cidx]['tvecs'][fidx, :, 0]
+        print(r)
+        print(t)
+        im = self.readers[cidx].get_data(frames_idxs[fidx])
+        plt.imshow(cv2.aruco.drawDetectedCornersCharuco(im, corners_all[cidx][fidx], ids_all[cidx][fidx]))
+
+        board_coords_3d = R.from_rotvec(r).apply(board_coords_3d_0) + t
+        board_coords_3d = camfunctions_ag.board_to_ideal_plane(board_coords_3d)
+
+        board_coords_3d_nd = camfunctions_ag.ideal_to_sensor(board_coords_3d, calibs[cidx]['A'])
+
+        board_coords_3d_d = camfunctions_ag.distort(board_coords_3d, calibs[cidx]['k'])
+        board_coords_3d_d = camfunctions_ag.ideal_to_sensor(board_coords_3d_d, calibs[cidx]['A'])
+
+        plt.plot(board_coords_3d_d[(0, 4, 34), 0], board_coords_3d_d[(0, 4, 34), 1], 'r+')
+        plt.plot(board_coords_3d_nd[(0, 4, 34), 0], board_coords_3d_nd[(0, 4, 34), 1], 'g+')
+
+        plt.show()
