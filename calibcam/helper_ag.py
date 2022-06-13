@@ -9,7 +9,6 @@ import jax.numpy as np
 
 # Converts array of rotation vectors to array of rotation matrices
 def rodrigues_as_rotmats(r):
-    print(r.shape)
     r_shape = r.shape
     r = r.reshape(-1, 3)
 

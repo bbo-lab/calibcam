@@ -129,14 +129,16 @@ class CamCalibrator:
                                        other={'calibs_single': calibs_single})
             self.save_multicalibration(result, 'preoptim')
 
-        print('START MULTI CAMERA CALIBRATION')
+        print('OPTIMIZING POSES')
 
         # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
 
-        # calibs_fit = self.optimize_poses(corners, calibs_multi)
+        calibs_fit = self.optimize_poses(corners, calibs_multi)
+
+        print('OPTIMIZING ALL PARAMETERS')
 
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
-            self.optimize_calibration(corners, calibs_multi)
+            self.optimize_calibration(corners, calibs_fit)
 
         result = self.build_result(calibs_fit,
                                    corners=corners, used_frames_ids=used_frames_ids,
