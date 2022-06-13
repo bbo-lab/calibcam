@@ -84,3 +84,10 @@ def build_v1_result(result):
         'nCameras': len(result['calibs']),
         'version': 1.0,
     }
+
+
+def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards):
+    for i_cam, calib in enumerate(calibs):
+        calib['rvecs'] = rvecs_boards[i_cam]
+        calib['tvecs'] = tvecs_boards[i_cam]
+        

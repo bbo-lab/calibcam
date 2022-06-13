@@ -7,9 +7,13 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
 
+    # Only use frames that have these corners detected (usually "corner corners" for full boards)
     frames_masks_req = get_required_corners_masks(corners=corners,
                                                   required_corner_idxs=required_corner_idxs)
+
+    # n_cam x n_cam matrix of frames between two cams
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
+
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
     common_frame_mat[:, opts['coord_cam']] = common_frame_mat[:, opts['coord_cam']] * 15
@@ -30,10 +34,16 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
         r_error = np.Inf
         R_trans = None
         Rs_trans = None
+        # Copy, we will remove frames this
         frames_masks_req_ori = frames_masks_req[oricam_idx].copy()
         while r_error >= opts['common_pose_r_err']:
             # Remove frames with too high deviation from frames_mask
+            # In single camera calibration misestimation of board pose may occur where the board is tilted around one of
+            #  its axes relative  to the camera axis: c ----> / instead of c ----> \
+            #  theses tilts do not yield a consistent alternative position and may thus be removed by iteratively
+            #  removing the highest deviations.
             if R_trans is not None and Rs_trans is not None:
+                # Remove frame with highest error
                 common_frame_idxs = np.where(common_frame_mask)[0]
                 frames_masks_req_ori[
                     common_frame_idxs[
