@@ -133,7 +133,7 @@ class CamCalibrator:
 
         # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
 
-        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_poses(corners, calibs_multi)[0]
+        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_poses(corners, calibs_multi)
         calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
 
         print('OPTIMIZING ALL PARAMETERS')

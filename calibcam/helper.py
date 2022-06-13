@@ -88,6 +88,8 @@ def build_v1_result(result):
 
 def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards):
     for i_cam, calib in enumerate(calibs):
-        calib['rvecs'] = rvecs_boards[i_cam]
-        calib['tvecs'] = tvecs_boards[i_cam]
+        calib['rvecs'] = rvecs_boards
+        calib['tvecs'] = tvecs_boards
+
+    return calibs
         

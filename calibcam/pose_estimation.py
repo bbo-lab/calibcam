@@ -16,7 +16,7 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
 
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
-    common_frame_mat[:, opts['coord_cam']] = common_frame_mat[:, opts['coord_cam']] * 15
+    common_frame_mat[:, opts['coord_cam']] = common_frame_mat[:, opts['coord_cam']] * 10
     common_frame_mat[opts['coord_cam'], :] = common_frame_mat[:, opts['coord_cam']].T
 
     rs = np.asarray([calib["rvecs"] for calib in calibs_single])
