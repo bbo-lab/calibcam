@@ -6,6 +6,7 @@ def get_default_opts():
     default_opts = {
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'allow_unequal_n_frame': False,  # Sometimes last frame is cut, so this may be okay.
+        'common_pose_r_err': 0.1,    # Iteratively exclude poses with higher rotation deviation from mean
         'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
         'optimize_only': False,  # Do not perform detection and single cam calibration. (Disable mostly for development.)
@@ -26,7 +27,7 @@ def get_default_opts():
                 'flags': (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3),
                 'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
                              30,
-                             float(np.finfo(np.float32).eps)),
+                             1.1920928955078125e-07),  # float(np.finfo(np.float32).eps)
             },
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),

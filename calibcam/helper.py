@@ -44,7 +44,7 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
     used_frames_mask = np.any(frames_masks, axis=0)
     used_frame_idxs = np.where(used_frames_mask)[0]
 
-    corners = np.empty(shape=(frames_masks.shape[0], used_frames_mask.sum(), n_corners, 2))
+    corners = np.empty(shape=(frames_masks.shape[0], used_frames_mask.sum(), n_corners, 2), dtype=np.float32)
     corners[:] = np.NaN
     for i_cam, frames_mask_cam in enumerate(frames_masks):
         frame_idxs_cam = np.where(frames_mask_cam)[0]
@@ -65,6 +65,13 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
                 corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
                     corners_all[i_cam][cam_fr_idx][:, 0, :]
     return corners
+
+
+def corners_array_to_ragged(corners_array):
+    ids_use = [np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1, 1) for c in corners_array]
+    corners_use = [c[i, :].reshape(-1, 1, 2) for c, i in zip(corners_array, ids_use)]
+
+    return corners_use, ids_use
 
 
 def build_v1_result(result):

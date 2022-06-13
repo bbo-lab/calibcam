@@ -1,16 +1,19 @@
 # import multiprocessing
 # from joblib import Parallel, delayed
+import warnings
 
 import numpy as np
 
 # This could also be done dynamically, based on opts ...
 # from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
+import calibcamlib
+from calibcam import board
 from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
-
+from scipy.spatial.transform import Rotation as R  # noqa
 
 def make_vars_full(vars_opt, args, verbose=False):
-    n_cams = len(args['frames_masks'])
+    n_cams = args['corners'].shape[0]
 
     # Update full set of vars with free wars
     vars_full = args['vars_full']
@@ -50,16 +53,16 @@ def unravel_vars_full(vars_full, n_cams):
     return rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards
 
 
-def make_initialization(calibs, corners, frames_masks, opts, k_to_zero=True):
+def make_initialization(calibs, corners, board_params, offsets, opts, k_to_zero=True):
     opts_free_vars = opts['free_vars']
 
     # camera_params are raveled with first all rvecs, then tvecs, then A, then k
     camera_params = make_cam_params(calibs, opts_free_vars, k_to_zero)
     # pose_params are raveled with first all rvecs and then all tvecs
-    pose_params = make_common_pose_params(calibs, corners, frames_masks).ravel()
+    pose_params = make_common_pose_params(calibs, corners, board_params, offsets).ravel()
 
     vars_full = np.concatenate((camera_params, pose_params), axis=0)
-    mask_free_input = make_free_parameter_mask(calibs, frames_masks, opts_free_vars, opts['coord_cam'])
+    mask_free_input = make_free_parameter_mask(calibs, opts_free_vars, opts['coord_cam'])
     vars_free = vars_full[mask_free_input]
 
     return vars_free, vars_full, mask_free_input
@@ -92,28 +95,26 @@ def make_cam_params(calibs, opts_free_vars, k_to_zero=True):
     return camera_params
 
 
-def make_common_pose_params(calibs, corners_array, frames_masks):
-    used_frame_idxs = np.where(np.any(frames_masks, axis=0))[0]  # indexes into full frame range
-    pose_params = np.zeros(shape=(2, used_frame_idxs.size, 3))
+def make_common_pose_params(calibs, corners_array, board_params, offsets):
+    pose_params = np.zeros(shape=(2, corners_array.shape[1], 3))
     # TODO Instead of using pose from cam with most points detected, this should use the pose with lowest reprojection
-    #  error
-    for i_pose, pose_idx in enumerate(used_frame_idxs):  # Loop through the poses (frames that have a board pose)
-        frames_idxs = [np.where(frames_masks_cam)[0] for frames_masks_cam in frames_masks]
-        n_detected_corners = np.sum(~np.isnan(corners_array[:, i_pose, :, 0]), axis=1)
-        max_cam_idx = np.argmax(n_detected_corners)
-        pose_params[0, i_pose, :] = calibs[max_cam_idx]['rvecs'][frames_idxs[max_cam_idx] == pose_idx].ravel()
-        pose_params[1, i_pose, :] = calibs[max_cam_idx]['tvecs'][frames_idxs[max_cam_idx] == pose_idx].ravel()
-        #
-        # for calib, frames_mask_cam in zip(calibs, frames_masks):  # Loop through cameras ...
-        #     if np.all(pose_params[0, i_pose, :] == 0) and frames_mask_cam[pose_idx]:  # ... and check if frame present
-        #         frame_idxs_cam = np.where(frames_mask_cam)[0]  # Frame indexes corresponding to available rvecs/tvecs
-        #         pose_params[0, i_pose, :] = calib['rvecs'][frame_idxs_cam == pose_idx].ravel()
-        #         pose_params[1, i_pose, :] = calib['tvecs'][frame_idxs_cam == pose_idx].ravel()
+    #  error - done, test
+    repro_errors = np.zeros(shape=len(calibs))
+    cs = calibcamlib.Camerasystem.from_calibs(calibs)
+    for i_pose in range(pose_params.shape[1]):
+        for i_cam, calib in enumerate(calibs):
+            proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board.make_board_points(board_params)) + calib['tvecs'][i_pose], offsets)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                repro_errors[i_cam] = np.nanmax(np.abs(proj-corners_array[:, i_pose]))
+
+        pose_params[0, i_pose, :] = calibs[np.nanargmax(repro_errors)]['rvecs'][i_pose].ravel()
+        pose_params[1, i_pose, :] = calibs[np.nanargmax(repro_errors)]['tvecs'][i_pose].ravel()
 
     return pose_params
 
 
-def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx):
+def make_free_parameter_mask(calibs, opts_free_vars, coord_cam_idx):
     rvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
     rvecs_cam_mask[:] = opts_free_vars['cam_pose']
     tvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
@@ -127,7 +128,7 @@ def make_free_parameter_mask(calibs, frames_masks, opts_free_vars, coord_cam_idx
     rvecs_cam_mask[coord_cam_idx, :] = False
     tvecs_cam_mask[coord_cam_idx, :] = False
 
-    pose_mask = np.ones(shape=(np.any(frames_masks, axis=0).sum(dtype=int), 2, 3), dtype=bool)
+    pose_mask = np.ones(shape=(calibs[0]['tvecs'].shape[0], 2, 3), dtype=bool)
     pose_mask[:] = opts_free_vars['board_poses']
 
     return np.concatenate((
@@ -143,8 +144,7 @@ def unravel_to_calibs(vars_opt, args):
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams = make_vars_full(vars_opt, args, verbose=False)
 
-    # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
-    # and the return is in fact unnecessary!
+    # Unravel inputs.
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
 
     calibs = [

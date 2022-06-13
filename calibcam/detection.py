@@ -9,7 +9,7 @@ from calibcam import camfunctions, board, helper
 from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 
-def detect_corners(rec_file_names, n_frames, board_params, opts):
+def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=True):
     print('DETECTING FEATURES')
     frames_masks = np.zeros(shape=(len(rec_file_names), n_frames), dtype=bool)
     corners_all = []
@@ -19,13 +19,18 @@ def detect_corners(rec_file_names, n_frames, board_params, opts):
     detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / opts['detect_cpu_divisor'])))(
         delayed(detect_corners_cam)(rec_file_name, opts, board_params)
         for rec_file_name in rec_file_names)
+
     for i_cam, detection in enumerate(detections):
         corners_all.append(detection[0])
         ids_all.append(detection[1])
         frames_masks[i_cam, :] = detection[2]
         print(f'Detected features in {np.sum(frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
 
-    return corners_all, ids_all, frames_masks
+    if return_matrix:
+        return helper.make_corners_array(corners_all, ids_all, (board_params["boardWidth"] - 1) * (
+                        board_params["boardHeight"] - 1), frames_masks), np.where(np.any(frames_masks, axis=0))[0]
+    else:
+        return corners_all, ids_all, frames_masks
 
 
 def detect_corners_cam(video, opts, board_params):
@@ -83,6 +88,10 @@ def detect_corners_cam(video, opts, board_params):
 
         # check against last used frame
         # TODO check functionality of this code and determine actual value for maxdist
+        #  Also, this bears the danger that different cams get detections in different frames and pose estimation
+        #  becomes impossible. If this is ever required, it has to be made sure that cameras get detections on the same
+        #  frames, e.g. by determining sufficient movement only on the first cam.
+        #  Alternatively, in videos with a too high framerate, we could just use a frameskip.
         used_frame_idxs = np.where(frames_masks)
         if not len(used_frame_idxs) > 0:
             last_used_frame_idx = used_frame_idxs[-1]
@@ -96,7 +105,7 @@ def detect_corners_cam(video, opts, board_params):
                 diff = corners_cam[last_used_frame_idx][prev_mask] - charuco_corners[curr_mask]
                 dist = np.sqrt(np.sum(diff ** 2, 1))
                 print(dist)
-                dist_max = np.max(dist)
+
                 if np.max(dist) < opts['detection']['inter_frame_dist']:
                     continue
 
