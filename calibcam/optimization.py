@@ -106,10 +106,10 @@ def make_common_pose_params(calibs, corners_array, board_params, offsets):
             proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board.make_board_points(board_params)) + calib['tvecs'][i_pose], offsets)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
-                repro_errors[i_cam] = np.nanmax(np.abs(proj-corners_array[:, i_pose]))
+                repro_errors[i_cam] = np.nanmean(np.abs(proj-corners_array[:, i_pose]))
 
-        pose_params[0, i_pose, :] = calibs[np.nanargmax(repro_errors)]['rvecs'][i_pose].ravel()
-        pose_params[1, i_pose, :] = calibs[np.nanargmax(repro_errors)]['tvecs'][i_pose].ravel()
+        pose_params[0, i_pose, :] = calibs[np.nanargmin(repro_errors)]['rvecs'][i_pose].ravel()
+        pose_params[1, i_pose, :] = calibs[np.nanargmin(repro_errors)]['tvecs'][i_pose].ravel()
 
     return pose_params
 

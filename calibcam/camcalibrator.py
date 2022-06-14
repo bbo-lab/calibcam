@@ -330,8 +330,8 @@ class CamCalibrator:
         print(t)
         im = self.readers[cidx].get_data(used_frames_ids[fidx])
 
-        corners_use, ids_use = helper.corners_array_to_ragged(corners)
-        plt.imshow(cv2.aruco.drawDetectedCornersCharuco(im, corners_use[cidx][fidx], ids_use[cidx][fidx]))
+        corners_use, ids_use = helper.corners_array_to_ragged(corners[cidx])
+        plt.imshow(cv2.aruco.drawDetectedCornersCharuco(im, corners_use[fidx], ids_use[fidx]))
 
         board_coords_3d = R.from_rotvec(r).apply(board_coords_3d_0) + t
         board_coords_3d = camfunctions_ag.board_to_ideal_plane(board_coords_3d)
