@@ -92,9 +92,9 @@ def detect_corners_cam(video, opts, board_params):
         #  becomes impossible. If this is ever required, it has to be made sure that cameras get detections on the same
         #  frames, e.g. by determining sufficient movement only on the first cam.
         #  Alternatively, in videos with a too high framerate, we could just use a frameskip.
-        used_frame_idxs = np.where(frames_masks)
-        if not len(used_frame_idxs) > 0:
-            last_used_frame_idx = used_frame_idxs[-1]
+        used_frame_ids = np.where(frames_masks)[0]
+        if len(used_frame_ids) > 0:
+            last_used_frame_idx = used_frame_ids[-1]
 
             ids_common = np.intersect1d(ids_cam[last_used_frame_idx], charuco_ids)
 
