@@ -43,7 +43,7 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, offsets, opts
     tic = timeit.default_timer()
     result = optimization.obj_fcn_wrapper(vars_free, args)
     print(
-        f"Objective function took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals.")
+        f"Objective function took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals. Shape {result.shape}.")
 
     if opts['numerical_jacobian']:
         jac = '2-point'
@@ -55,7 +55,7 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, offsets, opts
         tic = timeit.default_timer()
         result = jac(vars_free, args)
         print(
-            f"Jacobian took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals.")
+            f"Jacobian took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals. Shape {result.shape}.")
 
     # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
     test_objective_function(calibs_multi, vars_free, args, corners, board_params, offsets)

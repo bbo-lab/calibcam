@@ -4,6 +4,7 @@ import imageio
 import numpy as np
 from ccvtools import rawio  # noqa
 from joblib import Parallel, delayed
+from itertools import islice
 
 from calibcam import camfunctions, board, helper
 from calibcam.calibrator_opts import finalize_aruco_detector_opts
@@ -41,7 +42,9 @@ def detect_corners_cam(video, opts, board_params):
     frames_masks = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
 
     # Detect corners over cams
-    for (i_frame, frame) in enumerate(reader):
+    for (i_frame, frame) in enumerate(islice(reader, 0, None, opts["frame_step"])):
+        i_frame = i_frame*opts["frame_step"]
+
         # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
             frame = cv2.cvtColor(frame, opts['color_convert'])  # noqa
