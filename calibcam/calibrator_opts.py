@@ -10,7 +10,8 @@ def get_default_opts():
         'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
         'optimize_only': False,  # Do not perform detection and single cam calibration. (Disable mostly for development.)
-        'numerical_jacobian': False,  # Use autograd instead of 2-point numerical jacobian
+        'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
+        'optimize_board_poses': True,  # Optimize individual board poses
         'free_vars': {
             'cam_pose': True,
             'board_poses': True,

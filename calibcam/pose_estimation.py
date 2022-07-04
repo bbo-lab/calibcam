@@ -4,6 +4,30 @@ from scipy.spatial.transform import Rotation as R  # noqa
 
 def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=None):
     calibs = deepcopy(calibs_single)
+
+    per_pose_crs = np.empty(shape=(len(calibs), calibs[0]['rvecs'].shape[0], 3))
+    per_pose_crs[:] = np.NaN
+    per_pose_cts = np.empty(shape=(len(calibs), calibs[0]['rvecs'].shape[0], 3))
+    per_pose_cts[:] = np.NaN
+    # Set all cam poses to inverse pose of board
+    for i_pose, (cr, ct) in enumerate(zip(per_pose_crs, per_pose_cts)):
+        for i_cam, calib in enumerate(calibs):
+            cr[i_cam] = -calibs[i_cam]['rvecs'][i_pose]
+            ct[i_cam] = -R.from_rotvec(cr[i_cam]).apply(calibs[i_cam]['rvecs'][i_pose])
+
+    # # Fill gaps from boards outside fov
+    # per_pose_crs_orig = per_pose_crs.copy()  # We only want to fill gas with original detections
+    # per_pose_cts_orig = per_pose_cts.copy()
+    # for i_pose, (cr, ct) in enumerate(zip(per_pose_crs, per_pose_cts)):
+    #     for i_cam, calib in enumerate(calibs):
+    #         if np.isnan(cr[i_cam, 0]):
+
+    full_set_idxs = np.where(np.all(~np.isnan(per_pose_crs[:, :, 0]), axis=0))[0]
+
+
+
+
+
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
 

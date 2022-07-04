@@ -22,11 +22,16 @@ from calibcam.pose_estimation import estimate_cam_poses
 
 
 class CamCalibrator:
-    def __init__(self, recordings, board_name=None, opts=None):
+    def __init__(self, recordings, board_name=None, data_path=None, opts=None):
         if opts is None:
             opts = {}
 
         self.board_name = board_name  # Currently, recordings are needed to determine the board path in most cases
+
+        if data_path is not None:
+            self.data_path = data_path
+        else:
+            self.data_path = os.path.expanduser(os.path.dirname(recordings[0]))
 
         # Board
         self.board_params = None
@@ -34,13 +39,12 @@ class CamCalibrator:
         # Videos
         self.readers = None
         self.rec_file_names = None
-        self.data_path = None
         self.n_frames = np.NaN
 
         # Options
-        self.opts = helper.deepmerge_dicts(opts, get_default_opts())
-
-        self.set_recordings(recordings)
+        self.opts = {}
+        self.load_opts(opts, self.data_path)
+        self.load_recordings(recordings)
 
         return
 
@@ -51,7 +55,14 @@ class CamCalibrator:
             board_params = board.get_board_params(Path(self.rec_file_names[0]).parent)
         return board_params
 
-    def set_recordings(self, recordings):
+    def load_opts(self, opts, data_path=None):
+        if data_path is not None and os.path.isfile(data_path + "/opts.npy"):
+            fileopts = np.load(data_path + "/opts.npy", allow_pickle=True).item()
+            opts = helper.deepmerge_dicts(opts, fileopts)
+
+        self.opts = helper.deepmerge_dicts(opts, get_default_opts())
+
+    def load_recordings(self, recordings):
         # check if input files are valid files
         try:
             self.readers = [imageio.get_reader(rec) for rec in recordings]
@@ -59,7 +70,6 @@ class CamCalibrator:
             print('At least one unsupported format supplied')
             raise UnsupportedFormatException
 
-        self.data_path = os.path.expanduser(os.path.dirname(recordings[0]))
         self.rec_file_names = recordings
 
         # find frame numbers
