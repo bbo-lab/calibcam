@@ -12,7 +12,7 @@ def rodrigues_as_rotmats(r):
     r_shape = r.shape
     r = r.reshape(-1, 3)
 
-    theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)
+    theta = np.power(r[:, 0] ** 2 + r[:, 1] ** 2 + r[:, 2] ** 2, 0.5)  # These lines fail in the debugger due to unimplemented indexing! Thez work in normal mode.
     u = r / (theta + -np.abs(np.sign(theta)) + 1).reshape(-1, 1)
 
     # row 1

@@ -193,9 +193,6 @@ class CamCalibrator:
         tvecs[:] = np.NaN
         retval, A, k,  = cal_res[0:3]
 
-        print(cal_res[3][0])
-        print(cal_res[4][0])
-
         rvecs[mask, :] = np.asarray(cal_res[3])[..., 0]
         tvecs[mask, :] = np.asarray(cal_res[4])[..., 0]
 
