@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 from scipy.spatial.transform import Rotation as R  # noqa
 
@@ -86,7 +88,10 @@ def build_v1_result(result):
     }
 
 
-def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards):
+def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards, copy=False):
+    if copy:
+        calibs = deepcopy(calibs)
+
     for i_cam, calib in enumerate(calibs):
         calib['rvecs'] = rvecs_boards
         calib['tvecs'] = tvecs_boards

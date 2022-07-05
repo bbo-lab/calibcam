@@ -43,7 +43,7 @@ def obj_fcn_wrapper(vars_opt, args):
         tvecs_boards,
         board_coords_3d_0,
         corners
-    ))
+    ))  # Make np array since JAX arrays are immutable.
 
     # Residuals of untracked corners are invalid
     residuals[corners_mask] = 0
@@ -67,19 +67,26 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
     # and the return is in fact unnecessary!
     rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = \
         optimization.unravel_vars_full(vars_full, n_cams)
+    rvecs_cams_mask, tvecs_cams_mask, cam_matrices_mask, ks_mask, rvecs_boards_mask, tvecs_boards_mask = \
+        optimization.unravel_vars_full(args['mask_opt'], n_cams)
+
+    var_masks = [rvecs_cams_mask, tvecs_cams_mask, cam_matrices_mask, ks_mask, rvecs_boards_mask, tvecs_boards_mask]
 
     obj_fcn_jacobian = [
-        np.array(args['precalc']['jacobians'][i_var](
-            rvecs_cams,
-            tvecs_cams,
-            cam_matrices,
-            ks,
-            rvecs_boards,
-            tvecs_boards,
-            board_coords_3d_0,
-            corners
-        ).reshape(corners.shape + (-1,))  # Ravel over input dimensions
-                 ) for i_var in range(6)]
+        np.array(
+            args['precalc']['jacobians'][i_var](
+                rvecs_cams,
+                tvecs_cams,
+                cam_matrices,
+                ks,
+                rvecs_boards,
+                tvecs_boards,
+                board_coords_3d_0,
+                corners
+            ).reshape(corners.shape + (-1,))  # Ravel over input dimensions
+        ) if np.any(var_masks[i_var]) else np.zeros(shape=corners.shape + (var_masks[i_var].size,))
+        for i_var in range(6)
+    ]
 
     # TODO: Find out why Jacobian of coord_cam pose values is nan ...
     obj_fcn_jacobian[0][args['coord_cam']] = 0

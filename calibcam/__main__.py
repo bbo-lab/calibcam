@@ -25,7 +25,7 @@ def main():
     opts = {}
     if args.optimize_only is not None:
         opts['optimize_only'] = args.optimize_only
-    if args.optimize_only is not None:
+    if args.numerical_jacobian is not None:
         opts['numerical_jacobian'] = args.numerical_jacobian
     if args.frame_skip[0] is not None:
         opts['frame_skip'] = args.frame_skip[0]

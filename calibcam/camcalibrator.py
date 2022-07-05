@@ -13,13 +13,13 @@ from ccvtools import rawio  # noqa
 import multiprocessing
 from joblib import Parallel, delayed
 
+from calibcam.camfunctions import test_objective_function, make_optim_input
 from calibcam.detection import detect_corners
 from calibcam.exceptions import *
-from calibcam import helper, camfunctions, board, optimization, compatibility
+from calibcam import helper, camfunctions, board, compatibility
 
 from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
-
 
 class CamCalibrator:
     def __init__(self, recordings, board_name=None, data_path=None, opts=None):
@@ -139,17 +139,42 @@ class CamCalibrator:
                                        other={'calibs_single': calibs_single})
             self.save_multicalibration(result, 'preoptim')
 
-        print('OPTIMIZING POSES')
+        if self.opts['debug']:
+            args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
+            test_objective_function(calibs_multi, vars_free, args, corners, self.board_params, individual_poses=True)
 
+        print('OPTIMIZING ALL POSES')
         # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
-
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_poses(corners, calibs_multi)
-        calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
 
-        print('OPTIMIZING ALL PARAMETERS')
+        if self.opts['debug']:
+            calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
+            test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params, individual_poses=True)
 
-        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
-            self.optimize_calibration(corners, calibs_fit)
+        print('OPTIMIZING ALL PARAMETERS I')
+        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
+
+        # According to tests with good calibration recordings, the following steps are unnecessary and optimality was
+        #  already reached in the previous step
+        if self.opts["optimize_board_poses"]:
+            if self.opts['debug']:
+                calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
+                test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params, individual_poses=True)
+
+            print('OPTIMIZING BOARD POSES')
+            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_board_poses(corners, calibs_fit)
+            calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
+
+            if self.opts['debug']:
+                args, vars_free = make_optim_input(self.board_params, calibs_fit, corners, self.opts)
+                test_objective_function(calibs_fit, vars_free, args, corners, self.board_params, individual_poses=True)
+
+            print('OPTIMIZING ALL PARAMETERS II')
+            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
+            # No board poses in final calibration!
+
+        calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
+        test_objective_function(calibs_test, min_result.x, args, corners, self.board_params, individual_poses=True)
 
         result = self.build_result(calibs_fit,
                                    corners=corners, used_frames_ids=used_frames_ids,
@@ -200,7 +225,7 @@ class CamCalibrator:
             'rvec_cam': np.asarray([0., 0., 0.]),
             'tvec_cam': np.asarray([0., 0., 0.]),
             'A': np.asarray(A),
-            'k': np.asarray(k),
+            'k': np.asarray(k).ravel(),
             'rvecs': np.asarray(rvecs),
             'tvecs': np.asarray(tvecs),
             'repro_error': retval,  # Not that from here on values are NOT expanded to full frames range, see frames_mask
@@ -250,24 +275,45 @@ class CamCalibrator:
         pose_opts['free_vars']['k'][:] = False
 
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
-            camfunctions.optimize_calib_parameters(corners, calibs_multi, board_params,
-                                                   [camfunctions.get_header_from_reader(r)["offset"] for r in self.readers],
-                                                   opts=pose_opts)
+            camfunctions.optimize_calib_parameters(corners, calibs_multi, board_params, opts=pose_opts)
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
-    def optimize_calibration(self, corners, calibs_multi, opts=None, board_params=None, readers=None):
+    def optimize_board_poses(self, corners, calibs_multi, opts=None, board_params=None):
         if opts is None:
             opts = self.opts
         if board_params is None:
             board_params = self.board_params
-        if readers is None:
-            readers = self.readers
+
+        pose_opts = deepcopy(opts)
+        pose_opts['free_vars']['cam_pose'] = False
+        pose_opts['free_vars']['A'][:] = False
+        pose_opts['free_vars']['k'][:] = False
+
+        calibs_multi_pose = deepcopy(calibs_multi)
+        rvecs_boards = calibs_multi[0]["rvecs"]
+        tvecs_boards = calibs_multi[0]["tvecs"]
+        print(f"Optimizing {len(calibs_multi[0]['rvecs'])} poses: ", end='')
+        for i_pose in range(len(calibs_multi[0]["rvecs"])):
+            print(".", end='', flush=True)
+            corners_pose = corners[:, [i_pose]]
+            for calib, calib_orig in zip(calibs_multi_pose, calibs_multi):
+                calib["rvecs"] = calib_orig["rvecs"][[i_pose]]
+                calib["tvecs"] = calib_orig["tvecs"][[i_pose]]
+
+            calibs_fit_pose, rvecs_boards[i_pose], tvecs_boards[i_pose], min_result, args = \
+                camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_params, opts=pose_opts, verbose=0)
+        print()
+        return calibs_fit_pose, rvecs_boards, tvecs_boards, min_result, args
+
+    def optimize_calibration(self, corners, calibs_multi, opts=None, board_params=None):
+        if opts is None:
+            opts = self.opts
+        if board_params is None:
+            board_params = self.board_params
 
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
-            camfunctions.optimize_calib_parameters(corners, calibs_multi, board_params,
-                                                   [camfunctions.get_header_from_reader(r)["offset"] for r in readers],
-                                                   opts=opts)
+            camfunctions.optimize_calib_parameters(corners, calibs_multi, board_params, opts=opts)
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
@@ -288,7 +334,7 @@ class CamCalibrator:
         if corners is None:
             corners = []
         result = {
-            'version': 2.1,  # Increase when this structure changes
+            'version': 2.2,  # Increase when this structure changes
             'calibs': calibs,
             # This field shall always hold all intrinsically necessary information to project and triangulate.
             'board_params': self.board_params,  # All parameters to recreate the board

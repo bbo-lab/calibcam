@@ -8,21 +8,22 @@ def get_default_opts():
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'frame_skip': 0,  # Skip frames in recording
         'allow_unequal_n_frame': False,  # Sometimes last frame is cut, so this may be okay.
-        'common_pose_r_err': 0.1,    # Iteratively exclude poses with higher rotation deviation from mean
+        'common_pose_r_err': 0.1,  # Iteratively exclude poses with higher rotation deviation from mean
         'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
-        'optimize_only': False,  # Do not perform detection and single cam calibration. (Disable mostly for development.)
+        'optimize_only': False,
+        # Do not perform detection and single cam calibration. (Disable mostly for development.)
         'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
-        'optimize_board_poses': True,  # Optimize individual board poses
+        'optimize_board_poses': False,  # Optimize individual board poses then all params again. In a test,
+                                        #  optimality was already reached after a first general optimization
         'free_vars': {
             'cam_pose': True,
             'board_poses': True,
-            'A': np.asarray([[True,  False, True],   # a   c   u   (c is skew and should not be necessary)
-                             [False, True,  True],   # 0   b   v
+            'A': np.asarray([[True, False, True],  # a   c   u   (c is skew and should not be necessary)
+                             [False, True, True],  # 0   b   v
                              [False, False, False],  # 0   0   1
                              ]),
-            'k': np.asarray([True, True, False, False, False]),  # This also determines the supported degree of
-                                                                 # distortion. Others will be set to 0.
+            'k': np.asarray([1, 1, -1, -1, -1]),  # 1: optimize, 0: leave const, -1: force 0
         },
         'detection': {
             'inter_frame_dist': 0.0,

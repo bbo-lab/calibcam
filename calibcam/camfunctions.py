@@ -7,19 +7,68 @@ from calibcam import optimization, board, helper, calibrator_opts
 from calibcam.exceptions import *
 
 
-def optimize_calib_parameters(corners, calibs_multi, board_params, offsets, opts=None):
+def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, verbose=None):
     if opts is None:
         opts = {}
+
     defaultopts = calibrator_opts.get_default_opts()
     opts = helper.deepmerge_dicts(opts, defaultopts)
 
+    if verbose is None:
+        verbose = opts['optimization']['verbose']
+    else:
+        opts['optimization']['verbose'] = verbose
+
     start_time = timeit.default_timer()
 
+    args, vars_free = make_optim_input(board_params, calibs_multi, corners, opts)
+
+    # This triggers JIT compilation
+    optimization.obj_fcn_wrapper(vars_free, args)
+    # This times
+    tic = timeit.default_timer()
+    result = optimization.obj_fcn_wrapper(vars_free, args)
+    if verbose > 1 and opts['debug']:
+        print(
+            f"Objective function took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals. Shape {result.shape}.")
+
+    if opts['numerical_jacobian']:
+        jac = '2-point'
+    else:
+        jac = optimization.obj_fcn_jacobian_wrapper
+        if verbose > 1 and opts['debug']:
+            # This triggers JIT compilation
+            jac(vars_free, args)
+            # This times
+            tic = timeit.default_timer()
+            result = jac(vars_free, args)
+            print(
+                f"Jacobian took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals. Shape {result.shape}.")
+
+    if verbose > 1:
+        print('Starting optimization procedure')
+
+    min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
+                                               vars_free,
+                                               jac=jac,
+                                               bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
+                                               args=[args],
+                                               **opts['optimization'])
+
+    if verbose > 1:
+        current_time = timeit.default_timer()
+        print('Optimization algorithm converged:\t{:s}'.format(str(min_result.success)))
+        print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
+
+    calibs_fit, rvecs_boards, tvecs_boards = optimization.unravel_to_calibs(min_result.x, args)
+
+    return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
+
+
+def make_optim_input(board_params, calibs_multi, corners, opts):
     board_coords_3d_0 = board.make_board_points(board_params)
-
     # Generate vectors of all and of free variables
-    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, corners, board_params, offsets, opts)
-
+    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, corners, board_params, opts)
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
         'mask_opt': mask_free_input,  # Mask of free vars within all vars
@@ -36,59 +85,7 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, offsets, opts
         #     'calibs': calibs_fit,
         # }
     }
-
-    # This triggers JIT compilation
-    optimization.obj_fcn_wrapper(vars_free, args)
-    # This times
-    tic = timeit.default_timer()
-    result = optimization.obj_fcn_wrapper(vars_free, args)
-    print(
-        f"Objective function took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals. Shape {result.shape}.")
-
-    if opts['numerical_jacobian']:
-        jac = '2-point'
-    else:
-        jac = optimization.obj_fcn_jacobian_wrapper
-        # This triggers JIT compilation
-        jac(vars_free, args)
-        # This times
-        tic = timeit.default_timer()
-        result = jac(vars_free, args)
-        print(
-            f"Jacobian took {timeit.default_timer() - tic} s: squaresum {np.sum(result ** 2)} over {result.size} residuals. Shape {result.shape}.")
-
-    # Check quality of calibration, tested working (requires calibcamlib >=0.2.3 on path)
-    test_objective_function(calibs_multi, vars_free, args, corners, board_params, offsets)
-
-    print('Starting optimization procedure')
-    # TODO Test if alternating optimization between camera parameters and poses with a breaking critierion on camera
-    #  params could be more efficient ... I think often cam params are optimal quite quickly and the opimization runs on
-    #  some rougue poses ...
-    min_result: OptimizeResult = least_squares(optimization.obj_fcn_wrapper,
-                                               vars_free,
-                                               jac=jac,
-                                               bounds=np.array([[-np.inf, np.inf]] * vars_free.size).T,
-                                               args=[args],
-                                               **opts['optimization'])
-
-    current_time = timeit.default_timer()
-    print('Optimization algorithm converged:\t{:s}'.format(str(min_result.success)))
-    print('Time needed:\t\t\t\t{:.0f} seconds'.format(current_time - start_time))
-
-    calibs_fit, rvecs_boards, tvecs_boards = optimization.unravel_to_calibs(min_result.x, args)
-
-    # We don't include poses in the calibs_fit dictionary, as the final calibration structure should be independent
-    #  of the calibration process
-    calibs_test = [
-        calibs_fit[i_cam] | {
-            'rvecs': rvecs_boards,
-            'tvecs': tvecs_boards,
-        }
-        for i_cam in range(len(calibs_fit))
-    ]
-    test_objective_function(calibs_test, min_result.x, args, corners, board_params, offsets, individual_poses=True)
-
-    return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
+    return args, vars_free
 
 
 def get_n_frames_from_reader(reader):
@@ -124,7 +121,7 @@ def get_header_from_reader(reader):
     return header
 
 
-def test_objective_function(calibs, vars_free, args, corners_detection, board_params, offsets, individual_poses=False):
+def test_objective_function(calibs, vars_free, args, corners_detection, board_params, individual_poses=False):
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
@@ -142,7 +139,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
             tvecs_board = calibs[i_cam]['tvecs'].reshape(-1, 3)
         # This calculates from common camera board estimations
         else:
-            pose_params = optimization.make_common_pose_params(calibs, corners_detection, board_params, offsets)
+            pose_params = optimization.make_common_pose_params(calibs, corners_detection, board_params)
             rvecs_board = pose_params[0].reshape(-1, 3)
             tvecs_board = pose_params[1].reshape(-1, 3)
 
