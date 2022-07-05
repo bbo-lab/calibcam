@@ -11,7 +11,7 @@ print(packages)
 # This call to setup() does all the work
 setup(
     name="bbo-calibcam",
-    version="2.1.3",
+    version="2.1.4",
     description="Calibrate intrinsic and extrinsic parameters of cameras with charuco boards",
     long_description=README,
     long_description_content_type="text/markdown",
