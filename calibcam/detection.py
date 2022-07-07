@@ -97,17 +97,14 @@ def detect_corners_cam(video, opts, board_params):
         #  Alternatively, in videos with a too high framerate, we could just use a frameskip.
         used_frame_ids = np.where(frames_masks)[0]
         if len(used_frame_ids) > 0:
-            last_used_frame_idx = used_frame_ids[-1]
-
-            ids_common = np.intersect1d(ids_cam[last_used_frame_idx], charuco_ids)
+            ids_common = np.intersect1d(ids_cam[-1], charuco_ids)
 
             if helper.check_detections_nondegenerate(board_params['boardWidth'], ids_common):
-                prev_mask = np.isin(ids_cam[last_used_frame_idx], ids_common)
+                prev_mask = np.isin(ids_cam[-1], ids_common)
                 curr_mask = np.isin(charuco_ids, ids_common)
 
-                diff = corners_cam[last_used_frame_idx][prev_mask] - charuco_corners[curr_mask]
+                diff = corners_cam[-1][prev_mask] - charuco_corners[curr_mask]
                 dist = np.sqrt(np.sum(diff ** 2, 1))
-                print(dist)
 
                 if np.max(dist) < opts['detection']['inter_frame_dist']:
                     continue
