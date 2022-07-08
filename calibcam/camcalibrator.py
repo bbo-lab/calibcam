@@ -21,8 +21,9 @@ from calibcam import helper, camfunctions, board, compatibility
 from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
 
+
 class CamCalibrator:
-    def __init__(self, recordings, board_name=None, data_path=None, opts=None):
+    def __init__(self, recordings, board_name=None, data_path=None, calibs_init=None, opts=None):
         if opts is None:
             opts = {}
 
@@ -43,8 +44,14 @@ class CamCalibrator:
 
         # Options
         self.opts = {}
-        self.load_opts(opts, self.data_path)
+        self.opts = self.load_opts(opts, self.data_path)
+
+        # Recordings
         self.load_recordings(recordings)
+
+        # Calibs initialization
+        self.calibs_init = None
+        self.calibs_init = self.load_calibs_init(calibs_init, self.data_path)
 
         return
 
@@ -55,12 +62,22 @@ class CamCalibrator:
             board_params = board.get_board_params(Path(self.rec_file_names[0]).parent)
         return board_params
 
-    def load_opts(self, opts, data_path=None):
+    @staticmethod
+    def load_calibs_init(calibs_init, data_path=None):
+        calib_init_path = data_path + "/multicam_calibration.npy"
+        if calibs_init is None and data_path is not None and os.path.isfile(calib_init_path):
+            print(f"Loading initialization from {calib_init_path}")
+            calibs_init = np.load(calib_init_path, allow_pickle=True).item()["calibs"]
+
+        return calibs_init
+
+    @staticmethod
+    def load_opts(opts, data_path=None):
         if data_path is not None and os.path.isfile(data_path + "/opts.npy"):
             fileopts = np.load(data_path + "/opts.npy", allow_pickle=True).item()
             opts = helper.deepmerge_dicts(opts, fileopts)
 
-        self.opts = helper.deepmerge_dicts(opts, get_default_opts())
+        return helper.deepmerge_dicts(opts, get_default_opts())
 
     def load_recordings(self, recordings):
         # check if input files are valid files
@@ -97,10 +114,10 @@ class CamCalibrator:
     def perform_multi_calibration(self):
         n_corners = (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1)
         required_corner_idxs = [0,
-                            self.board_params["boardWidth"] - 1,
-                            (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
-                            (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
-                            ]  # Corners that we require to be detected for pose estimation
+                                self.board_params["boardWidth"] - 1,
+                                (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
+                                (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
+                                ]  # Corners that we require to be detected for pose estimation
         if self.opts["optimize_only"]:  # We expect that detections and single cam calibs are already present
             preoptim = np.load(self.data_path + '/preoptim.npy', allow_pickle=True)[()]
             preoptim = compatibility.update_preoptim(preoptim, n_corners)
@@ -125,7 +142,7 @@ class CamCalibrator:
                 detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
 
             # perform single calibration
-            calibs_single = self.perform_single_cam_calibrations(corners)
+            calibs_single = self.perform_single_cam_calibrations(corners, calibs_init=self.calibs_init)
 
             # analytically estimate initial camera poses
             calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
@@ -159,7 +176,8 @@ class CamCalibrator:
         if self.opts["optimize_board_poses"]:
             if self.opts['debug']:
                 calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-                test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params, individual_poses=True)
+                test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
+                                        individual_poses=True)
 
             print('OPTIMIZING BOARD POSES')
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_board_poses(corners, calibs_fit)
@@ -192,9 +210,10 @@ class CamCalibrator:
         return
 
     @staticmethod
-    def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=None):
+    def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=None, calib_init=None):
         if mask is None:
-            mask = np.sum(~np.isnan(corners_cam[:, :, 1]), axis=1) > 0  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
+            mask = np.sum(~np.isnan(corners_cam[:, :, 1]),
+                          axis=1) > 0  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
 
         n_used_frames = np.sum(mask)
 
@@ -204,19 +223,26 @@ class CamCalibrator:
         corners_nn = corners_cam[mask]
         corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)
 
+        if calib_init is not None:
+            A = calib_init['A']
+            k = calib_init['k']
+        else:
+            A = None
+            k = None
+
         cal_res = cv2.aruco.calibrateCameraCharucoExtended(corners_use,  # noqa
                                                            ids_use,
                                                            board.make_board(board_params),
                                                            sensor_size,
-                                                           None,
-                                                           None,
+                                                           A,
+                                                           k,
                                                            **opts['detection']['aruco_calibration'])
 
         rvecs = np.empty(shape=(mask.size, 3))
         rvecs[:] = np.NaN
         tvecs = np.empty(shape=(mask.size, 3))
         tvecs[:] = np.NaN
-        retval, A, k,  = cal_res[0:3]
+        retval, A, k, = cal_res[0:3]
 
         rvecs[mask, :] = np.asarray(cal_res[3])[..., 0]
         tvecs[mask, :] = np.asarray(cal_res[4])[..., 0]
@@ -228,7 +254,8 @@ class CamCalibrator:
             'k': np.asarray(k).ravel(),
             'rvecs': np.asarray(rvecs),
             'tvecs': np.asarray(tvecs),
-            'repro_error': retval,  # Not that from here on values are NOT expanded to full frames range, see frames_mask
+            'repro_error': retval,
+            # Not that from here on values are NOT expanded to full frames range, see frames_mask
             'std_intrinsics': cal_res[5],
             'std_extrinsics': cal_res[6],
             'per_view_errors': cal_res[7],
@@ -237,8 +264,11 @@ class CamCalibrator:
         print('Finished single camera calibration.')
         return cal
 
-    def perform_single_cam_calibrations(self, corners):
+    def perform_single_cam_calibrations(self, corners, calibs_init=None):
         print('PERFORM SINGLE CAMERA CALIBRATION')
+
+        if calibs_init is None:
+            calibs_init = [None for i in corners]
 
         # calibs_single = [self.calibrate_single_camera(corners[i_cam],
         #                                               camfunctions.get_header_from_reader(self.readers[i_cam])['sensorsize'],
@@ -251,7 +281,8 @@ class CamCalibrator:
                                                   camfunctions.get_header_from_reader(self.readers[i_cam])[
                                                       'sensorsize'],
                                                   self.board_params,
-                                                  self.opts)
+                                                  self.opts,
+                                                  calib_init=calibs_init[i_cam])
             for i_cam in range(len(self.readers)))
 
         for i_cam, calib in enumerate(calibs_single):
@@ -302,7 +333,8 @@ class CamCalibrator:
                 calib["tvecs"] = calib_orig["tvecs"][[i_pose]]
 
             calibs_fit_pose, rvecs_boards[i_pose], tvecs_boards[i_pose], min_result, args = \
-                camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_params, opts=pose_opts, verbose=0)
+                camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_params, opts=pose_opts,
+                                                       verbose=0)
         print()
         return calibs_fit_pose, rvecs_boards, tvecs_boards, min_result, args
 
