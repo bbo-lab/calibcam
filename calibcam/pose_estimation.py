@@ -2,6 +2,7 @@ import numpy as np
 from copy import deepcopy
 from scipy.spatial.transform import Rotation as R  # noqa
 
+
 def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=None):
     calibs = deepcopy(calibs_single)
 
@@ -23,10 +24,6 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
     #         if np.isnan(cr[i_cam, 0]):
 
     full_set_idxs = np.where(np.all(~np.isnan(per_pose_crs[:, :, 0]), axis=0))[0]
-
-
-
-
 
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
@@ -72,7 +69,7 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
                 frames_masks_req_ori[
                     common_frame_idxs[
                         np.argmax(np.sum(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=1))
-                        ]
+                    ]
                 ] = False
 
             # Determine common frames

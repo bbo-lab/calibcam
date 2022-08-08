@@ -29,7 +29,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
 
     if return_matrix:
         return helper.make_corners_array(corners_all, ids_all, (board_params["boardWidth"] - 1) * (
-                        board_params["boardHeight"] - 1), frames_masks), np.where(np.any(frames_masks, axis=0))[0]
+                board_params["boardHeight"] - 1), frames_masks), np.where(np.any(frames_masks, axis=0))[0]
     else:
         return corners_all, ids_all, frames_masks
 
@@ -43,7 +43,7 @@ def detect_corners_cam(video, opts, board_params):
 
     # Detect corners over cams
     for (i_frame, frame) in enumerate(islice(reader, 0, None, opts["frame_step"])):
-        i_frame = i_frame*opts["frame_step"]
+        i_frame = i_frame * opts["frame_step"]
 
         # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:

@@ -42,6 +42,7 @@ def deepmerge_dicts(source, destination):
 
     return destination
 
+
 def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
     used_frames_mask = np.any(frames_masks, axis=0)
     used_frame_idxs = np.where(used_frames_mask)[0]
@@ -70,13 +71,16 @@ def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
 
 
 def corners_array_to_ragged(corners_array):
+    corner_shape = corners_array.shape[2]
+
     ids_use = [np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1, 1) for c in corners_array]
-    corners_use = [c[i, :].reshape(-1, 1, 2) for c, i in zip(corners_array, ids_use)]
+    corners_use = [c[i, :].astype(np.float32).reshape(-1, 1, corner_shape) for c, i in zip(corners_array, ids_use)]
 
     return corners_use, ids_use
 
 
 def build_v1_result(result):
+    # TODO: should include xi
     return {
         'A_fit': np.array([c['A'] for c in result['calibs']]),
         'k_fit': np.array([c['k'] for c in result['calibs']]),
@@ -97,4 +101,3 @@ def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards, copy=Fal
         calib['tvecs'] = tvecs_boards
 
     return calibs
-        
