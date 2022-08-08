@@ -6,12 +6,14 @@ import timeit
 from calibcam import optimization, board, helper, calibrator_opts
 from calibcam.exceptions import *
 
+import sys
+
 
 def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, verbose=None):
     if opts is None:
         opts = {}
 
-    defaultopts = calibrator_opts.get_default_opts()
+    defaultopts = calibrator_opts.get_default_opts(opts.get('model', "pinhole"))
     opts = helper.deepmerge_dicts(opts, defaultopts)
 
     if verbose is None:
@@ -121,8 +123,14 @@ def get_header_from_reader(reader):
     return header
 
 
-def test_objective_function(calibs, vars_free, args, corners_detection, board_params, individual_poses=False):
-    from calibcamlib import Camerasystem
+def test_objective_function(model, calibs, vars_free, args, corners_detection, board_params, individual_poses=False):
+    sys.path.insert(0, "/home/cheekoti_la/Downloads/github/calibcamlib_po")
+
+    if model == "omnidir":
+        from calibcamlib import OmniCamerasystem as camsys
+    else:
+        from calibcamlib import Camerasystem as camsys
+
     from scipy.spatial.transform import Rotation as R  # noqa
 
     residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
@@ -130,7 +138,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
 
     corners_cameralib = np.empty_like(residuals_objfun)
     corners_cameralib[:] = np.NaN
-    cs = Camerasystem.from_calibs(calibs)
+    cs = camsys.from_calibs(calibs)
     board_points = board.make_board_points(board_params)
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
@@ -139,7 +147,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
             tvecs_board = calibs[i_cam]['tvecs'].reshape(-1, 3)
         # This calculates from common camera board estimations
         else:
-            pose_params = optimization.make_common_pose_params(calibs, corners_detection, board_params)
+            pose_params = optimization.make_common_pose_params(model, calibs, corners_detection, board_params)
             rvecs_board = pose_params[0].reshape(-1, 3)
             tvecs_board = pose_params[1].reshape(-1, 3)
 
