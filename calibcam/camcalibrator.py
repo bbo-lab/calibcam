@@ -119,7 +119,7 @@ class CamCalibrator:
     def perform_multi_calibration(self):
         n_corners = (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1)
         required_corner_idxs = [0,
-                                self.board_params["boardWidth"] - 1,
+                                self.board_params["boardWidth"] - 2,
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
                                 ]  # Corners that we require to be detected for pose estimation
@@ -344,6 +344,7 @@ class CamCalibrator:
 
         # savemat cannot deal with none!
         if min_result is not None:
+            result['info']['fun_final'] = min_result.fun
             result['info']['cost_val_final'] = min_result.cost
             result['info']['optimality_final'] = min_result.optimality
 

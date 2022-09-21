@@ -83,6 +83,7 @@ def calibrate_omnidir_camera(corners_cam, sensor_size, board_params, opts, mask=
     object_points_cam[:] = board.make_board_points(board_params)
 
     corners_nn = corners_cam[mask]
+
     mask_2 = np.isnan(corners_nn[:, :, 1])
     object_points_nn = object_points_cam[mask]
     object_points_nn[mask_2] = np.nan

@@ -32,6 +32,13 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
     frames_masks_req = get_required_corners_masks(corners=corners,
                                                   required_corner_idxs=required_corner_idxs)
 
+    # Opencv omnidirectional camera calibration does not calculate extrisic paraemters for all the frames. In such case,
+    # it is necessary to omit such frames from estimating camera poses.
+    frames_rs_calcd = [calib["frames_mask"] for calib in calibs_single]
+    frames_rs_calcd = np.all(np.asarray(frames_rs_calcd), axis=0)
+
+    frames_masks_req = frames_masks_req & frames_rs_calcd
+
     # n_cam x n_cam matrix of frames between two cams
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
 
