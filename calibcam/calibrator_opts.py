@@ -2,9 +2,9 @@ import cv2
 import numpy as np
 
 
-def get_default_opts(model: str):
+def get_default_opts(model="pinhole"):
+
     default_opts = {
-        'model': model,  # "pinhole" or "omnidir"
         'debug': True,  # Will enable advanced tests and outputs
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'frame_step': 1,  # Skip frames in recording
@@ -78,11 +78,13 @@ def get_free_vars(model: str):
 
 def get_flags(model: str):
     if model == "pinhole":
-        return (cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3)
+        return cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3
     else:
         # "omnidir"
         # return (cv2.omnidir.CALIB_FIX_P1 + cv2.omnidir.CALIB_FIX_P2)
-        return cv2.omnidir.CALIB_FIX_SKEW  # Should be set to None, if no flags are to be used. But None is causing error with scipy_io_savemat
+
+        # Should be set to None or 0, if no flags are to be used. Use 0, None is causing error with scipy_io_savemat
+        return cv2.omnidir.CALIB_FIX_SKEW
 
 
 def get_detector_parameters_opts():

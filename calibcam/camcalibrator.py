@@ -50,10 +50,6 @@ class CamCalibrator:
         # Recordings
         self.load_recordings(recordings)
 
-        # Model
-        # TODO: Keep it or remove it
-        self.model = opts.get('model', "pinhole")
-
         # Calibs initialization
         self.calibs_init = None
         self.calibs_init = self.load_calibs_init(calibs_init, self.data_path)
@@ -82,7 +78,7 @@ class CamCalibrator:
             fileopts = np.load(data_path + "/opts.npy", allow_pickle=True).item()
             opts = helper.deepmerge_dicts(opts, fileopts)
 
-        return helper.deepmerge_dicts(opts, get_default_opts(opts['model']))
+        return helper.deepmerge_dicts(opts, get_default_opts())
 
     def load_recordings(self, recordings):
         # check if input files are valid files
@@ -163,7 +159,7 @@ class CamCalibrator:
 
         if self.opts['debug']:
             args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
-            test_objective_function(self.model, calibs_multi, vars_free, args, corners, self.board_params,
+            test_objective_function(calibs_multi, vars_free, args, corners, self.board_params,
                                     individual_poses=True)
 
         print('OPTIMIZING ALL POSES')
@@ -172,7 +168,7 @@ class CamCalibrator:
 
         if self.opts['debug']:
             calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-            test_objective_function(self.model, calibs_fit, min_result.x, args, corners, self.board_params,
+            test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
                                     individual_poses=True)
 
         print('OPTIMIZING ALL PARAMETERS I')
@@ -183,7 +179,7 @@ class CamCalibrator:
         if self.opts["optimize_board_poses"]:
             if self.opts['debug']:
                 calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-                test_objective_function(self.model, calibs_fit, min_result.x, args, corners, self.board_params,
+                test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
                                         individual_poses=True)
 
             print('OPTIMIZING BOARD POSES')
@@ -192,7 +188,7 @@ class CamCalibrator:
 
             if self.opts['debug']:
                 args, vars_free = make_optim_input(self.board_params, calibs_fit, corners, self.opts)
-                test_objective_function(self.model, calibs_fit, vars_free, args, corners, self.board_params,
+                test_objective_function(calibs_fit, vars_free, args, corners, self.board_params,
                                         individual_poses=True)
 
             print('OPTIMIZING ALL PARAMETERS II')
@@ -200,7 +196,7 @@ class CamCalibrator:
             # No board poses in final calibration!
 
         calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
-        test_objective_function(self.model, calibs_test, min_result.x, args, corners, self.board_params,
+        test_objective_function(calibs_test, min_result.x, args, corners, self.board_params,
                                 individual_poses=True)
 
         result = self.build_result(calibs_fit,
@@ -231,12 +227,12 @@ class CamCalibrator:
         #                  for i_cam in range(len(self.readers))]
         print(int(np.floor(multiprocessing.cpu_count())))
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-            delayed(calibrate_single_camera(self.model))(corners[i_cam],
-                                                         camfunctions.get_header_from_reader(self.readers[i_cam])[
-                                                             'sensorsize'],
-                                                         self.board_params,
-                                                         self.opts,
-                                                         calib_init=calibs_init[i_cam])
+            delayed(calibrate_single_camera)(corners[i_cam],
+                                             camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                                 'sensorsize'],
+                                             self.board_params,
+                                             self.opts,
+                                             calib_init=calibs_init[i_cam])
             for i_cam in range(len(self.readers)))
 
         for i_cam, calib in enumerate(calibs_single):
@@ -323,7 +319,6 @@ class CamCalibrator:
             corners = []
         result = {
             'version': 2.2,  # Increase when this structure changes
-            'model': self.model,
             'calibs': calibs,
             # This field shall always hold all intrinsically necessary information to project and triangulate.
             'board_params': self.board_params,  # All parameters to recreate the board

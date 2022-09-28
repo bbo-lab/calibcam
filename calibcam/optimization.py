@@ -68,7 +68,7 @@ def make_initialization(calibs, corners, board_params, opts):
     # camera_params are raveled with first all rvecs, then tvecs, then A, then k
     camera_params = make_cam_params(calibs, opts_free_vars)
     # pose_params are raveled with first all rvecs and then all tvecs
-    pose_params = make_common_pose_params(opts['model'], calibs, corners, board_params).ravel()
+    pose_params = make_common_pose_params(calibs, corners, board_params).ravel()
 
     vars_full = np.concatenate((camera_params, pose_params), axis=0)
     mask_free_input = make_free_parameter_mask(calibs, opts_free_vars, opts['coord_cam'])
@@ -107,17 +107,14 @@ def make_cam_params(calibs, opts_free_vars):
     return camera_params
 
 
-def make_common_pose_params(model, calibs, corners_array, board_params):
+def make_common_pose_params(calibs, corners_array, board_params):
     pose_params = np.zeros(shape=(2, corners_array.shape[1], 3))
 
     # Decide which of the n_cam pose estimation from each frame to use based on reprojection error
     repro_errors = np.zeros(shape=len(calibs))
-    if model == "omnidir":
-        cs = calibcamlib.OmniCamerasystem.from_calibs(calibs)
-    else:
-        cs = calibcamlib.Camerasystem.from_calibs(calibs)
-
+    cs = calibcamlib.Camerasystem.from_calibs(calibs)
     offsets = np.zeros(shape=(len(calibs), 2))  # Offsets were previously removed from corners
+
     for i_pose in range(pose_params.shape[1]):
         for i_cam, calib in enumerate(calibs):
             proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board.make_board_points(board_params))
@@ -128,6 +125,7 @@ def make_common_pose_params(model, calibs, corners_array, board_params):
 
         # OpenCV omnidirectional camera calibration sometimes does not provide rvecs and tvecs for certain frames
         # when it fails to initialise.
+        # TODO: Clean it if possible
         if (~np.isnan(repro_errors)).sum() == 0:
             if i_pose != 0:
                 # Consecutive frames are generally similar and so are rvecs and tvecs

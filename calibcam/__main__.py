@@ -23,7 +23,7 @@ def main():
     args = parser.parse_args()
 
     # Fill options. These options supersede everything (defaults, saved file)
-    opts = {'model': args.model}
+    opts = {}
     if args.optimize_only is not None:
         opts['optimize_only'] = args.optimize_only
     if args.numerical_jacobian is not None:
