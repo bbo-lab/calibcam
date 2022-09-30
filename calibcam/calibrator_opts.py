@@ -81,9 +81,8 @@ def get_flags(model: str):
         return cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3
     else:
         # "omnidir"
-        # return (cv2.omnidir.CALIB_FIX_P1 + cv2.omnidir.CALIB_FIX_P2)
-
         # Should be set to None or 0, if no flags are to be used. Use 0, None is causing error with scipy_io_savemat
+        # return (cv2.omnidir.CALIB_FIX_P1 + cv2.omnidir.CALIB_FIX_P2)
         return cv2.omnidir.CALIB_FIX_SKEW
 
 

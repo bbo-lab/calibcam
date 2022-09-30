@@ -112,7 +112,8 @@ def make_common_pose_params(calibs, corners_array, board_params):
 
     # Decide which of the n_cam pose estimation from each frame to use based on reprojection error
     repro_errors = np.zeros(shape=len(calibs))
-    cs = calibcamlib.Camerasystem.from_calibs(calibs)
+    # cs = calibcamlib.Camerasystem.from_calibs(calibs)
+    cs = calibcamlib.OmniCamerasystem.from_calibs(calibs)  # TODO: Remove it later
     offsets = np.zeros(shape=(len(calibs), 2))  # Offsets were previously removed from corners
 
     for i_pose in range(pose_params.shape[1]):
@@ -125,8 +126,11 @@ def make_common_pose_params(calibs, corners_array, board_params):
 
         # OpenCV omnidirectional camera calibration sometimes does not provide rvecs and tvecs for certain frames
         # when it fails to initialise.
-        # TODO: Clean it if possible
-        if (~np.isnan(repro_errors)).sum() == 0:
+        if np.any(~np.isnan(repro_errors)):
+            pose_params[0, i_pose, :] = calibs[np.nanargmin(repro_errors)]['rvecs'][i_pose].ravel()
+            pose_params[1, i_pose, :] = calibs[np.nanargmin(repro_errors)]['tvecs'][i_pose].ravel()
+
+        else:
             if i_pose != 0:
                 # Consecutive frames are generally similar and so are rvecs and tvecs
                 pose_params[0, i_pose, :] = np.copy(pose_params[0, i_pose - 1, :])
@@ -134,10 +138,6 @@ def make_common_pose_params(calibs, corners_array, board_params):
             else:
                 # Arbitrary vector
                 pose_params[0, i_pose, :] = pose_params[1, i_pose, :] = np.array([1.0, 0.0, 0.0])
-            continue
-
-        pose_params[0, i_pose, :] = calibs[np.nanargmin(repro_errors)]['rvecs'][i_pose].ravel()
-        pose_params[1, i_pose, :] = calibs[np.nanargmin(repro_errors)]['tvecs'][i_pose].ravel()
 
     return pose_params
 
