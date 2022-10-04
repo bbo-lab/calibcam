@@ -11,7 +11,7 @@ import sys
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
 sys.path.insert(0, "/home/cheekoti_la/Downloads/github/calibcamlib_po")
 import calibcamlib
-from calibcam import board
+from calibcam import board, helper
 from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, obj_fcn_jacobian_wrapper_sparse, \
     get_precalc  # noqa
 from scipy.spatial.transform import Rotation as R  # noqa
@@ -116,6 +116,7 @@ def make_common_pose_params(calibs, corners_array, board_params):
     cs = calibcamlib.OmniCamerasystem.from_calibs(calibs)  # TODO: Remove it later
     offsets = np.zeros(shape=(len(calibs), 2))  # Offsets were previously removed from corners
 
+    pose_params_calcd = []
     for i_pose in range(pose_params.shape[1]):
         for i_cam, calib in enumerate(calibs):
             proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board.make_board_points(board_params))
@@ -129,15 +130,16 @@ def make_common_pose_params(calibs, corners_array, board_params):
         if np.any(~np.isnan(repro_errors)):
             pose_params[0, i_pose, :] = calibs[np.nanargmin(repro_errors)]['rvecs'][i_pose].ravel()
             pose_params[1, i_pose, :] = calibs[np.nanargmin(repro_errors)]['tvecs'][i_pose].ravel()
+            pose_params_calcd.append(i_pose)
 
-        else:
-            if i_pose != 0:
-                # Consecutive frames are generally similar and so are rvecs and tvecs
-                pose_params[0, i_pose, :] = np.copy(pose_params[0, i_pose - 1, :])
-                pose_params[1, i_pose, :] = np.copy(pose_params[1, i_pose - 1, :])
-            else:
-                # Arbitrary vector
-                pose_params[0, i_pose, :] = pose_params[1, i_pose, :] = np.array([1.0, 0.0, 0.0])
+    # If the pose params are not calculated in the previous step,
+    # they are taken from the nearest pose as initial estimates
+    for i_pose in range(pose_params.shape[1]):
+        if i_pose not in pose_params_calcd:
+            nearest_i_pose = helper.nearest_element(i_pose, pose_params_calcd)
+
+            pose_params[0, i_pose, :] = np.copy(pose_params[0, nearest_i_pose, :])
+            pose_params[1, i_pose, :] = np.copy(pose_params[1, nearest_i_pose, :])
 
     return pose_params
 

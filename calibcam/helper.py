@@ -101,3 +101,8 @@ def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards, copy=Fal
         calib['tvecs'] = tvecs_boards
 
     return calibs
+
+
+def nearest_element(num_1: int, list_nums):
+    dist = np.abs(np.asarray(list_nums) - num_1)
+    return list_nums[np.argmin(dist)]

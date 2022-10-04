@@ -46,7 +46,7 @@ def get_default_opts(model="pinhole"):
             'gtol': 1e-8,
             'x_scale': 'jac',
             'loss': 'linear',
-            'tr_solver': 'exact',
+            'tr_solver': 'lsmr',
             'max_nfev': 100,
             'verbose': 2,
         },
@@ -77,13 +77,15 @@ def get_free_vars(model: str):
 
 
 def get_flags(model: str):
-    if model == "pinhole":
-        return cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3
-    else:
+    flags = cv2.CALIB_ZERO_TANGENT_DIST + cv2.CALIB_FIX_K3
+
+    if model == "omnidir":
         # "omnidir"
         # Should be set to None or 0, if no flags are to be used. Use 0, None is causing error with scipy_io_savemat
         # return (cv2.omnidir.CALIB_FIX_P1 + cv2.omnidir.CALIB_FIX_P2)
-        return cv2.omnidir.CALIB_FIX_SKEW
+        flags = cv2.omnidir.CALIB_FIX_SKEW
+
+    return flags
 
 
 def get_detector_parameters_opts():

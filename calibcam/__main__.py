@@ -40,6 +40,7 @@ def main():
     # Run calibration
     if isinstance(args.videos[0], str):
         recFileNames = sorted(args.videos)
+        opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts(args.model))
         calibrator = CamCalibrator(recFileNames, board_name=args.board[0], opts=opts)
         calibrator.perform_multi_calibration()
         print("Camera calibrated")
