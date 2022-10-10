@@ -17,9 +17,11 @@ def get_default_opts(model="pinhole"):
         'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
         'optimize_board_poses': False,  # Optimize individual board poses then all params again. In a test,
         #  optimality was already reached after a first general optimization
+        'max_allowed_res': 0.0,  # In pixels. Reject the pose with higher error and insert 'nearby' pose with lower
+        # error while optimizing individual board poses.
         'free_vars': get_free_vars(model),
         'detection': {
-            'inter_frame_dist': 0.0,
+            'inter_frame_dist': 0.0,  # In pixels
             'aruco_calibration': {
                 'flags': get_flags(model),
                 'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,

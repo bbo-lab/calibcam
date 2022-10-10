@@ -183,7 +183,8 @@ class CamCalibrator:
                                         individual_poses=True)
 
             print('OPTIMIZING BOARD POSES')
-            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_board_poses(corners, calibs_fit)
+            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_board_poses(corners, calibs_fit,
+                                                                                                 prev_fun=min_result.fun)
             calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
 
             if self.opts['debug']:
@@ -261,7 +262,7 @@ class CamCalibrator:
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
-    def optimize_board_poses(self, corners, calibs_multi, opts=None, board_params=None):
+    def optimize_board_poses(self, corners, calibs_multi, opts=None, board_params=None, prev_fun=None):
         if opts is None:
             opts = self.opts
         if board_params is None:
@@ -276,13 +277,24 @@ class CamCalibrator:
         calibs_multi_pose = deepcopy(calibs_multi)
         rvecs_boards = calibs_multi[0]["rvecs"]
         tvecs_boards = calibs_multi[0]["tvecs"]
+
+        if prev_fun is not None:
+            prev_fun = prev_fun.reshape(corners.shape)
+            good_poses = set(np.arange(prev_fun.shape[1]))
+            for i_cam in range(prev_fun.shape[0]):
+                good_poses = good_poses - set(np.where(prev_fun[i_cam] > opts['max_allowed_res'])[0])
+            good_poses = list(good_poses)
+        else:
+            good_poses = list(range(len(rvecs_boards)))
+
         print(f"Optimizing {len(calibs_multi[0]['rvecs'])} poses: ", end='')
         for i_pose in range(len(calibs_multi[0]["rvecs"])):
             print(".", end='', flush=True)
             corners_pose = corners[:, [i_pose]]
             for calib, calib_orig in zip(calibs_multi_pose, calibs_multi):
-                calib["rvecs"] = calib_orig["rvecs"][[i_pose]]
-                calib["tvecs"] = calib_orig["tvecs"][[i_pose]]
+                nearest_i_pose = helper.nearest_element(i_pose, good_poses)  # nearest_i_pose = i_pose if i_pose in good_poses
+                calib["rvecs"] = calib_orig["rvecs"][[nearest_i_pose]]
+                calib["tvecs"] = calib_orig["tvecs"][[nearest_i_pose]]
 
             calibs_fit_pose, rvecs_boards[i_pose], tvecs_boards[i_pose], min_result, args = \
                 camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_params, opts=pose_opts,
