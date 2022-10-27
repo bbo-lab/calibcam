@@ -17,8 +17,10 @@ def get_default_opts(model="pinhole"):
         'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
         'optimize_board_poses': False,  # Optimize individual board poses then all params again. In a test,
         #  optimality was already reached after a first general optimization
-        'max_allowed_res': 0.0,  # In pixels. Reject the pose with higher error and insert 'nearby' pose with lower
+
+        'max_allowed_res': 1.0,  # In pixels. Reject the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
+
         'free_vars': get_free_vars(model),
         'detection': {
             'inter_frame_dist': 0.0,  # In pixels
@@ -49,7 +51,7 @@ def get_default_opts(model="pinhole"):
             'x_scale': 'jac',
             'loss': 'linear',
             'tr_solver': 'lsmr',
-            'max_nfev': 100,
+            'max_nfev': 150,
             'verbose': 2,
         },
     }
@@ -73,7 +75,7 @@ def get_free_vars(model: str):
         # 'A' or 'K' (opencv-omnidir notation) - camera matrix
         # 'k' or 'D' (opencv-omnidir notation) - distortion coeffs
         free_vars['xi'] = True
-        free_vars['k'] = np.asarray([1, 1, 1, 1, -1])
+        free_vars['k'] = np.asarray([1, 1, 1, 1, 1])
 
     return free_vars
 
