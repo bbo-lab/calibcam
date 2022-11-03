@@ -12,14 +12,23 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=True):
     print('DETECTING FEATURES')
-    frames_masks = np.zeros(shape=(len(rec_file_names), n_frames), dtype=bool)
+
+    if 'start_indexes' in opts:
+        start_indexes = opts['start_indexes']
+        stop_indexes = list(np.ones(len(rec_file_names), dtype='int')*(n_frames - np.max(start_indexes))
+                            + np.asarray(start_indexes))
+    else:
+        start_indexes = [0]*len(rec_file_names)
+        stop_indexes = [None]*len(rec_file_names)
+
+    frames_masks = np.zeros(shape=(len(rec_file_names), n_frames - np.max(start_indexes)), dtype=bool)
     corners_all = []
     ids_all = []
 
     # Empirically, detection seems to utilize about 6 cores
     detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / opts['detect_cpu_divisor'])))(
-        delayed(detect_corners_cam)(rec_file_name, opts, board_params)
-        for rec_file_name in rec_file_names)
+        delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_indexes[i_rec], stop_indexes[i_rec])
+        for i_rec, rec_file_name in enumerate(rec_file_names))
 
     for i_cam, detection in enumerate(detections):
         corners_all.append(detection[0])
@@ -34,15 +43,17 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
         return corners_all, ids_all, frames_masks
 
 
-def detect_corners_cam(video, opts, board_params):
+def detect_corners_cam(video, opts, board_params, start_index=0, stop_index=None):
     reader = imageio.get_reader(video)
 
+    if stop_index is None:
+        stop_index = camfunctions.get_n_frames_from_reader(reader)
     corners_cam = []
     ids_cam = []
-    frames_masks = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
+    frames_masks = np.zeros(stop_index - start_index, dtype=bool)
 
     # Detect corners over cams
-    for (i_frame, frame) in enumerate(islice(reader, 0, None, opts["frame_step"])):
+    for (i_frame, frame) in enumerate(islice(reader, start_index, stop_index, opts["frame_step"])):
         i_frame = i_frame * opts["frame_step"]
 
         # color management

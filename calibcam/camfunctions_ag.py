@@ -63,13 +63,14 @@ def distort(boards_coords_ideal, ks):
     def distort_dim(b_d, k_rs, k_ps):
         return (
                 b_d * (1 + k_rs[..., (0,)] * r2 + k_rs[..., (1,)] * r2 ** 2 + k_rs[..., (2,)] * r2 ** 3) +
-                2 * k_ps[..., 0] * b[..., (0,)] * b[..., (1,)] +
-                k_ps[..., 1] * (r2 + 2 * b_d ** 2)
+                2 * k_ps[..., (0,)] * b[..., (0,)] * b[..., (1,)] +
+                k_ps[..., (1,)] * (r2 + 2 * b_d ** 2)
         )
 
     boards_coords_dist = np.concatenate((
         distort_dim(b[..., (0,)], ks[..., [0, 1, 4]], ks[..., [2, 3]]),
         distort_dim(b[..., (1,)], ks[..., [0, 1, 4]], ks[..., [3, 2]]),
+        b[..., (2,)],
     ), -1)
 
     return boards_coords_dist

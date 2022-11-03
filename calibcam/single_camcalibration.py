@@ -30,9 +30,9 @@ def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=N
 
     if opts['free_vars']['xi']:
         # Omnidir camera model
-        object_points_nn = np.zeros((*corners_cam.shape[0:2], 3))
+        object_points_nn = np.zeros((*corners_nn.shape[0:2], 3))
         object_points_nn[:] = board.make_board_points(board_params)
-        object_points_nn[np.isnan(corners_cam[:, :, 1])] = np.nan
+        object_points_nn[np.isnan(corners_nn[:, :, 1])] = np.nan
 
         object_points_use, _ = helper.corners_array_to_ragged(object_points_nn)
 
