@@ -16,11 +16,12 @@ def main():
     parser.add_argument('--board', type=str, required=False, nargs=1, default=[None], help="")
     parser.add_argument('--model', type=str, required=False, nargs=1, default=["omnidir"], help="")
     parser.add_argument('--frame_step', type=int, required=False, nargs=1, default=[None], help="")
-    parser.add_argument('--start_indexes', type=int, required=False, nargs='*', default=None, help="")
+    parser.add_argument('--start_frame_indexes', type=int, required=False, nargs='*', default=None, help="")
+    parser.add_argument('--frames_masks', type=str, required=False, nargs=1, default=[None], help="A .npy file")
     parser.add_argument('--optimize_only', required=False, default=None, action="store_true", help="")
     parser.add_argument('--numerical_jacobian', required=False, default=None, action="store_true", help="")
     parser.add_argument('--write_opts', type=str, required=False, nargs=1, default=[None], help="")
-    parser.add_argument('--data_path', type=str, required=False, nargs='*', default=[None], help="")
+    parser.add_argument('--data_path', type=str, required=False, nargs=1, default=[None], help="")
 
     args = parser.parse_args()
 
@@ -32,9 +33,15 @@ def main():
         opts['numerical_jacobian'] = args.numerical_jacobian
     if args.frame_step[0] is not None:
         opts['frame_step'] = args.frame_step[0]
-    if args.start_indexes is not None:
-        assert len(args.videos) == len(args.start_indexes), "number of start_indexes does not match number of videos"
-        opts['start_indexes'] = args.start_indexes
+
+    # It is necessary for the videos to be in sync to perform multicalibration. If some videos lag behind other videos,
+    # start_frames_indexes should be provided to adjust for the lag.
+    if args.start_frame_indexes is not None:
+        assert len(args.videos) == len(args.start_frame_indexes), "number of start_frame_indexes does not match number of videos"
+        opts['start_frame_indexes'] = args.start_frame_indexes
+    # Use frames_masks together with start_frames_indexes only after fully understanding their use!
+    if args.frames_masks[0] is not None:
+        opts['init_frames_masks'] = args.frames_masks[0]
 
     # Write options to file for later editing. File in data_path will be automatically included and supersedes defaults
     if isinstance(args.write_opts[0], str):
