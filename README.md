@@ -4,7 +4,7 @@ A charuco based calibrator for camera setups (intrinsic and extrinsic parameters
 First, [OpenCV is used for single camera calibration.](https://opencv.org/), followed by an initial estimation of camera positions and orientations.
 Subsequently, all intrinsic and extrinsic parameters are optimised for reprojection error using [Jax](https://github.com/google/jax) autograd.
 
-See [calibcamlib](https://github.com/bbo-lab/calibcam) for a library for triangualtion, reprojection etc.
+See [calibcamlib](https://github.com/bbo-lab/calibcamlib) for a library for triangualtion, reprojection etc.
 
 # Installation
 
