@@ -113,7 +113,7 @@ def make_common_pose_params(calibs, corners_array, board_params):
     # Decide which of the n_cam pose estimation from each frame to use based on reprojection error
     repro_errors = np.zeros(shape=len(calibs))
     # cs = calibcamlib.Camerasystem.from_calibs(calibs)
-    cs = calibcamlib.OmniCamerasystem.from_calibs(calibs)  # TODO: Remove it later
+    cs = calibcamlib.Camerasystem.from_calibs(calibs)
     offsets = np.zeros(shape=(len(calibs), 2))  # Offsets were previously removed from corners
 
     pose_params_calcd = []

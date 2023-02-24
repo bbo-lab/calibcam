@@ -127,7 +127,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
     sys.path.insert(0, "/home/cheekoti_la/Downloads/github/calibcamlib_po")  # TODO: Remove later
 
     # from calibcamlib import Camerasystem
-    from calibcamlib import OmniCamerasystem  # noqa # TODO: Remove it later
+    from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
     residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
@@ -135,7 +135,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
 
     corners_cameralib = np.empty_like(residuals_objfun)
     corners_cameralib[:] = np.NaN
-    cs = OmniCamerasystem.from_calibs(calibs)
+    cs = Camerasystem.from_calibs(calibs)
     board_points = board.make_board_points(board_params)
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
