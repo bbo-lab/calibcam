@@ -23,14 +23,34 @@ def map_world_board_to_cams(boards_coords_3d, rotmats_cams, tvecs_cams):
     return boards_coords_3d
 
 
-def board_to_ideal_plane(boards_coords_3d):
-    # We add eps to the quotient to avoid division by 0 errors from non-tracked boards. Not exactly sure why
-    # this happens?
-    # TODO find more elegant way. This appears difficult since we cannot use a[a==0] = ... due to autograd limitations
-    eps = np.finfo(np.float64).eps
+def board_to_unit_sphere(boards_coords_3d):
+    # Project points onto a unit spherical mirror which has the camera at its center.
+    norm = np.linalg.norm(boards_coords_3d, axis=-1, keepdims=True)
+
+    boards_coords_3d = np.where(norm == 0, boards_coords_3d, boards_coords_3d / norm)
+
+    return boards_coords_3d
+
+
+def shift_camera(boards_coords_3d, xi):
+    # Shift the camera 'xi' units away from the center of the unit sphere
     boards_coords_3d = np.concatenate((
-        boards_coords_3d[..., (0,)] / (boards_coords_3d[..., (2,)] + eps),
-        boards_coords_3d[..., (1,)] / (boards_coords_3d[..., (2,)] + eps),
+        boards_coords_3d[..., (0,)],
+        boards_coords_3d[..., (1,)],
+        boards_coords_3d[..., (2,)] + xi,
+    ), -1)
+    return boards_coords_3d
+
+
+def to_ideal_plane(boards_coords_3d):
+    # We avoid division by 0 errors from non-tracked boards. Not exactly sure why
+    # this happens?
+
+    boards_coords_3d = np.concatenate((
+        np.where(boards_coords_3d[..., (2,)] == 0, boards_coords_3d[..., (0,)],
+                 boards_coords_3d[..., (0,)] / boards_coords_3d[..., (2,)]),
+        np.where(boards_coords_3d[..., (2,)] == 0, boards_coords_3d[..., (1,)],
+                 boards_coords_3d[..., (1,)] / boards_coords_3d[..., (2,)]),
         np.ones_like(boards_coords_3d[..., (2,)]),
     ), -1)
     return boards_coords_3d
@@ -40,16 +60,17 @@ def distort(boards_coords_ideal, ks):
     r2 = np.sum(boards_coords_ideal[..., 0:2] ** 2, axis=-1, keepdims=True)
     b = boards_coords_ideal
 
-    def distort_dim(b_d, p_xy, p):
+    def distort_dim(b_d, k_rs, k_ps):
         return (
-                b_d * (1 + ks[..., (0,)] * r2 + ks[..., (1,)] * r2 ** 2 + ks[..., (4,)] * r2 ** 3) +
-                2 * p_xy * b[..., (0,)] * b[..., (1,)] +
-                p * (r2 + 2 * b_d ** 2)
+                b_d * (1 + k_rs[..., (0,)] * r2 + k_rs[..., (1,)] * r2 ** 2 + k_rs[..., (2,)] * r2 ** 3) +
+                2 * k_ps[..., (0,)] * b[..., (0,)] * b[..., (1,)] +
+                k_ps[..., (1,)] * (r2 + 2 * b_d ** 2)
         )
 
     boards_coords_dist = np.concatenate((
-        distort_dim(b[..., (0,)], ks[..., (2,)], ks[..., (3,)]),
-        distort_dim(b[..., (1,)], ks[..., (3,)], ks[..., (2,)]),
+        distort_dim(b[..., (0,)], ks[..., [0, 1, 4]], ks[..., [2, 3]]),
+        distort_dim(b[..., (1,)], ks[..., [0, 1, 4]], ks[..., [3, 2]]),
+
         b[..., (2,)],
     ), -1)
 
@@ -57,5 +78,6 @@ def distort(boards_coords_ideal, ks):
 
 
 def ideal_to_sensor(boards_coords_dist, cam_matrices):
-    boards_coords_dist = np.einsum('...ij,...j->...i', cam_matrices, boards_coords_dist)  # TODO fix for other broadcasts
+    boards_coords_dist = np.einsum('...ij,...j->...i', cam_matrices,
+                                   boards_coords_dist)  # TODO fix for other broadcasts
     return boards_coords_dist[..., 0:2]

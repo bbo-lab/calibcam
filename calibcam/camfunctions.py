@@ -6,6 +6,8 @@ import timeit
 from calibcam import optimization, board, helper, calibrator_opts
 from calibcam.exceptions import *
 
+import sys
+
 
 def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, verbose=None):
     if opts is None:
@@ -122,7 +124,10 @@ def get_header_from_reader(reader):
 
 
 def test_objective_function(calibs, vars_free, args, corners_detection, board_params, individual_poses=False):
-    from calibcamlib import Camerasystem
+    sys.path.insert(0, "/home/cheekoti_la/Downloads/github/calibcamlib_po")  # TODO: Remove later
+
+    # from calibcamlib import Camerasystem
+    from calibcamlib import OmniCamerasystem  # noqa # TODO: Remove it later
     from scipy.spatial.transform import Rotation as R  # noqa
 
     residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
@@ -130,7 +135,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
 
     corners_cameralib = np.empty_like(residuals_objfun)
     corners_cameralib[:] = np.NaN
-    cs = Camerasystem.from_calibs(calibs)
+    cs = OmniCamerasystem.from_calibs(calibs)
     board_points = board.make_board_points(board_params)
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
