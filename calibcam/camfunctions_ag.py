@@ -70,6 +70,7 @@ def distort(boards_coords_ideal, ks):
     boards_coords_dist = np.concatenate((
         distort_dim(b[..., (0,)], ks[..., [0, 1, 4]], ks[..., [2, 3]]),
         distort_dim(b[..., (1,)], ks[..., [0, 1, 4]], ks[..., [3, 2]]),
+
         b[..., (2,)],
     ), -1)
 
