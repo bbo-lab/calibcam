@@ -114,7 +114,7 @@ class CamCalibrator:
     def perform_multi_calibration(self):
         n_corners = (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1)
         required_corner_idxs = [0,
-                                self.board_params["boardWidth"] - 1,
+                                self.board_params["boardWidth"] - 2,
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
                                 ]  # Corners that we require to be detected for pose estimation
