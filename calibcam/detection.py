@@ -29,7 +29,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
     ids_all = []
 
     # Empirically, detection seems to utilize about 6 cores
-    detections = Parallel(n_jobs=np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor']))(
+    detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
         delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
                                     stop_frm_indexes[i_rec], init_frames_masks[i_rec])
         for i_rec, rec_file_name in enumerate(rec_file_names))
