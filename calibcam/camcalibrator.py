@@ -20,6 +20,7 @@ from calibcam import helper, camfunctions, board, compatibility
 
 from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
+from calibcam.single_camcalibration import calibrate_single_camera
 
 
 class CamCalibrator:
@@ -158,7 +159,8 @@ class CamCalibrator:
 
         if self.opts['debug']:
             args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
-            test_objective_function(calibs_multi, vars_free, args, corners, self.board_params, individual_poses=True)
+            test_objective_function(calibs_multi, vars_free, args, corners, self.board_params,
+                                    individual_poses=True)
 
         print('OPTIMIZING ALL POSES')
         # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
@@ -166,7 +168,8 @@ class CamCalibrator:
 
         if self.opts['debug']:
             calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-            test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params, individual_poses=True)
+            test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
+                                    individual_poses=True)
 
         print('OPTIMIZING ALL PARAMETERS I')
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
@@ -180,19 +183,22 @@ class CamCalibrator:
                                         individual_poses=True)
 
             print('OPTIMIZING BOARD POSES')
-            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_board_poses(corners, calibs_fit)
+            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_board_poses(corners, calibs_fit,
+                                                                                                 prev_fun=min_result.fun)
             calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
 
             if self.opts['debug']:
                 args, vars_free = make_optim_input(self.board_params, calibs_fit, corners, self.opts)
-                test_objective_function(calibs_fit, vars_free, args, corners, self.board_params, individual_poses=True)
+                test_objective_function(calibs_fit, vars_free, args, corners, self.board_params,
+                                        individual_poses=True)
 
             print('OPTIMIZING ALL PARAMETERS II')
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
             # No board poses in final calibration!
 
         calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
-        test_objective_function(calibs_test, min_result.x, args, corners, self.board_params, individual_poses=True)
+        test_objective_function(calibs_test, min_result.x, args, corners, self.board_params,
+                                individual_poses=True)
 
         result = self.build_result(calibs_fit,
                                    corners=corners, used_frames_ids=used_frames_ids,
@@ -209,61 +215,6 @@ class CamCalibrator:
         print('FINISHED MULTI CAMERA CALIBRATION')
         return
 
-    @staticmethod
-    def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=None, calib_init=None):
-        if mask is None:
-            mask = np.sum(~np.isnan(corners_cam[:, :, 1]),
-                          axis=1) > 0  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
-
-        n_used_frames = np.sum(mask)
-
-        if n_used_frames == 0:
-            return []
-
-        corners_nn = corners_cam[mask]
-        corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)
-
-        if calib_init is not None:
-            A = calib_init['A']
-            k = calib_init['k']
-        else:
-            A = None
-            k = None
-
-        cal_res = cv2.aruco.calibrateCameraCharucoExtended(corners_use,  # noqa
-                                                           ids_use,
-                                                           board.make_board(board_params),
-                                                           sensor_size,
-                                                           A,
-                                                           k,
-                                                           **opts['detection']['aruco_calibration'])
-
-        rvecs = np.empty(shape=(mask.size, 3))
-        rvecs[:] = np.NaN
-        tvecs = np.empty(shape=(mask.size, 3))
-        tvecs[:] = np.NaN
-        retval, A, k, = cal_res[0:3]
-
-        rvecs[mask, :] = np.asarray(cal_res[3])[..., 0]
-        tvecs[mask, :] = np.asarray(cal_res[4])[..., 0]
-
-        cal = {
-            'rvec_cam': np.asarray([0., 0., 0.]),
-            'tvec_cam': np.asarray([0., 0., 0.]),
-            'A': np.asarray(A),
-            'k': np.asarray(k).ravel(),
-            'rvecs': np.asarray(rvecs),
-            'tvecs': np.asarray(tvecs),
-            'repro_error': retval,
-            # Not that from here on values are NOT expanded to full frames range, see frames_mask
-            'std_intrinsics': cal_res[5],
-            'std_extrinsics': cal_res[6],
-            'per_view_errors': cal_res[7],
-            'frames_mask': mask,
-        }
-        print('Finished single camera calibration.')
-        return cal
-
     def perform_single_cam_calibrations(self, corners, calibs_init=None):
         print('PERFORM SINGLE CAMERA CALIBRATION')
 
@@ -277,12 +228,12 @@ class CamCalibrator:
         #                  for i_cam in range(len(self.readers))]
         print(int(np.floor(multiprocessing.cpu_count())))
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-            delayed(self.calibrate_single_camera)(corners[i_cam],
-                                                  camfunctions.get_header_from_reader(self.readers[i_cam])[
-                                                      'sensorsize'],
-                                                  self.board_params,
-                                                  self.opts,
-                                                  calib_init=calibs_init[i_cam])
+            delayed(calibrate_single_camera)(corners[i_cam],
+                                             camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                                 'sensorsize'],
+                                             self.board_params,
+                                             self.opts,
+                                             calib_init=calibs_init[i_cam])
             for i_cam in range(len(self.readers)))
 
         for i_cam, calib in enumerate(calibs_single):
@@ -304,13 +255,14 @@ class CamCalibrator:
         pose_opts = deepcopy(opts)
         pose_opts['free_vars']['A'][:] = False
         pose_opts['free_vars']['k'][:] = False
+        pose_opts['free_vars']['xi'] = False
 
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
             camfunctions.optimize_calib_parameters(corners, calibs_multi, board_params, opts=pose_opts)
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
-    def optimize_board_poses(self, corners, calibs_multi, opts=None, board_params=None):
+    def optimize_board_poses(self, corners, calibs_multi, opts=None, board_params=None, prev_fun=None):
         if opts is None:
             opts = self.opts
         if board_params is None:
@@ -320,17 +272,29 @@ class CamCalibrator:
         pose_opts['free_vars']['cam_pose'] = False
         pose_opts['free_vars']['A'][:] = False
         pose_opts['free_vars']['k'][:] = False
+        pose_opts['free_vars']['xi'] = False
 
         calibs_multi_pose = deepcopy(calibs_multi)
         rvecs_boards = calibs_multi[0]["rvecs"]
         tvecs_boards = calibs_multi[0]["tvecs"]
+
+        if prev_fun is not None:
+            prev_fun = prev_fun.reshape(corners.shape)
+            good_poses = set(np.arange(prev_fun.shape[1]))
+            for i_cam in range(prev_fun.shape[0]):
+                good_poses = good_poses - set(np.where(prev_fun[i_cam] > opts['max_allowed_res'])[0])
+            good_poses = list(good_poses)
+        else:
+            good_poses = list(range(len(rvecs_boards)))
+
         print(f"Optimizing {len(calibs_multi[0]['rvecs'])} poses: ", end='')
         for i_pose in range(len(calibs_multi[0]["rvecs"])):
             print(".", end='', flush=True)
             corners_pose = corners[:, [i_pose]]
             for calib, calib_orig in zip(calibs_multi_pose, calibs_multi):
-                calib["rvecs"] = calib_orig["rvecs"][[i_pose]]
-                calib["tvecs"] = calib_orig["tvecs"][[i_pose]]
+                nearest_i_pose = helper.nearest_element(i_pose, good_poses)  # nearest_i_pose = i_pose if i_pose in good_poses
+                calib["rvecs"] = calib_orig["rvecs"][[nearest_i_pose]]
+                calib["tvecs"] = calib_orig["tvecs"][[nearest_i_pose]]
 
             calibs_fit_pose, rvecs_boards[i_pose], tvecs_boards[i_pose], min_result, args = \
                 camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_params, opts=pose_opts,
@@ -387,6 +351,7 @@ class CamCalibrator:
 
         # savemat cannot deal with none!
         if min_result is not None:
+            result['info']['fun_final'] = min_result.fun
             result['info']['cost_val_final'] = min_result.cost
             result['info']['optimality_final'] = min_result.optimality
 
@@ -419,7 +384,10 @@ class CamCalibrator:
         plt.imshow(cv2.aruco.drawDetectedCornersCharuco(im, corners_use[fidx], ids_use[fidx]))
 
         board_coords_3d = R.from_rotvec(r).apply(board_coords_3d_0) + t
-        board_coords_3d = camfunctions_ag.board_to_ideal_plane(board_coords_3d)
+
+        board_coords_3d = camfunctions_ag.board_to_unit_sphere(board_coords_3d)
+        board_coords_3d = camfunctions_ag.shift_camera(board_coords_3d, calibs[cidx]['xi'].squeeze()[0])
+        board_coords_3d = camfunctions_ag.to_ideal_plane(board_coords_3d)
 
         board_coords_3d_nd = camfunctions_ag.ideal_to_sensor(board_coords_3d, calibs[cidx]['A'])
 

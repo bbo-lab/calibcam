@@ -2,31 +2,9 @@ import numpy as np
 from copy import deepcopy
 from scipy.spatial.transform import Rotation as R  # noqa
 
+
 def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=None):
     calibs = deepcopy(calibs_single)
-
-    per_pose_crs = np.empty(shape=(len(calibs), calibs[0]['rvecs'].shape[0], 3))
-    per_pose_crs[:] = np.NaN
-    per_pose_cts = np.empty(shape=(len(calibs), calibs[0]['rvecs'].shape[0], 3))
-    per_pose_cts[:] = np.NaN
-    # Set all cam poses to inverse pose of board
-    for i_pose, (cr, ct) in enumerate(zip(per_pose_crs, per_pose_cts)):
-        for i_cam, calib in enumerate(calibs):
-            cr[i_cam] = -calibs[i_cam]['rvecs'][i_pose]
-            ct[i_cam] = -R.from_rotvec(cr[i_cam]).apply(calibs[i_cam]['rvecs'][i_pose])
-
-    # # Fill gaps from boards outside fov
-    # per_pose_crs_orig = per_pose_crs.copy()  # We only want to fill gas with original detections
-    # per_pose_cts_orig = per_pose_cts.copy()
-    # for i_pose, (cr, ct) in enumerate(zip(per_pose_crs, per_pose_cts)):
-    #     for i_cam, calib in enumerate(calibs):
-    #         if np.isnan(cr[i_cam, 0]):
-
-    full_set_idxs = np.where(np.all(~np.isnan(per_pose_crs[:, :, 0]), axis=0))[0]
-
-
-
-
 
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
@@ -34,6 +12,13 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
     frames_masks_req = get_required_corners_masks(corners=corners,
                                                   required_corner_idxs=required_corner_idxs)
+
+    # Opencv omnidirectional camera calibration does not calculate extrisic paraemters for all the frames. In such case,
+    # it is necessary to omit such frames from estimating camera poses.
+    frames_rs_calcd = [calib["frames_mask"] for calib in calibs_single]
+    # frames_rs_calcd = np.all(np.asarray(frames_rs_calcd), axis=0)
+    frames_rs_calcd = np.asarray(frames_rs_calcd)
+    frames_masks_req = frames_masks_req & frames_rs_calcd
 
     # n_cam x n_cam matrix of frames between two cams
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
@@ -67,12 +52,12 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
             #  theses tilts do not yield a consistent alternative position and may thus be removed by iteratively
             #  removing the highest deviations.
             if R_trans is not None and Rs_trans is not None:
-                # Remove frame with highest error
+                # Remove frame with the highest error
                 common_frame_idxs = np.where(common_frame_mask)[0]
                 frames_masks_req_ori[
                     common_frame_idxs[
                         np.argmax(np.sum(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=1))
-                        ]
+                    ]
                 ] = False
 
             # Determine common frames

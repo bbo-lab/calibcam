@@ -12,38 +12,58 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=True):
     print('DETECTING FEATURES')
-    frames_masks = np.zeros(shape=(len(rec_file_names), n_frames), dtype=bool)
+
+    if 'start_frame_indexes' in opts:
+        start_frm_indexes = opts['start_frame_indexes']
+        stop_frm_indexes = list(np.ones(len(rec_file_names), dtype='int')*(n_frames - np.max(start_frm_indexes))
+                            + np.asarray(start_frm_indexes))
+    else:
+        start_frm_indexes = [0]*len(rec_file_names)
+        stop_frm_indexes = [None]*len(rec_file_names)
+
+    init_frames_masks = opts.get('init_frames_masks', [None] * len(rec_file_names))
+    if isinstance(init_frames_masks, str):
+        init_frames_masks = np.load(init_frames_masks)
+    fin_frames_masks = np.zeros(shape=(len(rec_file_names), n_frames - np.max(start_frm_indexes)), dtype=bool)
     corners_all = []
     ids_all = []
 
     # Empirically, detection seems to utilize about 6 cores
     detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() / opts['detect_cpu_divisor'])))(
-        delayed(detect_corners_cam)(rec_file_name, opts, board_params)
-        for rec_file_name in rec_file_names)
+        delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
+                                    stop_frm_indexes[i_rec], init_frames_masks[i_rec])
+        for i_rec, rec_file_name in enumerate(rec_file_names))
 
     for i_cam, detection in enumerate(detections):
         corners_all.append(detection[0])
         ids_all.append(detection[1])
-        frames_masks[i_cam, :] = detection[2]
-        print(f'Detected features in {np.sum(frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
+        fin_frames_masks[i_cam, :] = detection[2]
+        print(f'Detected features in {np.sum(fin_frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
 
     if return_matrix:
         return helper.make_corners_array(corners_all, ids_all, (board_params["boardWidth"] - 1) * (
-                        board_params["boardHeight"] - 1), frames_masks), np.where(np.any(frames_masks, axis=0))[0]
+                board_params["boardHeight"] - 1), fin_frames_masks), np.where(np.any(fin_frames_masks, axis=0))[0]
     else:
-        return corners_all, ids_all, frames_masks
+        return corners_all, ids_all, fin_frames_masks
 
 
-def detect_corners_cam(video, opts, board_params):
+def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None):
     reader = imageio.get_reader(video)
 
+    if stop_frm_idx is None:
+        stop_frm_idx = camfunctions.get_n_frames_from_reader(reader)
     corners_cam = []
     ids_cam = []
-    frames_masks = np.zeros(camfunctions.get_n_frames_from_reader(reader), dtype=bool)
+    if init_frames_mask is None:
+        init_frames_mask = np.ones(stop_frm_idx - start_frm_idx, dtype=bool)
+    fin_frames_mask = np.zeros(stop_frm_idx - start_frm_idx, dtype=bool)
 
     # Detect corners over cams
-    for (i_frame, frame) in enumerate(islice(reader, 0, None, opts["frame_step"])):
-        i_frame = i_frame*opts["frame_step"]
+    for (i_frame, frame) in enumerate(islice(reader, start_frm_idx, stop_frm_idx, opts["frame_step"])):
+        i_frame = i_frame * opts["frame_step"]
+
+        if not init_frames_mask[i_frame]:
+            continue
 
         # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
@@ -95,7 +115,7 @@ def detect_corners_cam(video, opts, board_params):
         #  becomes impossible. If this is ever required, it has to be made sure that cameras get detections on the same
         #  frames, e.g. by determining sufficient movement only on the first cam.
         #  Alternatively, in videos with a too high framerate, we could just use a frameskip.
-        used_frame_ids = np.where(frames_masks)[0]
+        used_frame_ids = np.where(fin_frames_mask)[0]
         if len(used_frame_ids) > 0:
             ids_common = np.intersect1d(ids_cam[-1], charuco_ids)
 
@@ -109,8 +129,8 @@ def detect_corners_cam(video, opts, board_params):
                 if np.max(dist) < opts['detection']['inter_frame_dist']:
                     continue
 
-        frames_masks[i_frame] = True
+        fin_frames_mask[i_frame] = True
         corners_cam.append(charuco_corners)
         ids_cam.append(charuco_ids)
 
-    return corners_cam, ids_cam, frames_masks
+    return corners_cam, ids_cam, fin_frames_mask

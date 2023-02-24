@@ -15,7 +15,7 @@ import timeit
 def get_precalc():
     return {
         'objfunc': jit(opt_ag.obj_fcn),
-        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var)) for i_var in range(6)]
+        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var)) for i_var in range(7)]
     }
 
 
@@ -31,13 +31,14 @@ def obj_fcn_wrapper(vars_opt, args):
 
     # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
     # and the return is in fact unnecessary!
-    rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = \
+    rvecs_cams, tvecs_cams, cam_matrices, xis, ks, rvecs_boards, tvecs_boards = \
         optimization.unravel_vars_full(vars_full, n_cams)
 
     residuals = np.array(args['precalc']['objfunc'](
         rvecs_cams,
         tvecs_cams,
         cam_matrices,
+        xis,
         ks,
         rvecs_boards,
         tvecs_boards,
@@ -65,12 +66,13 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
 
     # Unravel inputs. Note that calibs, board_coords_3d and their representations in args are changed in this function
     # and the return is in fact unnecessary!
-    rvecs_cams, tvecs_cams, cam_matrices, ks, rvecs_boards, tvecs_boards = \
+    rvecs_cams, tvecs_cams, cam_matrices, xis, ks, rvecs_boards, tvecs_boards = \
         optimization.unravel_vars_full(vars_full, n_cams)
-    rvecs_cams_mask, tvecs_cams_mask, cam_matrices_mask, ks_mask, rvecs_boards_mask, tvecs_boards_mask = \
+    rvecs_cams_mask, tvecs_cams_mask, cam_matrices_mask, xis_mask, ks_mask, rvecs_boards_mask, tvecs_boards_mask = \
         optimization.unravel_vars_full(args['mask_opt'], n_cams)
 
-    var_masks = [rvecs_cams_mask, tvecs_cams_mask, cam_matrices_mask, ks_mask, rvecs_boards_mask, tvecs_boards_mask]
+    var_masks = [rvecs_cams_mask, tvecs_cams_mask, cam_matrices_mask, xis_mask, ks_mask, rvecs_boards_mask,
+                 tvecs_boards_mask]
 
     obj_fcn_jacobian = [
         np.array(
@@ -78,6 +80,7 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
                 rvecs_cams,
                 tvecs_cams,
                 cam_matrices,
+                xis,
                 ks,
                 rvecs_boards,
                 tvecs_boards,
@@ -85,7 +88,7 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
                 corners
             ).reshape(corners.shape + (-1,))  # Ravel over input dimensions
         ) if np.any(var_masks[i_var]) else np.zeros(shape=corners.shape + (var_masks[i_var].size,))
-        for i_var in range(6)
+        for i_var in range(7)
     ]
 
     # TODO: Find out why Jacobian of coord_cam pose values is nan ...
