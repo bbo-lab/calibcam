@@ -123,8 +123,7 @@ class CamCalibrator:
             preoptim = compatibility.update_preoptim(preoptim, n_corners)
 
             calibs_single = preoptim['info']['other']['calibs_single']
-            if 'used_frames_ids' in preoptim['info']:
-                used_frames_ids = preoptim['info']['used_frames_ids']
+            used_frames_ids = preoptim['info']['used_frames_ids']
             corners = preoptim['info']['corners']
 
             # We just redo this since it is fast and the output may help
@@ -141,12 +140,17 @@ class CamCalibrator:
             corners, used_frames_ids = \
                 detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
 
-            # perform single calibration
-            calibs_single = self.perform_single_cam_calibrations(corners, calibs_init=self.calibs_init)
+            if 'internals' in self.opts:
+                calibs_single = self.perform_board_position_estimation(self.opts["internals"], corners)
+
+            else:
+                #  perform single calibration
+                calibs_single = self.perform_single_cam_calibrations(corners, calibs_init=self.calibs_init)
 
             # analytically estimate initial camera poses
             calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
                                               required_corner_idxs=required_corner_idxs)
+
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
             # pose_params = optimization.make_common_pose_params(calibs_multi, corners)
@@ -209,6 +213,83 @@ class CamCalibrator:
         print('FINISHED MULTI CAMERA CALIBRATION')
         return
 
+    def perform_board_position_estimation(self, calibs_single, corners):
+        print('ESTIMATE BOARD POSITIONS')
+
+        for i_cam, calib in enumerate(calibs_single):
+            calibs_single[i_cam] = self.estimate_board_positions_in_single_cam(calib, corners[i_cam])
+
+        return calibs_single
+
+    def estimate_board_positions_in_single_cam(self, calib, corners_cam, mask=None):
+        if mask is None:
+            mask = np.sum(~np.isnan(corners_cam[:, :, 1]), axis=1) > 0
+
+        corners_nn = corners_cam[mask]
+        corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)
+
+        board_positions = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
+            delayed(self.estimate_single_board_position)(calib,
+                                                         corners_use[i_pose],
+                                                         ids_use[i_pose],
+                                                         self.board_params,
+                                                         self.opts)
+            for i_pose in range(len(corners_use)))
+
+        calib['rvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
+        calib['tvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
+        calib['frame_Mask'] = mask
+
+        pose_idxs = np.where(mask)[0]
+        for pose_idx, pos in zip(pose_idxs, board_positions):
+            if board_positions[0]:
+                calib['rvecs'][pose_idx] = rvec
+                calib['tvecs'][pose_idx] = tvec
+
+        return calib
+
+    @staticmethod
+    def estimate_single_board_position(calib, corners, ids, board_params, opts):
+        if len(ids)<4:
+            return 0, np.full((3,), np.nan), np.full((3,), np.nan)
+
+        retval, rvec, tvec = cv2.solvePnP(board.make_board_points(board_params)[ids].reshape((-1,3)),
+                                          corners.reshape((-1, 2)),
+                                          calib["A"], calib["k"],
+                                          flags=cv2.SOLVEPNP_IPPE)
+        return retval, rvec, tvec
+
+    def perform_single_cam_calibrations(self, corners, calibs_init=None):
+        print('PERFORM SINGLE CAMERA CALIBRATION')
+
+        if calibs_init is None:
+            calibs_init = [None for i in corners]
+
+        # calibs_single = [self.calibrate_single_camera(corners[i_cam],
+        #                                               camfunctions.get_header_from_reader(self.readers[i_cam])['sensorsize'],
+        #                                               self.board_params,
+        #                                               self.opts)
+        #                  for i_cam in range(len(self.readers))]
+        print(int(np.floor(multiprocessing.cpu_count())))
+        calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
+            delayed(self.calibrate_single_camera)(corners[i_cam],
+                                                  camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                                      'sensorsize'],
+                                                  self.board_params,
+                                                  self.opts,
+                                                  calib_init=calibs_init[i_cam])
+            for i_cam in range(len(self.readers)))
+
+        for i_cam, calib in enumerate(calibs_single):
+            print(
+                f'Used {(~np.isnan(calib["rvecs"][:, 1])).sum(dtype=int):03d} '
+                f'frames for single cam calibration for cam {i_cam:02d}'
+            )
+            print(calib['rvecs'][0])
+            print(calib['tvecs'][0])
+
+        return calibs_single
+
     @staticmethod
     def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=None, calib_init=None):
         if mask is None:
@@ -255,7 +336,7 @@ class CamCalibrator:
             'rvecs': np.asarray(rvecs),
             'tvecs': np.asarray(tvecs),
             'repro_error': retval,
-            # Not that from here on values are NOT expanded to full frames range, see frames_mask
+            # Note that from here on values are NOT expanded to full frames range, see frames_mask
             'std_intrinsics': cal_res[5],
             'std_extrinsics': cal_res[6],
             'per_view_errors': cal_res[7],
@@ -263,37 +344,6 @@ class CamCalibrator:
         }
         print('Finished single camera calibration.')
         return cal
-
-    def perform_single_cam_calibrations(self, corners, calibs_init=None):
-        print('PERFORM SINGLE CAMERA CALIBRATION')
-
-        if calibs_init is None:
-            calibs_init = [None for i in corners]
-
-        # calibs_single = [self.calibrate_single_camera(corners[i_cam],
-        #                                               camfunctions.get_header_from_reader(self.readers[i_cam])['sensorsize'],
-        #                                               self.board_params,
-        #                                               self.opts)
-        #                  for i_cam in range(len(self.readers))]
-        print(int(np.floor(multiprocessing.cpu_count())))
-        calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-            delayed(self.calibrate_single_camera)(corners[i_cam],
-                                                  camfunctions.get_header_from_reader(self.readers[i_cam])[
-                                                      'sensorsize'],
-                                                  self.board_params,
-                                                  self.opts,
-                                                  calib_init=calibs_init[i_cam])
-            for i_cam in range(len(self.readers)))
-
-        for i_cam, calib in enumerate(calibs_single):
-            print(
-                f'Used {(~np.isnan(calib["rvecs"][:, 1])).sum(dtype=int):03d} '
-                f'frames for single cam calibration for cam {i_cam:02d}'
-            )
-            print(calib['rvecs'][0])
-            print(calib['tvecs'][0])
-
-        return calibs_single
 
     def optimize_poses(self, corners, calibs_multi, opts=None, board_params=None):
         if opts is None:
