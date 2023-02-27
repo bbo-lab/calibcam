@@ -244,13 +244,13 @@ class CamCalibrator:
 
         calib['rvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
         calib['tvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
-        calib['frame_Mask'] = mask
+        calib['frames_mask'] = mask
 
         pose_idxs = np.where(mask)[0]
         for pose_idx, pos in zip(pose_idxs, board_positions):
             if board_positions[0]:
-                calib['rvecs'][pose_idx] = rvec
-                calib['tvecs'][pose_idx] = tvec
+                calib['rvecs'][pose_idx] = pos[1][:,0]
+                calib['tvecs'][pose_idx] = pos[2][:,0]
 
         return calib
 
