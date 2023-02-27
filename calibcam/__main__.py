@@ -34,12 +34,6 @@ def main():
         opts['numerical_jacobian'] = args.numerical_jacobian
     if args.frame_step[0] is not None:
         opts['frame_step'] = args.frame_step[0]
-    if args.internals[0] is not None:
-        internals = np.load(args.internals[0], allow_pickle=True)[()]
-        opts['internals'] = internals["calibs"]
-        opts['free_vars']['A'][:] = False
-        opts['free_vars']['xi'] = False
-        opts['free_vars']['k'][:] = 0
 
     # It is necessary for the videos to be in sync to perform multicalibration. If some videos lag behind other videos,
     # start_frames_indexes should be provided to adjust for the lag.
@@ -60,6 +54,14 @@ def main():
     if isinstance(args.videos[0], str):
         recFileNames = sorted(args.videos)
         opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts(args.model[0]))
+
+        if args.internals[0] is not None:
+            internals = np.load(args.internals[0], allow_pickle=True)[()]
+            opts['internals'] = internals["calibs"]
+            opts['free_vars']['A'][:] = False
+            opts['free_vars']['xi'] = False
+            opts['free_vars']['k'][:] = 0
+            
         print(f"Camera model: {args.model[0]}")
         calibrator = CamCalibrator(recFileNames, board_name=args.board[0], opts=opts, data_path=args.data_path[0])
         calibrator.perform_multi_calibration()
