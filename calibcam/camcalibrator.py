@@ -248,7 +248,7 @@ class CamCalibrator:
 
         pose_idxs = np.where(mask)[0]
         for pose_idx, pos in zip(pose_idxs, board_positions):
-            if board_positions[0]:
+            if pos[0]:
                 calib['rvecs'][pose_idx] = pos[1][:,0]
                 calib['tvecs'][pose_idx] = pos[2][:,0]
 
