@@ -37,6 +37,9 @@ def main():
     if args.internals[0] is not None:
         internals = np.load(args.internals[0], allow_pickle=True)[()]
         opts['internals'] = internals["calibs"]
+        opts['free_vars']['A'][:] = False
+        opts['free_vars']['xi'] = False
+        opts['free_vars']['k'][:] = 0
 
     # It is necessary for the videos to be in sync to perform multicalibration. If some videos lag behind other videos,
     # start_frames_indexes should be provided to adjust for the lag.

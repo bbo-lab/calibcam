@@ -5,8 +5,8 @@ channels:
 dependencies:
   - python=3.10
   - numpy
-  - opencv
-  - py-opencv
+  - opencv=4.6.0
+  - py-opencv=4.6.0
   - pyyaml
   - scipy
   - imageio
