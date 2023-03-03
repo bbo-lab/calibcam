@@ -27,7 +27,7 @@ def get_default_opts(model="pinhole"):
             'aruco_calibration': {
                 'flags': get_flags(model),
                 'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
-                             10,
+                             30,
                              float(np.finfo(np.float32).eps)),
             },
             'aruco_detect': {
