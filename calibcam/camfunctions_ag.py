@@ -10,15 +10,14 @@
 
 import jax.numpy as np
 
-
 def map_ideal_board_to_world(board_coords_3d_0, rotmats_boards, tvecs_boards):
-    boards_coords_3d = np.einsum('...ij,...j->...i', rotmats_boards, board_coords_3d_0)  # TODO fix for other broadcasts
+    boards_coords_3d = np.einsum('...ij,...j->...i', rotmats_boards, board_coords_3d_0)
     boards_coords_3d = boards_coords_3d + tvecs_boards
     return boards_coords_3d
 
 
 def map_world_board_to_cams(boards_coords_3d, rotmats_cams, tvecs_cams):
-    boards_coords_3d = np.einsum('...ij,...j->...i', rotmats_cams, boards_coords_3d)  # TODO fix for other broadcasts
+    boards_coords_3d = np.einsum('...ij,...j->...i', rotmats_cams, boards_coords_3d)
     boards_coords_3d = boards_coords_3d + tvecs_cams
     return boards_coords_3d
 
@@ -27,6 +26,7 @@ def board_to_unit_sphere(boards_coords_3d):
     # Project points onto a unit spherical mirror which has the camera at its center.
     norm = np.linalg.norm(boards_coords_3d, axis=-1, keepdims=True)
 
+    # boards_coords_3d /= norm
     boards_coords_3d = np.where(norm == 0, boards_coords_3d, boards_coords_3d / norm)
 
     return boards_coords_3d
@@ -37,7 +37,7 @@ def shift_camera(boards_coords_3d, xi):
     boards_coords_3d = np.concatenate((
         boards_coords_3d[..., (0,)],
         boards_coords_3d[..., (1,)],
-        boards_coords_3d[..., (2,)] + xi,
+        boards_coords_3d[..., (2,)] + xi.reshape((-1,)+(1,)*(len(boards_coords_3d.shape)-2)+(1,)),
     ), -1)
     return boards_coords_3d
 
@@ -57,6 +57,7 @@ def to_ideal_plane(boards_coords_3d):
 
 
 def distort(boards_coords_ideal, ks):
+    ks = ks.reshape((-1,)+(1,)*(len(boards_coords_ideal.shape)-2)+(ks.shape[-1],))
     r2 = np.sum(boards_coords_ideal[..., 0:2] ** 2, axis=-1, keepdims=True)
     b = boards_coords_ideal
 
@@ -78,6 +79,8 @@ def distort(boards_coords_ideal, ks):
 
 
 def ideal_to_sensor(boards_coords_dist, cam_matrices):
+    cam_matrices = cam_matrices.reshape((-1,) + (1,) * (len(boards_coords_dist.shape) - 2) + (3,3))
+
     boards_coords_dist = np.einsum('...ij,...j->...i', cam_matrices,
-                                   boards_coords_dist)  # TODO fix for other broadcasts
+                                   boards_coords_dist)
     return boards_coords_dist[..., 0:2]
