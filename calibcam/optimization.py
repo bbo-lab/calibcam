@@ -87,14 +87,14 @@ def make_cam_params(calibs, opts_free_vars):
     xis = np.zeros(shape=(len(calibs), 1))
     ks = np.zeros(shape=(len(calibs), 5))
 
-    for calib, r, t, cm, xi, k in zip(calibs, rvecs_cam, tvecs_cam, cam_mats, xis, ks):
+    for calib, cam_free_vars, r, t, cm, xi, k in zip(calibs, opts_free_vars, rvecs_cam, tvecs_cam, cam_mats, xis, ks):
         r[:] = calib['rvec_cam']
         t[:] = calib['tvec_cam']
         cm[:] = calib['A']
 
         xi[:] = calib.get('xi', 0.0)
         k[:] = calib['k']
-        k[opts_free_vars['k'] == -1] = 0
+        k[cam_free_vars['k'] == -1] = 0
 
     camera_params = np.concatenate((
         rvecs_cam.ravel(),
@@ -146,23 +146,26 @@ def make_common_pose_params(calibs, corners_array, board_params):
 
 def make_free_parameter_mask(calibs, opts_free_vars, coord_cam_idx):
     rvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
-    rvecs_cam_mask[:] = opts_free_vars['cam_pose']
     tvecs_cam_mask = np.zeros(shape=(len(calibs), 3), dtype=bool)
-    tvecs_cam_mask[:] = opts_free_vars['cam_pose']
     cam_mats_mask = np.zeros(shape=(len(calibs), 3, 3), dtype=bool)
-    cam_mats_mask[:] = opts_free_vars['A']
 
     xis_mask = np.zeros(shape=(len(calibs), 1), dtype=bool)
-    xis_mask[:] = opts_free_vars['xi']
     ks_mask = np.zeros(shape=(len(calibs), 5), dtype=bool)
-    ks_mask[:] = opts_free_vars['k'] == 1
+
+    for i in range(len(calibs)):
+        rvecs_cam_mask[i, :] = opts_free_vars[i]['cam_pose']
+        tvecs_cam_mask[i, :] = opts_free_vars[i]['cam_pose']
+        cam_mats_mask[i, :] = opts_free_vars[i]['A']
+
+        xis_mask[i, :] = opts_free_vars[i]['xi']
+        ks_mask[i, :] = opts_free_vars[i]['k'] == 1
 
     # Position of coord cam is not free
     rvecs_cam_mask[coord_cam_idx, :] = False
     tvecs_cam_mask[coord_cam_idx, :] = False
 
     pose_mask = np.ones(shape=(calibs[0]['tvecs'].shape[0], 2, 3), dtype=bool)
-    pose_mask[:] = opts_free_vars['board_poses']
+    pose_mask[:] = opts_free_vars[0]['board_poses']
 
     return np.concatenate((
         rvecs_cam_mask.ravel(),

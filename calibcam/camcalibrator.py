@@ -1,3 +1,4 @@
+import copy
 import os
 from copy import deepcopy
 
@@ -123,6 +124,7 @@ class CamCalibrator:
             preoptim = np.load(self.data_path + '/preoptim.npy', allow_pickle=True)[()]
             preoptim = compatibility.update_preoptim(preoptim, n_corners)
 
+            del self.opts['internals']
             calibs_single = preoptim['info']['other']['calibs_single']
             used_frames_ids = preoptim['info']['used_frames_ids']
             corners = preoptim['info']['corners']
@@ -141,17 +143,28 @@ class CamCalibrator:
             corners, used_frames_ids = \
                 detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
 
-            if 'internals' in self.opts:
-                calibs_single = self.perform_board_position_estimation(self.opts["internals"], corners)
+            calibs_single = self.obtain_single_cam_calibrations(calibs_single=self.opts.pop('internals'),
+                                                                corners=corners)
 
-            else:
-                #  perform single calibration
-                calibs_single = self.perform_single_cam_calibrations(corners, calibs_init=self.calibs_init)
+            if self.opts['optimize_ind_cams']:
+                opts = deepcopy(self.opts)
+                opts['optimization']['max_nfev'] = 30
+                opts['optimization']['ftol'] = 1e-5
+                for i_cam, calib in enumerate(calibs_single):
+                    # analytically estimate initial camera poses
+                    calibs_interim = estimate_cam_poses([calib], opts, corners=corners[[i_cam]],
+                                                        required_corner_idxs=required_corner_idxs)
+
+                    calibs_fit_single, rvecs_boards, tvecs_boards, _, _ = self.optimize_poses(corners[[i_cam]],
+                                                                                              calibs_interim,
+                                                                                              opts=opts)
+                    calibs_single[i_cam].update(
+                        helper.combine_calib_with_board_params(calibs_fit_single, rvecs_boards, tvecs_boards)[0])
+                    calibs_single[i_cam]['frames_mask'] = np.sum(~np.isnan(corners[i_cam][:, :, 1]), axis=1) > 0
 
             # analytically estimate initial camera poses
             calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
                                               required_corner_idxs=required_corner_idxs)
-
 
             # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
             # pose_params = optimization.make_common_pose_params(calibs_multi, corners)
@@ -219,6 +232,25 @@ class CamCalibrator:
         print('FINISHED MULTI CAMERA CALIBRATION')
         return
 
+    def obtain_single_cam_calibrations(self, calibs_single, corners):
+
+        cams_2calibrate = []
+        for i_cam, cam_calib in enumerate(calibs_single):
+            if cam_calib is not None:
+                calibs_single[i_cam] = self.estimate_board_positions_in_single_cam(cam_calib, corners[i_cam])
+            else:
+                cams_2calibrate.append(i_cam)
+
+        #  perform single calibration if needed
+        cams_calibrated = self.perform_single_cam_calibrations(corners,
+                                                               camera_indexes=cams_2calibrate,
+                                                               calibs_init=self.calibs_init)
+        for i, i_cam in enumerate(cams_2calibrate):
+            calibs_single[i_cam] = cams_calibrated[i]
+
+        return calibs_single
+
+    @DeprecationWarning
     def perform_board_position_estimation(self, calibs_single, corners):
         print('ESTIMATE BOARD POSITIONS')
 
@@ -242,6 +274,10 @@ class CamCalibrator:
                                                          self.opts)
             for i_pose in range(len(corners_use)))
 
+        if 'rvec_cam' in calib:
+            calib['rvec_cam'] = np.zeros_like(calib['rvec_cam'])
+            calib['tvec_cam'] = np.zeros_like(calib['tvec_cam'])
+
         calib['rvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
         calib['tvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
         calib['frames_mask'] = mask
@@ -251,12 +287,14 @@ class CamCalibrator:
             if pos[0]:
                 calib['rvecs'][pose_idx] = pos[1][:,0]
                 calib['tvecs'][pose_idx] = pos[2][:,0]
+            else:
+                calib['frames_mask'][pose_idx] = False
 
         return calib
 
     @staticmethod
     def estimate_single_board_position(calib, corners, ids, board_params, opts):
-        if len(ids)<4:
+        if len(ids) < 4:
             return 0, np.full((3,), np.nan), np.full((3,), np.nan)
 
         retval, rvec, tvec = cv2.solvePnP(board.make_board_points(board_params)[ids].reshape((-1,3)),
@@ -265,26 +303,26 @@ class CamCalibrator:
                                           flags=cv2.SOLVEPNP_IPPE)
         return retval, rvec, tvec
 
-    def perform_single_cam_calibrations(self, corners, calibs_init=None):
+    def perform_single_cam_calibrations(self, corners, camera_indexes=None, calibs_init=None):
         print('PERFORM SINGLE CAMERA CALIBRATION')
 
-        if calibs_init is None:
-            calibs_init = [None for i in corners]
+        if camera_indexes is None:
+            camera_indexes = range(len(self.readers))
 
-        # calibs_single = [self.calibrate_single_camera(corners[i_cam],
-        #                                               camfunctions.get_header_from_reader(self.readers[i_cam])['sensorsize'],
-        #                                               self.board_params,
-        #                                               self.opts)
-        #                  for i_cam in range(len(self.readers))]
+        if calibs_init is None:
+            calibs_init = [None for _ in corners]
+
         print(int(np.floor(multiprocessing.cpu_count())))
         calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
             delayed(calibrate_single_camera)(corners[i_cam],
                                              camfunctions.get_header_from_reader(self.readers[i_cam])[
                                                  'sensorsize'],
                                              self.board_params,
-                                             self.opts,
+                                             {'free_vars': self.opts['free_vars'][i_cam],
+                                              'aruco_calibration': self.opts['aruco_calibration'][i_cam]
+                                              },
                                              calib_init=calibs_init[i_cam])
-            for i_cam in range(len(self.readers)))
+            for i_cam in camera_indexes)
 
         for i_cam, calib in enumerate(calibs_single):
             print(
@@ -303,9 +341,11 @@ class CamCalibrator:
             board_params = self.board_params
 
         pose_opts = deepcopy(opts)
-        pose_opts['free_vars']['A'][:] = False
-        pose_opts['free_vars']['k'][:] = False
-        pose_opts['free_vars']['xi'] = False
+        free_vars = pose_opts['free_vars']
+        for cam in free_vars:
+            cam['A'][:] = False
+            cam['k'][:] = False
+            cam['xi'] = False
 
         calibs_fit, rvecs_boards, tvecs_boards, min_result, args = \
             camfunctions.optimize_calib_parameters(corners, calibs_multi, board_params, opts=pose_opts)
@@ -319,10 +359,13 @@ class CamCalibrator:
             board_params = self.board_params
 
         pose_opts = deepcopy(opts)
-        pose_opts['free_vars']['cam_pose'] = False
-        pose_opts['free_vars']['A'][:] = False
-        pose_opts['free_vars']['k'][:] = False
-        pose_opts['free_vars']['xi'] = False
+        pose_opts = deepcopy(opts)
+        free_vars = pose_opts['pose_opts']
+        for cam in free_vars:
+            cam['cam_pose'] = False
+            cam['A'][:] = False
+            cam['k'][:] = False
+            cam['xi'] = False
 
         calibs_multi_pose = deepcopy(calibs_multi)
         rvecs_boards = calibs_multi[0]["rvecs"]

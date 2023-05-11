@@ -45,7 +45,7 @@ def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=N
                                         A,
                                         xi,
                                         k,
-                                        **opts['detection']['aruco_calibration'])
+                                        **opts['aruco_calibration'])
 
         retval, A, xi, k = cal_res[:4]
         others = cal_res[4:]
@@ -64,7 +64,7 @@ def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=N
                                                            sensor_size,
                                                            A,
                                                            k,
-                                                           **opts['detection']['aruco_calibration'])
+                                                           **opts['aruco_calibration'])
 
         retval, A, k = cal_res[:3]
         others = cal_res[3:]

@@ -2,34 +2,29 @@ import cv2
 import numpy as np
 
 
-def get_default_opts(model="pinhole"):
+def get_default_opts(models=["pinhole"]):
 
     default_opts = {
         'debug': True,  # Will enable advanced tests and outputs
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'frame_step': 1,  # Skip frames in recording
-        'allow_unequal_n_frame': False,  # Sometimes last frame is cut, so this may be okay.
+        'allow_unequal_n_frame': True,  # Sometimes last frame is cut, so this may be okay.
         'common_pose_r_err': 0.1,  # Iteratively exclude poses with higher rotation deviation from mean
         'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
         'optimize_only': False,
         # Do not perform detection and single cam calibration. (Disable mostly for development.)
         'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
+        'optimize_ind_cams': False,  # Optimise individual cameras immediately after performing opencv single calibration
         'optimize_board_poses': False,  # Optimize individual board poses then all params again. In a test,
         #  optimality was already reached after a first general optimization
 
         'max_allowed_res': 1.0,  # In pixels. Reject the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
 
-        'free_vars': get_free_vars(model),
+        'free_vars': [get_free_vars(model) for model in models],
         'detection': {
-            'inter_frame_dist': 0.0,  # In pixels
-            'aruco_calibration': {
-                'flags': get_flags(model),
-                'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
-                             30,
-                             float(np.finfo(np.float32).eps)),
-            },
+            'inter_frame_dist': 1.0,  # In pixels
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },
@@ -43,6 +38,12 @@ def get_default_opts(model="pinhole"):
                 'minMarkers': 2,
             },
         },
+        'aruco_calibration': [{
+            'flags': get_flags(model),
+            'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
+                         30,
+                         float(np.finfo(np.float32).eps)),
+        } for model in models],
         'optimization': {
             'method': 'trf',
             'ftol': 1e-4,
@@ -51,7 +52,7 @@ def get_default_opts(model="pinhole"):
             'x_scale': 'jac',
             'loss': 'linear',
             'tr_solver': 'lsmr',
-            'max_nfev': 150,
+            'max_nfev': 100,
             'verbose': 2,
         },
     }
@@ -75,7 +76,7 @@ def get_free_vars(model: str):
         # 'A' or 'K' (opencv-omnidir notation) - camera matrix
         # 'k' or 'D' (opencv-omnidir notation) - distortion coeffs
         free_vars['xi'] = True
-        free_vars['k'] = np.asarray([1, 1, 1, 1, 1])
+        free_vars['k'] = np.asarray([1, 1, 1, 1, 1])  # 1: optimize, 0: leave const, -1: force 0
 
     return free_vars
 

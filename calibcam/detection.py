@@ -37,7 +37,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
     for i_cam, detection in enumerate(detections):
         corners_all.append(detection[0])
         ids_all.append(detection[1])
-        fin_frames_masks[i_cam, :] = detection[2]
+        fin_frames_masks[i_cam, :] = detection[2][:fin_frames_masks.shape[1]]
         print(f'Detected features in {np.sum(fin_frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
 
     if return_matrix:
@@ -49,9 +49,9 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
 
 def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None):
     reader = imageio.get_reader(video)
-
     if stop_frm_idx is None:
         stop_frm_idx = camfunctions.get_n_frames_from_reader(reader)
+
     corners_cam = []
     ids_cam = []
     if init_frames_mask is None:

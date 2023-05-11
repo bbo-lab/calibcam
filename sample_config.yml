@@ -1,0 +1,15 @@
+# IMPORTANT - Remember to order the cameras is the sorted order of the video urls
+cameras:
+  - model: "pinhole"
+    internals:
+      optimize: False
+      calibration_file: /data/tmp/multicam_calibration.npy
+      calibration_cam_idx: 0
+    externals:
+      optimize: True
+
+  - model: "omnidir"
+    internals:
+      optimize: True
+    externals:
+      optimize: True
