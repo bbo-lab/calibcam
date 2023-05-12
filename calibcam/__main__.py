@@ -26,15 +26,6 @@ def main():
     parser.add_argument('--data_path', type=str, required=False, nargs=1, default=[None], help="")
 
     args = parser.parse_args()
-    args.videos = ["/media/smb/soma.ad01.caesar.de/bbo/bulk/bird_hellenthal_FrontField/20230502_20230505_FlightWindow/CamEnbert/2023_05_04_17_44_54/0_gray.mp4",
-                   "/media/smb/soma.ad01.caesar.de/bbo/bulk/bird_hellenthal_FrontField/20230502_20230505_FlightWindow/CamEnbert/2023_05_04_17_44_54/1_gray.mp4",]
-                   # "/media/smb/soma.ad01.caesar.de/bbo/bulk/bird_hellenthal_FrontField/20230502_20230505_FlightWindow/CamEnbert/2023_05_04_17_44_54/2_gray.mp4",
-                   # "/media/smb/soma.ad01.caesar.de/bbo/bulk/bird_hellenthal_FrontField/20230502_20230505_FlightWindow/CamEnbert/2023_05_04_17_44_54/3_gray.mp4"]
-    args.board = ["/media/smb/soma.ad01.caesar.de/bbo/projects/junker-bird/camera_calibration/20230504/anatomical_setup/board"]
-    args.data_path = ["/data/tmp/"]
-    args.config = ["/home/cheekoti_la/Downloads/github/calibcam/sample_config.yml"]
-    args.frame_step = [150]
-    # args.optimize_only = True
 
     # Fill options. These options supersede everything (defaults, saved file)
     opts = {}

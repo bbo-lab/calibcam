@@ -14,7 +14,7 @@ def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=N
     n_used_frames = np.sum(mask)
 
     if n_used_frames == 0:
-        return []
+        return {}
 
     corners_nn = corners_cam[mask]
     corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)

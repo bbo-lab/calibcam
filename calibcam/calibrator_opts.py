@@ -8,7 +8,7 @@ def get_default_opts(models=["pinhole"]):
         'debug': True,  # Will enable advanced tests and outputs
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'frame_step': 1,  # Skip frames in recording
-        'allow_unequal_n_frame': True,  # Sometimes last frame is cut, so this may be okay.
+        'allow_unequal_n_frame': False,  # Sometimes last frame is cut, so this may be okay.
         'common_pose_r_err': 0.1,  # Iteratively exclude poses with higher rotation deviation from mean
         'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
@@ -24,7 +24,7 @@ def get_default_opts(models=["pinhole"]):
 
         'free_vars': [get_free_vars(model) for model in models],
         'detection': {
-            'inter_frame_dist': 1.0,  # In pixels
+            'inter_frame_dist': 0.0,  # In pixels
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },
