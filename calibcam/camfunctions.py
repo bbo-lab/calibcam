@@ -124,9 +124,7 @@ def get_header_from_reader(reader):
 
 
 def test_objective_function(calibs, vars_free, args, corners_detection, board_params, individual_poses=False):
-    sys.path.insert(0, "/home/cheekoti_la/Downloads/github/calibcamlib_po")  # TODO: Remove later
 
-    # from calibcamlib import Camerasystem
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 

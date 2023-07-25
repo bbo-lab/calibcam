@@ -8,29 +8,33 @@ def get_default_opts(models=["pinhole"]):
         'debug': True,  # Will enable advanced tests and outputs
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'frame_step': 1,  # Skip frames in recording
-        'allow_unequal_n_frame': False,  # Sometimes last frame is cut, so this may be okay.
+        'allow_unequal_n_frame': True,  # Sometimes last frame is cut, so this may be okay.
         'common_pose_r_err': 0.1,  # Iteratively exclude poses with higher rotation deviation from mean
         'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
         'optimize_only': False,
         # Do not perform detection and single cam calibration. (Disable mostly for development.)
         'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
-        'optimize_ind_cams': False,  # Optimise individual cameras immediately after performing opencv single calibration
-        'optimize_board_poses': False,  # Optimize individual board poses then all params again. In a test,
-        #  optimality was already reached after a first general optimization
+        # Optimise individual cameras immediately after performing opencv single calibration
+        'optimize_ind_cams': False,
 
-        'max_allowed_res': 1.0,  # In pixels. Reject the pose with higher error and insert 'nearby' pose with lower
+        # Optimize individual board poses then all params again.
+        # In a test, optimality was already reached after a first general optimization
+        'optimize_board_poses': False,
+        'max_allowed_res': 2.0,  # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
+
+        'reject_corners': False,  # Reject corners with high zscore, check rejection params below
 
         'free_vars': [get_free_vars(model) for model in models],
         'detection': {
-            'inter_frame_dist': 0.0,  # In pixels
+            'inter_frame_dist': 1.0,  # In pixels
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },
             'aruco_refine': {
-                'minRepDistance': 10.0,
-                'errorCorrectionRate': 3.0,
+                'minRepDistance': 3.0,
+                'errorCorrectionRate': 1.0,
                 'checkAllOrders': True,
                 'parameters': get_detector_parameters_opts(),
             },
@@ -46,15 +50,20 @@ def get_default_opts(models=["pinhole"]):
         } for model in models],
         'optimization': {
             'method': 'trf',
-            'ftol': 1e-4,
-            'xtol': 1e-8,
-            'gtol': 1e-8,
+            'ftol': 1e-9,
+            'xtol': 1e-9,
+            'gtol': 1e-9,
             'x_scale': 'jac',
             'loss': 'linear',
-            'tr_solver': 'lsmr',
-            'max_nfev': 100,
+            'tr_solver': 'exact',
+            'max_nfev': 120,
             'verbose': 2,
         },
+        'rejection': {
+            'max_zscore': 3.0,
+            'max_res': 2.0,  # in pixels, only reject corners with high residual (rep. error) and zscore
+            'reject_poses': True  # Reject degenerate poses
+        }
     }
 
     return default_opts
@@ -95,10 +104,17 @@ def get_flags(model: str):
 
 def get_detector_parameters_opts():
     detector_parameters = {  # SPOT for detector params
+        'adaptiveThreshWinSizeMin': 15,
+        'adaptiveThreshWinSizeMax': 30,
+        'adaptiveThreshWinSizeStep': 5,
+
         'cornerRefinementMethod': cv2.aruco.CORNER_REFINE_SUBPIX,
-        'cornerRefinementWinSize': 5,
-        'cornerRefinementMaxIterations': 30,
-        'cornerRefinementMinAccuracy': 0.1,
+        'cornerRefinementWinSize': 3,
+        'cornerRefinementMaxIterations': 60,
+        'cornerRefinementMinAccuracy': 0.05,
+
+        'errorCorrectionRate': 0.3,
+        'perspectiveRemovePixelPerCell': 8
     }
     return detector_parameters
 
@@ -108,10 +124,8 @@ def finalize_aruco_detector_opts(aruco_detect_opts):
     opts = aruco_detect_opts.copy()
 
     detector_parameters = cv2.aruco.DetectorParameters_create()
-    detector_parameters.cornerRefinementMethod = aruco_detect_opts['parameters']['cornerRefinementMethod']
-    detector_parameters.cornerRefinementWinSize = aruco_detect_opts['parameters']['cornerRefinementWinSize']
-    detector_parameters.cornerRefinementMaxIterations = aruco_detect_opts['parameters']['cornerRefinementMaxIterations']
-    detector_parameters.cornerRefinementMinAccuracy = aruco_detect_opts['parameters']['cornerRefinementMinAccuracy']
+    for key, value in aruco_detect_opts['parameters'].items():
+        detector_parameters.__setattr__(key, value)
 
     opts['parameters'] = detector_parameters
     return opts

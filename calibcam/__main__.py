@@ -80,7 +80,7 @@ def main():
             if not cam.get('internals', {}).get('optimize', True):
                 opts['free_vars'][i_cam]['A'][:] = False
                 opts['free_vars'][i_cam]['xi'] = False
-                opts['free_vars'][i_cam]['k'][:] = 0
+                opts['free_vars'][i_cam]['k'][:] = False
 
         print(f"Camera models: {[cam['model'] for cam in cameras]}")
         calibrator = CamCalibrator(recFileNames, board_name=args.board[0], opts=opts, data_path=args.data_path[0])

@@ -106,3 +106,42 @@ def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards, copy=Fal
 def nearest_element(num_1: int, list_nums):
     dist = np.abs(np.asarray(list_nums) - num_1)
     return list_nums[np.argmin(dist)]
+
+
+def reject_corners(corners, prev_fun, board_params, rejection_opts):
+    """Reject corners/poses based on zscores which indicate outliers and misdetections"""
+    from scipy import stats
+
+    prev_fun = prev_fun.reshape(corners.shape)
+    output_corners = np.copy(corners)
+    num_poses = corners.shape[1]
+
+    # Calculate zscores along the frames axis
+    corners_zscores_bad = np.abs(stats.zscore(prev_fun, axis=-2)) > rejection_opts["max_zscore"]
+    corners_zscores_bad = np.sum(corners_zscores_bad, axis=-1, dtype=bool)
+
+    # Corners with low reprojection error are not rejected
+    corners_good = np.abs(prev_fun) < rejection_opts["max_res"]
+    corners_good = np.sum(corners_good, axis=-1, dtype=bool)
+    corners_zscores_bad[corners_good] = False
+
+    output_corners[corners_zscores_bad] = np.nan
+    print("The following corners are rejected:", np.where(corners_zscores_bad))
+
+    if rejection_opts["reject_poses"]:
+        # Reject the degeratge poses
+        corners_non_nans = ~np.isnan(output_corners[..., 0])
+        corners_per_pose = np.nansum(corners_non_nans, axis=-1)
+        poses_good = np.ones_like(corners_per_pose, dtype=bool)
+        for icam, cam_corners in enumerate(corners_non_nans):
+            for ipose, pose_corners in enumerate(cam_corners):
+                poses_good[icam, ipose] = check_detections_nondegenerate(board_params['boardWidth'],
+                                                                         np.where(pose_corners))
+        # Reject pose only if it is bad in all cameras!
+        rejected_poses = np.prod(~poses_good, axis=0, dtype=bool)
+        output_corners = output_corners[:, ~rejected_poses]
+        print("The following poses are rejected:", np.where(rejected_poses))
+
+        return output_corners, rejected_poses, np.where(corners_zscores_bad)
+    else:
+        return output_corners, np.zeros(num_poses, dtype=bool), np.where(corners_zscores_bad)
