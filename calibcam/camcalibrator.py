@@ -371,9 +371,9 @@ class CamCalibrator:
             board_params = self.board_params
 
         pose_opts = deepcopy(opts)
-        pose_opts['optimization']['ftol'] = 1e-12
-        pose_opts['optimization']['gtol'] = 1e-12
-        pose_opts['optimization']['xtol'] = 1e-12
+        pose_opts['optimization']['ftol'] = 1e-13
+        pose_opts['optimization']['gtol'] = 1e-13
+        pose_opts['optimization']['xtol'] = 1e-13
         free_vars = pose_opts['free_vars']
         for cam in free_vars:
             cam['cam_pose'] = False

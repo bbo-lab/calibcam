@@ -11,7 +11,9 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
 
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
     frames_masks_req = get_required_corners_masks(corners=corners,
-                                                  required_corner_idxs=required_corner_idxs)
+                                                  required_corner_idxs=required_corner_idxs
+                                                  if opts['pose_estimation']['use_required_corners']
+                                                  else None)
 
     # Opencv omnidirectional camera calibration does not calculate extrisic paraemters for all the frames. In such case,
     # it is necessary to omit such frames from estimating camera poses.

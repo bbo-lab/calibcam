@@ -48,6 +48,9 @@ def get_default_opts(models=["pinhole"]):
                          30,
                          float(np.finfo(np.float32).eps)),
         } for model in models],
+        'pose_estimation': {
+            'use_required_corners': True,
+        },
         'optimization': {
             'method': 'trf',
             'ftol': 1e-9,
