@@ -12,6 +12,7 @@ dependencies:
   - imageio
   - joblib
   - cudatoolkit
+  - appdirs
   - pip
   - pip:
     - jaxlib
