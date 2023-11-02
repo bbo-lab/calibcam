@@ -6,3 +6,4 @@ setuptools
 joblib
 cv2
 jax
+bbo-svidreader

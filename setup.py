@@ -11,7 +11,7 @@ print(packages)
 # This call to setup() does all the work
 setup(
     name="bbo-calibcam",
-    version="2.2.0",
+    version="2.3.0",
     description="Calibrate intrinsic and extrinsic parameters of cameras with charuco boards",
     long_description=README,
     long_description_content_type="text/markdown",
@@ -26,5 +26,5 @@ setup(
     ],
     packages=packages,
     include_package_data=True,
-    install_requires=["numpy", "pyyaml", "scipy", "bbo-calibcamlib", "jax", "jaxlib", "imageio", "bbo-ccvtools"],
+    install_requires=["numpy", "pyyaml", "scipy", "bbo-calibcamlib", "jax", "jaxlib", "imageio", "bbo-ccvtools", "bbo-svidreader"],
 )
