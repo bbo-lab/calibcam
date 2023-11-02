@@ -14,6 +14,9 @@ def main():
     # PArse command line arguments
     parser = argparse.ArgumentParser(description="Calibrate set of cameras")
     parser.add_argument('--videos', type=str, required=False, nargs='*', default=None, help="")
+    parser.add_argument('--pipelines', type=str, required=False, nargs='*', default=None,
+                        help="Add pipeline readable by bbo-svidreader. "
+                             "The final output of the pipeline is used for calibration.")
     parser.add_argument('--config', type=str, required=False, nargs=1, default=[None], help="")
     parser.add_argument('--board', type=str, required=False, nargs=1, default=[None], help="")
     parser.add_argument('--model', type=str, required=False, nargs=1, default=["pinhole"], help="")
@@ -67,6 +70,17 @@ def main():
     # Run calibration
     if isinstance(args.videos[0], str):
         recFileNames = sorted(args.videos)
+
+        if args.pipelines is None:
+            recPipelines = None
+        elif len(args.pipelines) == len(recFileNames):
+            recPipelines = [args.pipelines[args.videos.index(rec)] for rec in recFileNames]
+        elif len(args.pipelines) == 1:
+            recPipelines = args.pipelines * len(recFileNames)
+        else:
+            print("Sorry, the number of pipelines does not match the number of videos!")
+            raise RuntimeError
+
         cameras = config_dict['cameras']
         opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts([cam['model'] for cam in cameras]))
 
@@ -83,7 +97,7 @@ def main():
                 opts['free_vars'][i_cam]['k'][:] = False
 
         print(f"Camera models: {[cam['model'] for cam in cameras]}")
-        calibrator = CamCalibrator(recFileNames, board_name=args.board[0], opts=opts, data_path=args.data_path[0])
+        calibrator = CamCalibrator(recFileNames, pipelines=recPipelines, board_name=args.board[0], opts=opts, data_path=args.data_path[0])
         calibrator.perform_multi_calibration()
         print("Camera calibrated")
 

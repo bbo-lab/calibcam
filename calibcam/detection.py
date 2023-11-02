@@ -1,8 +1,8 @@
 import multiprocessing
 import cv2
-import imageio
 import numpy as np
 from ccvtools import rawio  # noqa
+from svidreader import filtergraph
 from joblib import Parallel, delayed
 from itertools import islice
 
@@ -10,7 +10,7 @@ from calibcam import camfunctions, board, helper
 from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 
-def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=True):
+def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=None, return_matrix=True):
     print('DETECTING FEATURES')
 
     if 'start_frame_indexes' in opts:
@@ -21,6 +21,8 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
         start_frm_indexes = [0]*len(rec_file_names)
         stop_frm_indexes = [None]*len(rec_file_names)
 
+    if rec_pipelines is None:
+        rec_pipelines = [None] * len(rec_file_names)
     init_frames_masks = opts.get('init_frames_masks', [None] * len(rec_file_names))
     if isinstance(init_frames_masks, str):
         init_frames_masks = np.load(init_frames_masks)
@@ -31,7 +33,8 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
     # Empirically, detection seems to utilize about 6 cores
     detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
         delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
-                                    stop_frm_indexes[i_rec], init_frames_masks[i_rec])
+                                    stop_frm_indexes[i_rec], init_frames_masks[i_rec],
+                                    rec_pipeline=rec_pipelines[i_rec])
         for i_rec, rec_file_name in enumerate(rec_file_names))
 
     for i_cam, detection in enumerate(detections):
@@ -47,8 +50,13 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, return_matrix=T
         return corners_all, ids_all, fin_frames_masks
 
 
-def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None):
-    reader = imageio.get_reader(video)
+def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None, rec_pipeline=None):
+
+    reader = filtergraph.get_reader(video, backend="iio", cache=False)
+    if rec_pipeline is not None:
+        fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
+        reader = fg['out']
+
     if stop_frm_idx is None:
         stop_frm_idx = camfunctions.get_n_frames_from_reader(reader)
 

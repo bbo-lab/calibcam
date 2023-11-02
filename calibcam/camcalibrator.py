@@ -8,8 +8,8 @@ import cv2
 
 from pathlib import Path
 
-import imageio
 from ccvtools import rawio  # noqa
+from svidreader import filtergraph
 
 import multiprocessing
 from joblib import Parallel, delayed
@@ -25,7 +25,7 @@ from calibcam.single_camcalibration import calibrate_single_camera
 
 
 class CamCalibrator:
-    def __init__(self, recordings, board_name=None, data_path=None, calibs_init=None, opts=None):
+    def __init__(self, recordings, pipelines=None, board_name=None, data_path=None, calibs_init=None, opts=None):
         if opts is None:
             opts = {}
 
@@ -42,6 +42,7 @@ class CamCalibrator:
         # Videos
         self.readers = None
         self.rec_file_names = None
+        self.rec_pipelines = None
         self.n_frames = np.NaN
 
         # Options
@@ -49,7 +50,7 @@ class CamCalibrator:
         self.opts = self.load_opts(opts, self.data_path)
 
         # Recordings
-        self.load_recordings(recordings)
+        self.load_recordings(recordings, pipelines)
 
         # Calibs initialization
         self.calibs_init = None
@@ -81,15 +82,22 @@ class CamCalibrator:
 
         return helper.deepmerge_dicts(opts, get_default_opts())
 
-    def load_recordings(self, recordings):
+    def load_recordings(self, recordings, pipelines=None):
         # check if input files are valid files
         try:
-            self.readers = [imageio.get_reader(rec) for rec in recordings]
+            self.readers = []
+            for irec, rec in enumerate(recordings):
+                reader = filtergraph.get_reader(rec, backend="iio")
+                if pipelines is not None:
+                    fg = filtergraph.create_filtergraph_from_string([reader], pipelines[irec])
+                    reader = fg['out']
+                self.readers.append(reader)
         except ValueError:
             print('At least one unsupported format supplied')
             raise UnsupportedFormatException
 
         self.rec_file_names = recordings
+        self.rec_pipelines = pipelines
 
         # find frame numbers
         n_frames = np.zeros(len(self.readers), dtype=np.int64)
@@ -141,7 +149,8 @@ class CamCalibrator:
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
             # Memory footprint at this stage is al but critical.
             corners, used_frames_ids = \
-                detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts)
+                detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
+                               rec_pipelines=self.rec_pipelines)
 
             calibs_single = self.obtain_single_cam_calibrations(calibs_single=self.opts.pop('internals'),
                                                                 corners=corners)
@@ -458,6 +467,8 @@ class CamCalibrator:
             }
         }
 
+        if self.rec_pipelines is not None:
+            result['rec_pipelines'] = self.rec_pipelines
         # savemat cannot deal with none!
         if min_result is not None:
             result['info']['fun_final'] = min_result.fun
