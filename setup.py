@@ -26,5 +26,6 @@ setup(
     ],
     packages=packages,
     include_package_data=True,
-    install_requires=["numpy", "pyyaml", "scipy", "bbo-calibcamlib", "jax", "jaxlib", "imageio", "bbo-ccvtools", "bbo-svidreader"],
+    install_requires=["numpy", "pyyaml", "scipy", "bbo-calibcamlib", "jax", "jaxlib", "imageio", "bbo-ccvtools",
+                      "bbo-svidreader@git+https://github.com/bbo-lab/videoreader.git@dev"],
 )
