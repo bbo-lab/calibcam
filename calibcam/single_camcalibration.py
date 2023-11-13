@@ -21,8 +21,11 @@ def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=N
 
     if calib_init is not None:
         A = calib_init['A']
-        xi = calib_init['xi'].reshape(1, -1)
         k = calib_init['k']
+        if "xi" in calib_init:
+            xi = calib_init['xi'].reshape(1, -1)
+        else:
+            xi=0
     else:
         A = None
         xi = None
