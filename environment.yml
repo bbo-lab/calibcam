@@ -17,6 +17,8 @@ dependencies:
   - pip:
     - jaxlib
     - jax
+    - pytest
+    - pytest-cov
     - bbo-ccvtools
     - bbo-calibcamlib
     - bbo-calibcam
