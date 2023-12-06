@@ -1,14 +1,10 @@
-import matplotlib
 import unittest
 import numpy as np
 import yaml
 import cv2
-matplotlib.use('tkagg')
-import matplotlib.pyplot as plt
+import os
 
-from svidreader import filtergraph
-
-from calibcam.calibrator_opts import get_default_opts, finalize_aruco_detector_opts
+from calibcam.calibrator_opts import get_default_opts
 from calibcam.board import get_board_params
 from calibcam import board
 from calibcam.detection import detect_corners_cam
@@ -21,7 +17,7 @@ class TestDetection(unittest.TestCase):
 
     def test_detect_corners_cam(self):
         video = "./test/sample_images_1"
-        board_name = "../boards/board_small"
+        board_name = "board_small"
 
         board_params = get_board_params(board_name)
         opts = get_default_opts()
@@ -49,6 +45,26 @@ class TestDetection(unittest.TestCase):
         detection['aruco_refine']['parameters'] = detector_parameters
 
         corners, ids, fin_frames_mask = detect_corners_cam(video=video, opts=opts, board_params=board_params)
+        #corners[detected frame]
+        plot = True
+        if plot:
+            with open('./test/sample_images_1/detections.yml') as f:
+                human_marked = yaml.safe_load(f)
+                import svidreader
+                frame2corneridx = np.full(len(fin_frames_mask), fill_value=-1)
+                frame2corneridx[fin_frames_mask] = np.arange(0, len(corners))
+                images = svidreader.get_reader(video)
+                import imageio
+                os.mkdir('test/out/')
+                for frame, img in enumerate(images):
+                    if fin_frames_mask[frame]:
+                        fr_corner = corners[frame2corneridx[frame]]
+                        for m in fr_corner:
+                            cv2.drawMarker(img, position=np.asarray(m[0],dtype=np.int32), color=(0,255,255))
+                    if frame in human_marked:
+                        for c in human_marked[frame]['corners']:
+                            cv2.drawMarker(img, position=np.asarray(c, dtype=np.int32), color=(255, 0, 0))
+                    imageio.imwrite(F'test/out/{frame}.png', img)
 
         assert fin_frames_mask[2]
 
