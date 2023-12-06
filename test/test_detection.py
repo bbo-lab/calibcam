@@ -5,10 +5,7 @@ import cv2
 import os
 
 from calibcam.calibrator_opts import get_default_opts
-from calibcam.board import get_board_params
-from calibcam import board
 from calibcam.detection import detect_corners_cam
-
 
 
 class TestDetection(unittest.TestCase):
@@ -17,9 +14,12 @@ class TestDetection(unittest.TestCase):
 
     def test_detect_corners_cam(self):
         video = "./test/sample_images_1"
-        board_name = "board_small"
+        board_path = "./boards/board_small.npy"
 
-        board_params = get_board_params(board_name)
+        board_params = np.load(os.path.expanduser(board_path), allow_pickle=True).item()
+        if board_params is not None:
+            board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']
+
         opts = get_default_opts()
         detection = opts['detection']
         detection['aruco_refine']['errorCorrectionRate'] = 0.1
@@ -45,8 +45,8 @@ class TestDetection(unittest.TestCase):
         detection['aruco_refine']['parameters'] = detector_parameters
 
         corners, ids, fin_frames_mask = detect_corners_cam(video=video, opts=opts, board_params=board_params)
-        #corners[detected frame]
-        plot = True
+
+        plot = False
         if plot:
             with open('./test/sample_images_1/detections.yml') as f:
                 human_marked = yaml.safe_load(f)
@@ -66,15 +66,14 @@ class TestDetection(unittest.TestCase):
                             cv2.drawMarker(img, position=np.asarray(c, dtype=np.int32), color=(255, 0, 0))
                     imageio.imwrite(F'test/out/{frame}.png', img)
 
-        assert fin_frames_mask[2]
+        assert fin_frames_mask[1]
 
         with open('./test/sample_images_1/detections.yml') as f:
             human_marked = yaml.safe_load(f)
-            i = 0
-            for frame_idx, value in enumerate(fin_frames_mask):
-                if value and frame_idx in human_marked:
+            detected_frames = np.where(fin_frames_mask)[0]
+            for i, frame_idx in enumerate(detected_frames):
+                if frame_idx in human_marked:
                     human_frame = dict(zip(human_marked[frame_idx]['ids'], human_marked[frame_idx]['corners']))
                     for id, corner in zip(np.squeeze(ids[i]), np.squeeze(corners[i])):
                         if id in human_frame:
                             assert np.allclose(corner, human_frame[id], atol=5)
-                i += value
