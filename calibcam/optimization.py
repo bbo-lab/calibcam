@@ -9,7 +9,6 @@ import sys
 # This could also be done dynamically, based on opts ...
 # from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
-sys.path.insert(0, "/home/cheekoti_la/Downloads/github/calibcamlib_po")
 import calibcamlib
 from calibcam import board, helper
 from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, obj_fcn_jacobian_wrapper_sparse, \
