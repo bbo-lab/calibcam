@@ -3,6 +3,8 @@ import numpy as np
 import yaml
 import cv2
 import os
+import svidreader
+import svidreader.local_radial
 
 from calibcam.calibrator_opts import get_default_opts
 from calibcam.detection import detect_corners_cam
@@ -46,16 +48,17 @@ class TestDetection(unittest.TestCase):
 
         corners, ids, fin_frames_mask = detect_corners_cam(video=video, opts=opts, board_params=board_params)
 
-        plot = False
+        plot = True
+        images = svidreader.get_reader(video)
+
         if plot:
             with open('./test/sample_images_1/detections.yml') as f:
                 human_marked = yaml.safe_load(f)
-                import svidreader
                 frame2corneridx = np.full(len(fin_frames_mask), fill_value=-1)
                 frame2corneridx[fin_frames_mask] = np.arange(0, len(corners))
-                images = svidreader.get_reader(video)
                 import imageio
-                os.mkdir('test/out/')
+                if not(os.path.exists('test/out/') and os.path.isdir('test/out/')):
+                    os.mkdir('test/out/')
                 for frame, img in enumerate(images):
                     if fin_frames_mask[frame]:
                         fr_corner = corners[frame2corneridx[frame]]
@@ -70,11 +73,18 @@ class TestDetection(unittest.TestCase):
         assert fin_frames_mask[2]
 
         with open('./test/sample_images_1/detections.yml') as f:
+            radcontrast = svidreader.local_radial.RadialContrast(images, options={'lib':'np'})
             human_marked = yaml.safe_load(f)
             detected_frames = np.where(fin_frames_mask)[0]
+            count = 0
             for i, frame_idx in enumerate(detected_frames):
+                img = radcontrast.read(frame_idx)
+                imageio.imwrite(F'test/out/{frame_idx}_weight.png', img)
                 if frame_idx in human_marked:
                     human_frame = dict(zip(human_marked[frame_idx]['ids'], human_marked[frame_idx]['corners']))
                     for id, corner in zip(np.squeeze(ids[i]), np.squeeze(corners[i])):
-                        if id in human_frame:
+                        if id in human_frame and img[tuple(np.asarray(corner, dtype=int)[::-1,np.newaxis])] > 20:
+                            count += 1
                             assert np.allclose(corner, human_frame[id], atol=5)
+            print(F"accepted {count} of {0}")
+            assert count > 4
