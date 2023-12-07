@@ -13,7 +13,7 @@ class TestDetection(unittest.TestCase):
         super().__init__(methodName=methodName)
 
     def test_detect_corners_cam(self):
-        video = "./test/sample_images_1"
+        video = "./test/sample_images_1/"
         board_path = "./boards/board_small.npy"
 
         board_params = np.load(os.path.expanduser(board_path), allow_pickle=True).item()
@@ -60,13 +60,14 @@ class TestDetection(unittest.TestCase):
                     if fin_frames_mask[frame]:
                         fr_corner = corners[frame2corneridx[frame]]
                         for m in fr_corner:
-                            cv2.drawMarker(img, position=np.asarray(m[0],dtype=np.int32), color=(0,255,255))
+                            cv2.drawMarker(img, position=np.asarray(m[0],dtype=np.int32), markerType=1, thickness=2,
+                                           color=(0,255,255))
                     if frame in human_marked:
                         for c in human_marked[frame]['corners']:
                             cv2.drawMarker(img, position=np.asarray(c, dtype=np.int32), color=(255, 0, 0))
                     imageio.imwrite(F'test/out/{frame}.png', img)
 
-        assert fin_frames_mask[1]
+        assert fin_frames_mask[2]
 
         with open('./test/sample_images_1/detections.yml') as f:
             human_marked = yaml.safe_load(f)
