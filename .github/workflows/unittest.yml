@@ -27,6 +27,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install libgl1
+          pip install -e ./
           conda info
           conda list
           pytest -s
