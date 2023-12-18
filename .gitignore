@@ -134,3 +134,5 @@ dmypy.json
 .idea/
 *.swp
 *.swo
+
+test/out

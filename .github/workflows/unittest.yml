@@ -1,0 +1,33 @@
+name: Python package
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cache conda
+        uses: actions/cache@v3
+        env:
+          CACHE_NUMBER: 0
+        with:
+          path: ~/conda_pkgs_dir
+          key:
+            ${{ runner.os }}-conda-${{ env.CACHE_NUMBER }}-${{hashFiles('etc/example-environment.yml') }}
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          miniconda-version: "latest"
+          activate-environment: calibcam
+          environment-file: environment.yml
+          auto-activate-base: false
+          use-only-tar-bz2: true
+      - name: Pytest
+        shell: bash -el {0}
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libgl1
+          pip install -e ./
+          conda info
+          conda list
+          pytest -s
