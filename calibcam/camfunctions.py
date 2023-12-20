@@ -78,7 +78,7 @@ def make_optim_input(board_params, calibs_multi, corners, opts):
         'coord_cam': opts['coord_cam'],  # This is currently only required due to unsolved jacobian issue
         'board_coords_3d_0': board_coords_3d_0,  # Board points in z plane
         'corners': corners,
-        'precalc': optimization.get_precalc(),
+        'precalc': optimization.get_precalc(opts),
         # Inapplicable tue to autograd slice limitations
         # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
         #     'residuals': np.zeros_like(corners),
@@ -118,7 +118,7 @@ def get_header_from_reader(reader):
 
         if 'sensorsize' not in header:
             print("Inferring sensor size from image")
-            header['sensorsize'] = tuple(reader.get_data(0).shape[0:2])
+            header['sensorsize'] = tuple([reader.get_data(0).shape[1], reader.get_data(0).shape[0]])
 
     return header
 

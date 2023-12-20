@@ -11,13 +11,13 @@ print(packages)
 # This call to setup() does all the work
 setup(
     name="bbo-calibcam",
-    version="2.3.0",
+    version="2.3.1",
     description="Calibrate intrinsic and extrinsic parameters of cameras with charuco boards",
     long_description=README,
     long_description_content_type="text/markdown",
     url="https://github.com/bbo-lab/calibcam",
     author="BBO-lab @ caesar",
-    author_email="kay-michael.voit@caesar.de",
+    author_email="kay-michael.voit@mpinb.mpg.de",
     license="BSD",
     classifiers=[
         "License :: OSI Approved :: BSD License",

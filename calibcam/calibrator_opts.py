@@ -6,6 +6,7 @@ def get_default_opts(models=["pinhole"]):
 
     default_opts = {
         'debug': True,  # Will enable advanced tests and outputs
+        'jax_backend': 'cpu',  # GPU regularly runs out of memory for these problems
         'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
         'frame_step': 1,  # Skip frames in recording
         'allow_unequal_n_frame': True,  # Sometimes last frame is cut, so this may be okay.
