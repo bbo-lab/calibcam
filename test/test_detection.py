@@ -57,8 +57,7 @@ class TestDetection(unittest.TestCase):
                 frame2corneridx = np.full(len(fin_frames_mask), fill_value=-1)
                 frame2corneridx[fin_frames_mask] = np.arange(0, len(corners))
                 import imageio
-                if not(os.path.exists('test/out/') and os.path.isdir('test/out/')):
-                    os.mkdir('test/out/')
+                os.makedirs('test/out/', exist_ok=True)
                 for frame, img in enumerate(images):
                     if fin_frames_mask[frame]:
                         fr_corner = corners[frame2corneridx[frame]]

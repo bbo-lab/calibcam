@@ -100,6 +100,7 @@ def main():
         calibrator = CamCalibrator(recFileNames, pipelines=recPipelines, board_name=args.board[0], opts=opts, data_path=args.data_path[0])
         calibrator.perform_multi_calibration()
         print("Camera calibrated")
+        calibrator.close_readers()
 
     toc = timeit.default_timer()
 

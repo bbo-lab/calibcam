@@ -87,7 +87,7 @@ class CamCalibrator:
         try:
             self.readers = []
             for irec, rec in enumerate(recordings):
-                reader = filtergraph.get_reader(rec, backend="iio")
+                reader = filtergraph.get_reader(rec, backend="decord", cache=False)
                 if pipelines is not None:
                     fg = filtergraph.create_filtergraph_from_string([reader], pipelines[irec])
                     reader = fg['out']
@@ -120,6 +120,12 @@ class CamCalibrator:
                 raise UnequalFrameCountException
 
         self.board_params = self.get_board_params_from_name(self.board_name)
+
+    def close_readers(self):
+        if not self.readers:
+            return
+        for reader in self.readers:
+            reader.close()
 
     def perform_multi_calibration(self):
         n_corners = (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1)
