@@ -12,10 +12,10 @@ from calibcam.opt_jacfwd import optfunctions_ag as opt_ag
 import timeit
 
 
-def get_precalc():
+def get_precalc(opts):
     return {
-        'objfunc': jit(opt_ag.obj_fcn),
-        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var)) for i_var in range(7)]
+        'objfunc': jit(opt_ag.obj_fcn, backend=opts["jax_backend"]),
+        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var), backend=opts["jax_backend"]) for i_var in range(7)]
     }
 
 
