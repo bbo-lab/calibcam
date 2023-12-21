@@ -52,7 +52,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
 
 def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None, rec_pipeline=None):
 
-    reader = filtergraph.get_reader(video, backend="decord", cache=False)
+    reader = filtergraph.get_reader(video, backend="iio", cache=False)
     if rec_pipeline is not None:
         fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
         reader = fg['out']

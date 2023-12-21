@@ -87,7 +87,7 @@ class CamCalibrator:
         try:
             self.readers = []
             for irec, rec in enumerate(recordings):
-                reader = filtergraph.get_reader(rec, backend="decord", cache=False)
+                reader = filtergraph.get_reader(rec, backend="iio", cache=False)
                 if pipelines is not None:
                     fg = filtergraph.create_filtergraph_from_string([reader], pipelines[irec])
                     reader = fg['out']
