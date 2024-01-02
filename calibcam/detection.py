@@ -13,20 +13,16 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=None, return_matrix=True):
     print('DETECTING FEATURES')
 
-    if 'start_frame_indexes' in opts:
-        start_frm_indexes = opts['start_frame_indexes']
-        stop_frm_indexes = list(np.ones(len(rec_file_names), dtype='int')*(n_frames - np.max(start_frm_indexes))
-                            + np.asarray(start_frm_indexes))
-    else:
-        start_frm_indexes = [0]*len(rec_file_names)
-        stop_frm_indexes = [None]*len(rec_file_names)
-
+    start_frm_indexes = opts.get('start_frame_indexes', np.zeros(len(rec_file_names)))
+    stop_frm_indexes = opts.get('stop_frame_indexes', np.full(len(rec_file_names), fill_value=n_frames))
     if rec_pipelines is None:
         rec_pipelines = [None] * len(rec_file_names)
+
     init_frames_masks = opts.get('init_frames_masks', [None] * len(rec_file_names))
     if isinstance(init_frames_masks, str):
         init_frames_masks = np.load(init_frames_masks)
-    fin_frames_masks = np.zeros(shape=(len(rec_file_names), n_frames - np.max(start_frm_indexes)), dtype=bool)
+
+    fin_frames_masks = np.zeros(shape=(len(rec_file_names), np.min(stop_frm_indexes - start_frm_indexes)), dtype=bool)
     corners_all = []
     ids_all = []
 
@@ -56,6 +52,11 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
     if rec_pipeline is not None:
         fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
         reader = fg['out']
+
+    # We take offset into consideration at corner detection level. This means that the calibration parameters always
+    # refer to the offset-free pixel positions and offsets do NOT have to be taken into account anywhere in
+    # this calibration procedure or when working with the
+    offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
 
     if stop_frm_idx is None:
         stop_frm_idx = camfunctions.get_n_frames_from_reader(reader)
@@ -110,10 +111,6 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
             continue
 
         # add offset
-        # We take offset into consideration at corner detection level. This means that the calibration parameters always
-        # refer to the offset-free pixel positions and offsets do NOT have to be taken into account anywhere in
-        # this calibration procedure or when working with the 
-        offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
         charuco_corners[:, :, 0] = charuco_corners[:, :, 0] + offset_x
         charuco_corners[:, :, 1] = charuco_corners[:, :, 1] + offset_y
 

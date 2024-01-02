@@ -22,7 +22,10 @@ def main():
     parser.add_argument('--model', type=str, required=False, nargs=1, default=["pinhole"], help="")
     parser.add_argument('--frame_step', type=int, required=False, nargs=1, default=[None], help="")
     parser.add_argument('--start_frame_indexes', type=int, required=False, nargs='*', default=None, help="")
-    parser.add_argument('--frames_masks', type=str, required=False, nargs=1, default=[None], help="A .npy file")
+    parser.add_argument('--stop_frame_indexes', type=int, required=False, nargs='*', default=None, help="")
+    parser.add_argument('--frames_masks', type=str, required=False, nargs=1, default=[None],
+                        help="A .npy file. The frames_masks starts from the start_frame_indexes and ends at "
+                             "the stop_frame_indexes if they are provided.")
     parser.add_argument('--optimize_only', required=False, default=None, action="store_true", help="")
     parser.add_argument('--numerical_jacobian', required=False, default=None, action="store_true", help="")
     parser.add_argument('--write_opts', type=str, required=False, nargs=1, default=[None], help="")
@@ -45,7 +48,15 @@ def main():
         assert len(args.videos) == len(args.start_frame_indexes), "number of start_frame_indexes " \
                                                                   "does not match number of videos!"
         opts['start_frame_indexes'] = args.start_frame_indexes
-    # Use frames_masks together with start_frames_indexes only after fully understanding their use!
+
+    # Sometimes, it is better to use only certain portion of the video for calibration. start_frame_indexes and stop_frame_indexes can be used to specify
+    # the frames to be used for calibration.
+    if args.stop_frame_indexes is not None:
+        assert len(args.videos) == len(args.stop_frame_indexes), "number of stop_frame_indexes " \
+                                                                  "does not match number of videos!"
+        opts['stop_frame_indexes'] = args.stop_frame_indexes
+
+    # Use frames_masks together with start_frames_indexes to provide the frames to be used for calibration.
     if args.frames_masks[0] is not None:
         opts['init_frames_masks'] = args.frames_masks[0]
 
