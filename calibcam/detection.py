@@ -58,6 +58,11 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
     # this calibration procedure or when working with the
     offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
 
+    if opts['RC_reject_corners']:
+        # Reject corners based on radial contrast value
+        RC_params = opts['detection']['radial_contrast_reject']
+        RC_reader = helper.RadialContrast(reader, **RC_params)
+
     if stop_frm_idx is None:
         stop_frm_idx = camfunctions.get_n_frames_from_reader(reader)
 
@@ -105,6 +110,14 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
                                                 **opts['detection']['aruco_interpolate'])
         if charuco_corners is None:
             continue
+
+        if opts['RC_reject_corners']:
+            # Reject corners based on radial contrast value
+            RC_frame = RC_reader.read(i_frame + start_frm_idx)
+            corners_frame = np.squeeze(charuco_corners).astype(int).T
+            RC_bool = RC_frame[tuple(corners_frame[::-1, np.newaxis])] > 0
+            charuco_ids = charuco_ids[RC_bool[0]]
+            charuco_corners = charuco_corners[RC_bool[0]]
 
         # check if the result is degenerated (all corners on a line)
         if not helper.check_detections_nondegenerate(board_params['boardWidth'], charuco_ids):

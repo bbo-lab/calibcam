@@ -218,7 +218,7 @@ class CamCalibrator:
             print('OPTIMIZING ALL PARAMETERS II')
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
 
-        if self.opts["reject_corners"]:
+        if self.opts["zscore_reject_corners"]:
             result = self.build_result(calibs_fit,
                                        corners=corners, used_frames_ids=used_frames_ids,
                                        min_result=min_result, args=args,
@@ -230,7 +230,7 @@ class CamCalibrator:
             print('INSPECTING CORNERS')
             corners, rejected_poses, rejected_corners = helper.reject_corners(corners, min_result.fun,
                                                                               self.board_params,
-                                                                              self.opts["rejection"])
+                                                                              self.opts['zscore_rejection'])
             rvecs_boards = rvecs_boards[~rejected_poses]
             tvecs_boards = tvecs_boards[~rejected_poses]
             used_frames_ids = used_frames_ids[~rejected_poses]

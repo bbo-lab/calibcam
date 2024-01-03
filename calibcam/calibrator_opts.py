@@ -25,7 +25,8 @@ def get_default_opts(models=["pinhole"]):
         'max_allowed_res': 2.0,  # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
 
-        'reject_corners': False,  # Reject corners with high zscore, check rejection params below
+        'RC_reject_corners': False,  # Use radial contrast value for rejecting corners, check rejection params below in detection
+        'zscore_reject_corners': False,  # Reject corners with high zscore, check rejection params below
 
         'free_vars': [get_free_vars(model) for model in models],
         'detection': {
@@ -41,6 +42,12 @@ def get_default_opts(models=["pinhole"]):
             },
             'aruco_interpolate': {
                 'minMarkers': 2,
+            },
+            'radial_contrast_reject': {
+                'options': {'lib': 'np'},
+                'width': 20,
+                'normalize': 50,
+                'norm_mean': 0.311,
             },
         },
         'aruco_calibration': [{
@@ -63,7 +70,7 @@ def get_default_opts(models=["pinhole"]):
             'max_nfev': 120,
             'verbose': 2,
         },
-        'rejection': {
+        'zscore_rejection': {
             'max_zscore': 3.0,
             'max_res': 2.0,  # in pixels, only reject corners with high residual (rep. error) and zscore
             'reject_poses': True  # Reject degenerate poses
@@ -109,7 +116,7 @@ def get_flags(model: str):
 def get_detector_parameters_opts():
     detector_parameters = {  # SPOT for detector params
         'adaptiveThreshWinSizeMin': 15,
-        'adaptiveThreshWinSizeMax': 30,
+        'adaptiveThreshWinSizeMax': 45,
         'adaptiveThreshWinSizeStep': 5,
 
         'cornerRefinementMethod': cv2.aruco.CORNER_REFINE_SUBPIX,
