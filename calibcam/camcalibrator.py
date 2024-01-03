@@ -230,6 +230,7 @@ class CamCalibrator:
             print('INSPECTING CORNERS')
             corners, rejected_poses, rejected_corners = helper.reject_corners(corners, min_result.fun,
                                                                               self.board_params,
+                                                                              self.opts['detection'],
                                                                               self.opts['zscore_rejection'])
             rvecs_boards = rvecs_boards[~rejected_poses]
             tvecs_boards = tvecs_boards[~rejected_poses]

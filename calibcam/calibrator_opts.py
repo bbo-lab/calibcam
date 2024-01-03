@@ -31,6 +31,7 @@ def get_default_opts(models=["pinhole"]):
         'free_vars': [get_free_vars(model) for model in models],
         'detection': {
             'inter_frame_dist': 1.0,  # In pixels
+            'min_corners': 5,  # Minimum number of corners to detect in a frame
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },

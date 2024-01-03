@@ -120,7 +120,8 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
             charuco_corners = charuco_corners[RC_bool[0]]
 
         # check if the result is degenerated (all corners on a line)
-        if not helper.check_detections_nondegenerate(board_params['boardWidth'], charuco_ids):
+        if not helper.check_detections_nondegenerate(board_params['boardWidth'], charuco_ids,
+                                                     opts['detection']['min_corners']):
             continue
 
         # add offset
@@ -137,7 +138,8 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
         if len(used_frame_ids) > 0:
             ids_common = np.intersect1d(ids_cam[-1], charuco_ids)
 
-            if helper.check_detections_nondegenerate(board_params['boardWidth'], ids_common):
+            if helper.check_detections_nondegenerate(board_params['boardWidth'], ids_common,
+                                                     opts['detection']['min_corners']):
                 prev_mask = np.isin(ids_cam[-1], ids_common)
                 curr_mask = np.isin(charuco_ids, ids_common)
 
