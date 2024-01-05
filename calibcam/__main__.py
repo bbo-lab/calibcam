@@ -47,14 +47,14 @@ def main():
     if args.start_frame_indexes is not None:
         assert len(args.videos) == len(args.start_frame_indexes), "number of start_frame_indexes " \
                                                                   "does not match number of videos!"
-        opts['start_frame_indexes'] = args.start_frame_indexes
+        opts['start_frame_indexes'] = np.array(args.start_frame_indexes)
 
     # Sometimes, it is better to use only certain portion of the video for calibration. start_frame_indexes and stop_frame_indexes can be used to specify
     # the frames to be used for calibration.
     if args.stop_frame_indexes is not None:
         assert len(args.videos) == len(args.stop_frame_indexes), "number of stop_frame_indexes " \
                                                                   "does not match number of videos!"
-        opts['stop_frame_indexes'] = args.stop_frame_indexes
+        opts['stop_frame_indexes'] = np.array(args.stop_frame_indexes)
 
     # Use frames_masks together with start_frames_indexes to provide the frames to be used for calibration.
     if args.frames_masks[0] is not None:
