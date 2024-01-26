@@ -43,3 +43,23 @@ def make_board_points(board_params):
     board = np.concatenate([board_0, board_1, board_2], 1) * square_size
 
     return board  # n_corners x 3
+
+
+def make_board_sketch(board_params, image_square_size=100, out_npy_file=None):
+    """Draws a sketch of the board and saves it to a .npy file for bbo-labelui use"""
+    square_size = board_params['square_size_real']
+    board = make_board(board_params)
+    board_img = board.draw((board_params['boardWidth'] * image_square_size,
+                            board_params['boardHeight'] * image_square_size))
+    output = {}
+    if out_npy_file is None:
+        out_npy_file = "board_sketch.npy"
+
+    output['sketch'] = board_img
+    board_points = make_board_points(board_params) / square_size
+    board_points *= image_square_size
+    board_points = board_points[:, :2]
+    output['sketch_label_locations'] = {}
+    for i, point in enumerate(board_points):
+        output['sketch_label_locations'][f'corner_{i:03d}'] = point
+    np.save(out_npy_file, output)
