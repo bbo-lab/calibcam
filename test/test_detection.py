@@ -22,7 +22,7 @@ class TestDetection(unittest.TestCase):
         if board_params is not None:
             board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']
 
-        opts = get_default_opts(1, fill=True)
+        opts = get_default_opts(1, do_fill=True)
         detection = opts['detection_opts']
         detection['aruco_refine']['errorCorrectionRate'] = 0.1
         detection['aruco_interpolate']['minMarkers'] = 1
