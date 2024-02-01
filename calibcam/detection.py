@@ -81,7 +81,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
         corners, ids, rejected_img_points = \
             cv2.aruco.detectMarkers(frame,  # noqa
                                     cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
-                                    **finalize_aruco_detector_opts(opts['detection']['aruco_detect']))
+                                    **finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect']))
 
         if len(corners) == 0:
             continue
@@ -93,7 +93,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
                                             corners,
                                             ids,
                                             rejected_img_points,
-                                            **finalize_aruco_detector_opts(opts['detection']['aruco_refine']))[0:2]
+                                            **finalize_aruco_detector_opts(opts['detection_opts']['aruco_refine']))[0:2]
 
         # corner interpolation
         retval, charuco_corners, charuco_ids = \
@@ -101,7 +101,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
                                                 ids_ref,
                                                 frame,
                                                 board.make_board(board_params),
-                                                **opts['detection']['aruco_interpolate'])
+                                                **opts['detection_opts']['aruco_interpolate'])
         if charuco_corners is None:
             continue
 
@@ -134,7 +134,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
                 diff = corners_cam[-1][prev_mask] - charuco_corners[curr_mask]
                 dist = np.sqrt(np.sum(diff ** 2, 1))
 
-                if np.max(dist) < opts['detection']['inter_frame_dist']:
+                if np.max(dist) < opts['detection_opts']['inter_frame_dist']:
                     continue
 
         fin_frames_mask[i_frame] = True

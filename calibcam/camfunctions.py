@@ -13,7 +13,7 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, ve
     if opts is None:
         opts = {}
 
-    defaultopts = calibrator_opts.get_default_opts()
+    defaultopts = calibrator_opts.get_default_opts(len(corners))
     opts = helper.deepmerge_dicts(opts, defaultopts)
 
     if verbose is None:
