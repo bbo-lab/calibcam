@@ -154,9 +154,13 @@ class CamCalibrator:
             # used frames or global frames. For simplification, corners are returned as a single matrix of shape
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
             # Memory footprint at this stage is al but critical.
-            corners, used_frames_ids = \
-                detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
-                               rec_pipelines=self.rec_pipelines)
+            if 'corners' in self.opts:
+                corners = self.opts.pop('corners')
+                used_frames_ids = self.opts.pop('used_frames_ids')
+            else:
+                corners, used_frames_ids = \
+                    detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
+                                   rec_pipelines=self.rec_pipelines)
 
             calibs_single = self.obtain_single_cam_calibrations(calibs_single=self.opts.pop('internals'),
                                                                 corners=corners)

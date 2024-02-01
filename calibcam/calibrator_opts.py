@@ -22,7 +22,7 @@ def get_default_opts(models=["pinhole"]):
         # Optimize individual board poses then all params again.
         # In a test, optimality was already reached after a first general optimization
         'optimize_board_poses': False,
-        'max_allowed_res': 2.0,  # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
+        'max_allowed_res': 5.0,  # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
 
         'RC_reject_corners': False,  # Use radial contrast value for rejecting corners, check rejection params below in detection

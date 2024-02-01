@@ -13,3 +13,6 @@ cameras:
       optimize: True
     externals:
       optimize: True
+
+corners:
+  path: # Path to the corners yml file obtained from bbo-labelgui

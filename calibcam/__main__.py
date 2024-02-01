@@ -64,8 +64,10 @@ def main():
     if isinstance(args.config[0], str):
         with open(args.config[0], "r") as file:
             config_dict = yaml.safe_load(file)
-            assert len(args.videos) == len(config_dict["cameras"]), "Number of cameras provided in the config file " \
-                                                                    "does not match the number of videos!"
+            assert len(args.videos) == len(config_dict["cameras"]), f"Number of cameras provided in the config file " \
+                                                                    f"{len(config_dict['cameras'])} " \
+                                                                    f"does not match the number of videos " \
+                                                                    f"{len(args.videos)}!"
     else:
         config_dict = {'cameras':
                            [{'model': args.model[0]} for _ in args.videos]
@@ -94,6 +96,20 @@ def main():
 
         cameras = config_dict['cameras']
         opts = helper.deepmerge_dicts(opts, calibrator_opts.get_default_opts([cam['model'] for cam in cameras]))
+
+        if 'corners' in config_dict:
+            from bbo import label_lib
+            labels = label_lib.load(config_dict['corners']['path'])
+            label_names = label_lib.get_labels(labels, allow_empty=True)
+            corners, all_frames = label_lib.to_numpy(labels, extract_labels=label_names)
+            # Remove frames where all corners are NaN
+            frames_bool = np.all(np.isnan(corners), axis=(0, 2, 3))
+            corners = corners[:, ~frames_bool]
+            used_frames = all_frames[~frames_bool]
+            opts.update({
+                'corners': corners,
+                'used_frames_ids': used_frames
+            })
 
         # 'internals' will be deleted from the opts dictionary later.
         opts['internals'] = [None for _ in cameras]
