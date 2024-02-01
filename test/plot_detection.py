@@ -18,7 +18,7 @@ def main(frame_num=1295):
 
     board_name = "/media/smb/soma-fs.ad01.caesar.de/bbo/projects/junker-bird/experiments/20230612_20230615_FlightWindow/calibrations/board_small"
     board_params = get_board_params(board_name)
-    opts = get_default_opts()
+    opts = get_default_opts(1, do_fill=True)
     detection = opts['detection']
     detection['aruco_refine']['errorCorrectionRate'] = 0.1
     detection['aruco_interpolate']['minMarkers'] = 1

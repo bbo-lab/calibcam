@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-def get_default_opts(ncams=0):
+def get_default_opts(ncams=0, do_fill=False):
     default_opts = {
         # === Program function control ===
         # If True, calibcam will perform detections. If list of yml files, these files will be used instead
@@ -87,6 +87,9 @@ def get_default_opts(ncams=0):
             'reject_poses': True  # Reject degenerate poses
         }
     }
+
+    if do_fill:
+        fill(default_opts)
 
     return default_opts
 
