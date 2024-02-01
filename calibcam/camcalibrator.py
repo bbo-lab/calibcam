@@ -194,7 +194,7 @@ class CamCalibrator:
                 calibration_single_file = Path(calibration_single_file)
                 if calibration_single_file.suffix == ".yml":
                     with open(calibration_single_file, "r") as file:
-                        calibs_single.append(yaml_helper.calib_to_numpy(yaml.safe_load(file)))
+                        calibs_single.append(yaml_helper.load_calib(yaml.safe_load(file)))
                 elif calibration_single_file.suffix == ".npy":
                     calibs_single.append(np.load(calibration_single_file, allow_pickle=True)[()])
                 else:
@@ -220,7 +220,7 @@ class CamCalibrator:
         for i_cam, calib_single in enumerate(calibs_single):
             save_path = Path(self.data_path) / f"calibration_single_{i_cam:03d}.yml"
             with open(save_path, "w") as file:
-                yaml.dump(yaml_helper.calib_to_list(calib_single), file, default_flow_style=True)
+                yaml.dump(yaml_helper.numpy_collection_to_list(calib_single), file, default_flow_style=True)
             # np.save(save_path.with_suffix(".npy"), calib_single, allow_pickle=True)
 
         # === Multi cam calibration ===
@@ -545,7 +545,7 @@ class CamCalibrator:
         np.save(result_path.with_suffix('.npy'), result)
         scipy_io_savemat(result_path.with_suffix('.mat'), result)
         with open(result_path.with_suffix('.yml'), "w") as yml_file:
-            yaml.dump(yaml_helper.numpy_dict_to_list(result), yml_file)
+            yaml.dump(yaml_helper.numpy_collection_to_list(result), yml_file, default_flow_style=True)
         print(f'Saved multi camera calibration to file {result_path}')
         return
 

@@ -6,14 +6,24 @@ def get_calib_numpy_fields():
             'std_extrinsics', 'per_view_errors']
 
 
-def calib_to_list(calib):
-    calib = deepcopy(calib)
-    for k in get_calib_numpy_fields():
-        if k in calib:
-            calib[k] = calib[k].tolist()
-    return calib
+def numpy_collection_to_list(collection):
+    if isinstance(collection, np.ndarray):
+        return collection.tolist()
+    if not isinstance(collection, dict) and not isinstance(collection, list):
+        return deepcopy(collection)
+    collection = deepcopy(collection)
+    for k in collection:
+        if k in collection:
+            if isinstance(collection[k], np.ndarray):
+                collection[k] = collection[k].tolist()
+            elif isinstance(collection[k], dict):
+                collection[k] = numpy_collection_to_list(collection[k])
+            elif isinstance(collection[k], list):
+                collection[k] = [numpy_collection_to_list(le) for le in collection[k]]
+    return collection
 
-def calib_to_numpy(calib):
+
+def load_calib(calib):
     calib = deepcopy(calib)
     for k in get_calib_numpy_fields():
         if k in calib:
@@ -21,17 +31,7 @@ def calib_to_numpy(calib):
     return calib
 
 
-def numpy_dict_to_list(opts):
-    opts = deepcopy(opts)
-    for k in opts.keys():
-        if k in opts:
-            if isinstance(opts[k], np.ndarray):
-                opts[k] = opts[k].tolist()
-            elif isinstance(opts[k], dict):
-                opts[k] = numpy_dict_to_list(opts[k])
-    return opts
-
-def opts_to_numpy(opts):
+def load_opts(opts):
     # TODO: Implement recursive conversion and limit fields to those that should actually be converted!
     opts = deepcopy(opts)
     for k in opts.keys():

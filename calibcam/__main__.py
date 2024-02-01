@@ -48,7 +48,7 @@ def main():
         opts_file = Path(opts_file)
         if opts_file.suffix == ".yml":
             with open(opts_file, "r") as file:
-                file_opts = yaml_helper.opts_to_numpy(yaml.safe_load(file))
+                file_opts = yaml_helper.load_opts(yaml.safe_load(file))
         elif opts_file.suffix == ".npy":
             file_opts = np.load(opts_file, allow_pickle=True)[()]
         else:
@@ -113,7 +113,7 @@ def main():
     if isinstance(args.write_opts[0], str):
         write_path = Path(args.write_opts[0])
         with open(write_path / "opts.yml", "w") as file:
-            yaml.dump(opts, file)
+            yaml.dump(yaml_helper.numpy_collection_to_list(opts), file)
         np.save(write_path / "opts.npy", opts, allow_pickle=True)
         print(f"Options written to {write_path / 'opts.{npy/yml}'}")
 

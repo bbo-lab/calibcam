@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 
 
-def get_default_opts(ncams):
+def get_default_opts(ncams=0):
     default_opts = {
         # === Program function control ===
         # If True, calibcam will perform detections. If list of yml files, these files will be used instead
