@@ -26,6 +26,7 @@ from calibcam.single_camcalibration import calibrate_single_camera
 
 from calibcam import yaml_helper
 
+
 class CamCalibrator:
     def __init__(self, recordings, pipelines=None, board_name=None, data_path=None, calibs_init=None, opts=None):
         if opts is None:
@@ -205,6 +206,8 @@ class CamCalibrator:
             if self.opts['optimize_ind_cams']:
                 for i_cam, calib in enumerate(calibs_single):
                     # analytically estimate initial camera poses
+                    # Although we don't have camera poses at this step, we use this function to correctly structure the
+                    # calibs_single to optimize poses.
                     calibs_interim = estimate_cam_poses([calib], self.opts, corners=corners[[i_cam]],
                                                         required_corner_idxs=required_corner_idxs)
 
@@ -229,13 +232,6 @@ class CamCalibrator:
             calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
                                               required_corner_idxs=required_corner_idxs)
 
-            # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-            # pose_params = optimization.make_common_pose_params(calibs_multi, corners)
-            result = self.build_result(calibs_multi,
-                                       corners=corners, used_frames_ids=used_frames_ids,
-                                       # rvecs_boards=pose_params[0], tvecs_boards=pose_params[1],
-                                       other={'calibs_single': calibs_single})
-
             if self.opts['debug']:
                 args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
                 test_objective_function(calibs_multi, vars_free, args, corners, self.board_params,
@@ -253,8 +249,8 @@ class CamCalibrator:
             print('OPTIMIZING ALL PARAMETERS I')
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
 
-            # According to tests with good calibration recordings, the following steps are unnecessary and optimality was
-            #  already reached in the previous step
+            # According to tests with good calibration recordings, the following steps are unnecessary and optimality
+            # was already reached in the previous step
             if self.opts["optimize_board_poses"]:
                 if self.opts['debug']:
                     calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)

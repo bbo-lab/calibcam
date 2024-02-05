@@ -60,35 +60,20 @@ def main():
         # No parameter has been set, which is interpreted as all desired
         args.detection, args.calibration_single, args.calibration_multi = (True, True, True)
     # Parameter with empty list means True
-    if isinstance(args.detection, list):
-        if len(args.detection) == 0:
-            opts["detection"] = True
-        else:
-            opts["detection"] = args.detection
-    elif args.detection:
-        opts["detection"] = True
-    if isinstance(args.calibration_single, list):
-        if len(args.calibration_single) == 0:
-            opts["calibration_single"] = True
-        else:
-            opts["calibration_single"] = args.calibration_single
-    elif args.calibration_single:
-        opts["calibration_single"] = True
-    if isinstance(args.calibration_multi, list):
-        if len(args.calibration_multi) == 0:
-            opts["calibration_multi"] = True
-        else:
-            opts["calibration_multi"] = args.calibration_multi
-    elif args.calibration_multi:
-        opts["calibration_multi"] = True
+    for param in ["detection", "calibration_single", "calibration_multi"]:
+        if isinstance(getattr(args, param), list):
+            if len(getattr(args, param)) == 0:
+                opts[param] = True
+            else:
+                opts[param] = getattr(args, param)
+        elif getattr(args, param):
+            opts[param] = True
 
     # Fill commandline options
     if args.optimize_only is not None:
         opts['optimize_only'] = args.optimize_only
     if args.numerical_jacobian is not None:
         opts['numerical_jacobian'] = args.numerical_jacobian
-    if args.frame_step[0] is not None:
-        opts['frame_step'] = args.frame_step[0]
     if args.frame_step[0] is not None:
         opts['frame_step'] = args.frame_step[0]
     if args.model:
@@ -122,7 +107,7 @@ def main():
     if args.pipelines is None:
         recPipelines = None
     elif len(args.pipelines) == len(recFileNames):
-        recPipelines = [args.pipelines[args.videos.index(rec)] for rec in recFileNames]
+        recPipelines = args.pipelines
     elif len(args.pipelines) == 1:
         recPipelines = args.pipelines * len(recFileNames)
     else:
