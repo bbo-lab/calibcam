@@ -38,9 +38,10 @@ def get_default_opts(ncams=0, do_fill=False):
         # use N_CPU/detect_cpu_divisor threads for feature detection
         'detect_cpu_divisor': 6,
         # DEPRECATED
-        'optimize_only': False,
         # Do not perform detection and single cam calibration. (Disable mostly for development.)
-        'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
+        'optimize_only': False,
+        # Use 2-point numerical jacobian instead of jax.jacobian
+        'numerical_jacobian': False,
         # Optimise individual cameras immediately after performing opencv single calibration
         'optimize_ind_cams': False,
         # Optimize individual board poses then all params again.
