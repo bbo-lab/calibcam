@@ -37,6 +37,8 @@ def get_default_opts(ncams=0, do_fill=False):
         'color_convert': False,
         # use N_CPU/detect_cpu_divisor threads for feature detection
         'detect_cpu_divisor': 6,
+        # Use radial contrast value for rejecting corners, check rejection params below in detection_opts
+        'RC_reject_corners': False,
         # DEPRECATED
         # Do not perform detection and single cam calibration. (Disable mostly for development.)
         'optimize_only': False,
@@ -65,6 +67,12 @@ def get_default_opts(ncams=0, do_fill=False):
             'aruco_interpolate': {
                 'minMarkers': 2,
             },
+            'radial_contrast_reject': {
+                'options': {'lib': 'np'},
+                'width': 20,
+                'normalize': 50,
+                'norm_mean': 0.311,
+            }
         },
         'aruco_calibration': False,
         'pose_estimation': {
@@ -145,7 +153,7 @@ def get_flags(model: str):
 def get_detector_parameters_opts():
     detector_parameters = {  # SPOT for detector params
         'adaptiveThreshWinSizeMin': 15,
-        'adaptiveThreshWinSizeMax': 30,
+        'adaptiveThreshWinSizeMax': 45,
         'adaptiveThreshWinSizeStep': 5,
 
         'cornerRefinementMethod': cv2.aruco.CORNER_REFINE_SUBPIX,
