@@ -55,6 +55,7 @@ def get_default_opts(ncams=0, do_fill=False):
 
         'detection_opts': {
             'inter_frame_dist': 1.0,  # In pixels
+            'min_corners': 5,  # Minimum number of corners to detect in a frame
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },

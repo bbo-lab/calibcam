@@ -6,11 +6,11 @@ from scipy.spatial.transform import Rotation as R  # noqa
 
 
 # Detection may not lie on a single line
-def check_detections_nondegenerate(board_width, charuco_ids):
+def check_detections_nondegenerate(board_width, charuco_ids, minimum_points=5):
     charuco_ids = np.asarray(charuco_ids).ravel()
 
     # Not enough points
-    if len(charuco_ids) < 5:
+    if len(charuco_ids) < minimum_points:
         # print(f"{len(charuco_ids)} charuco_ids are not enough!")
         return False
 
@@ -110,7 +110,7 @@ def nearest_element(num_1: int, list_nums):
 
 
 @DeprecationWarning
-def reject_corners(corners, prev_fun, board_params, rejection_opts):
+def reject_corners(corners, prev_fun, board_params, detection_opts, rejection_opts):
     """Reject corners/poses based on zscores which indicate outliers and misdetections"""
     from scipy import stats
 
@@ -138,7 +138,8 @@ def reject_corners(corners, prev_fun, board_params, rejection_opts):
         for icam, cam_corners in enumerate(corners_non_nans):
             for ipose, pose_corners in enumerate(cam_corners):
                 poses_good[icam, ipose] = check_detections_nondegenerate(board_params['boardWidth'],
-                                                                         np.where(pose_corners))
+                                                                         np.where(pose_corners),
+                                                                         detection_opts['min_corners'])
         # Reject pose only if it is bad in all cameras!
         rejected_poses = np.prod(~poses_good, axis=0, dtype=bool)
         output_corners = output_corners[:, ~rejected_poses]

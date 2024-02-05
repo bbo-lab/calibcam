@@ -22,7 +22,7 @@ class TestDetection(unittest.TestCase):
         if board_params is not None:
             board_params['marker_size_real'] = board_params['square_size_real'] * board_params['marker_size']
 
-        opts = get_default_opts()
+        opts = get_default_opts(1, do_fill=True)
         detection = opts['detection_opts']
         detection['aruco_interpolate']['minMarkers'] = 1
 
@@ -52,7 +52,7 @@ class TestDetection(unittest.TestCase):
         assert fin_frames_mask[2], "No detections in frame 2"
 
         with open(video + '/detections.yml') as f:
-            radcontrast = helper.RadialContrast(images, options={'lib':'np'}, norm_mean=0.312)
+            radcontrast = helper.RadialContrast(images, options={'lib': 'np'}, norm_mean=0.312)
             human_marked = yaml.safe_load(f)
             detected_frames = np.where(fin_frames_mask)[0]
             for i, frame_idx in enumerate(detected_frames):
