@@ -108,6 +108,7 @@ def nearest_element(num_1: int, list_nums):
     return list_nums[np.argmin(dist)]
 
 
+@DeprecationWarning
 def reject_corners(corners, prev_fun, board_params, rejection_opts):
     """Reject corners/poses based on zscores which indicate outliers and misdetections"""
     from scipy import stats

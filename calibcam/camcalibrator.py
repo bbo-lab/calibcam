@@ -265,27 +265,6 @@ class CamCalibrator:
                 print('OPTIMIZING ALL PARAMETERS II')
                 calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
 
-            if self.opts["reject_corners"]:
-                result = self.build_result(calibs_fit,
-                                           corners=corners, used_frames_ids=used_frames_ids,
-                                           min_result=min_result, args=args,
-                                           rvecs_boards=rvecs_boards, tvecs_boards=tvecs_boards,
-                                           other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi,
-                                                  'board_coords_3d_0': board.make_board_points(self.board_params)})
-                self.save_multicalibration(result, 'prereject')
-
-                print('INSPECTING CORNERS')
-                corners, rejected_poses, rejected_corners = helper.reject_corners(corners, min_result.fun,
-                                                                                  self.board_params,
-                                                                                  self.opts["rejection"])
-                rvecs_boards = rvecs_boards[~rejected_poses]
-                tvecs_boards = tvecs_boards[~rejected_poses]
-                used_frames_ids = used_frames_ids[~rejected_poses]
-                calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-
-                print('OPTIMIZING ALL PARAMETERS III')
-                calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
-
             # No board poses in final calibration!
             calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
             test_objective_function(calibs_test, min_result.x, args, corners, self.board_params,

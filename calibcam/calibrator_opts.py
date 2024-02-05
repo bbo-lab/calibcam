@@ -47,9 +47,8 @@ def get_default_opts(ncams=0, do_fill=False):
         # In a test, optimality was already reached after a first general optimization
         'optimize_board_poses': False,
         # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
-        'max_allowed_res': 2.0,
         # error while optimizing individual board poses.
-        'reject_corners': False,  # Reject corners with high zscore, check rejection params below
+        'max_allowed_res': 5.0,
 
         'detection_opts': {
             'inter_frame_dist': 1.0,  # In pixels
@@ -80,11 +79,6 @@ def get_default_opts(ncams=0, do_fill=False):
             'tr_solver': 'exact',
             'max_nfev': 120,
             'verbose': 2,
-        },
-        'rejection': {
-            'max_zscore': 3.0,
-            'max_res': 2.0,  # in pixels, only reject corners with high residual (rep. error) and zscore
-            'reject_poses': True  # Reject degenerate poses
         }
     }
 
