@@ -16,7 +16,7 @@ class TestDetection(unittest.TestCase):
 
     def test_detect_corners_cam(self):
         video = "./test/sample_images_1/"
-        board_path = "./boards/board_small.npy"
+        board_path = "./boards/bboboard-v4.npy"
 
         board_params = np.load(os.path.expanduser(board_path), allow_pickle=True).item()
         if board_params is not None:
