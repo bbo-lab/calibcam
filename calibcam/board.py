@@ -2,13 +2,16 @@ import os
 import numpy as np
 import pathlib
 import cv2
-
+from pathlib import Path
 
 def get_board_params(board_source):
-    if isinstance(board_source, pathlib.Path):
+    board_source = Path(board_source)
+    if board_source.is_file():
+        board_path = board_source.as_posix()
+    elif board_source.is_dir():
         board_path = board_source / 'board.npy'
     else:
-        board_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../boards', board_source + '.npy')
+        board_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../boards', board_source.as_posix() + '.npy')
 
     board_params = np.load(os.path.expanduser(board_path), allow_pickle=True).item()
 
