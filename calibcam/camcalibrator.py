@@ -35,6 +35,7 @@ class CamCalibrator:
 
         if data_path is not None:
             self.data_path = data_path
+            os.makedirs(self.data_path, exist_ok=True)
         else:
             self.data_path = os.path.expanduser(os.path.dirname(recordings[0]))
 

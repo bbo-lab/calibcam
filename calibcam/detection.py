@@ -13,8 +13,8 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=None, return_matrix=True):
     print('DETECTING FEATURES')
 
-    start_frm_indexes = opts.get('start_frame_indexes', np.zeros(len(rec_file_names)))
-    stop_frm_indexes = opts.get('stop_frame_indexes', np.full(len(rec_file_names), fill_value=n_frames))
+    start_frm_indexes = opts.get('start_frame_indexes', np.zeros(len(rec_file_names), dtype=int))
+    stop_frm_indexes = opts.get('stop_frame_indexes', np.full(len(rec_file_names), fill_value=n_frames, dtype=int))
     if rec_pipelines is None:
         rec_pipelines = [None] * len(rec_file_names)
 
@@ -75,6 +75,13 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
     # Detect corners over cams
     for (i_frame, frame) in enumerate(islice(reader, start_frm_idx, stop_frm_idx, opts["frame_step"])):
         i_frame = i_frame * opts["frame_step"]
+
+        if opts.get("gamma_correction", None) is not None: # TODO: Generalize this
+            frame -= np.min(frame)
+            frame = frame.astype(np.float64)
+            frame /= np.max(frame)
+            frame = np.sqrt(frame)
+            frame = (frame*255).astype(np.uint8)
 
         if not init_frames_mask[i_frame]:
             continue
