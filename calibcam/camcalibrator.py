@@ -1,4 +1,3 @@
-import copy
 import os
 from copy import deepcopy
 
@@ -7,6 +6,7 @@ from scipy.io import savemat as scipy_io_savemat
 import cv2
 
 from pathlib import Path
+import yaml
 
 from ccvtools import rawio  # noqa
 from svidreader import filtergraph
@@ -23,6 +23,8 @@ from calibcam.calibrator_opts import get_default_opts
 from calibcam.pose_estimation import estimate_cam_poses
 from calibcam.single_camcalibration import calibrate_single_camera
 
+from calibcam import yaml_helper
+
 
 class CamCalibrator:
     def __init__(self, recordings, pipelines=None, board_name=None, data_path=None, calibs_init=None, opts=None):
@@ -33,6 +35,7 @@ class CamCalibrator:
 
         if data_path is not None:
             self.data_path = data_path
+            os.makedirs(self.data_path, exist_ok=True)
         else:
             self.data_path = os.path.expanduser(os.path.dirname(recordings[0]))
 
@@ -67,7 +70,8 @@ class CamCalibrator:
 
     @staticmethod
     def load_calibs_init(calibs_init, data_path=None):
-        calib_init_path = data_path + "/multicam_calibration.npy"
+        # TODO Remove this in favor of a commandline option
+        calib_init_path = data_path + "/multicam_calibration_init.npy"
         if calibs_init is None and data_path is not None and os.path.isfile(calib_init_path):
             print(f"Loading initialization from {calib_init_path}")
             calibs_init = np.load(calib_init_path, allow_pickle=True).item()["calibs"]
@@ -80,14 +84,14 @@ class CamCalibrator:
             fileopts = np.load(data_path + "/opts.npy", allow_pickle=True).item()
             opts = helper.deepmerge_dicts(opts, fileopts)
 
-        return helper.deepmerge_dicts(opts, get_default_opts())
+        return helper.deepmerge_dicts(opts, get_default_opts(0))
 
     def load_recordings(self, recordings, pipelines=None):
         # check if input files are valid files
         try:
             self.readers = []
             for irec, rec in enumerate(recordings):
-                reader = filtergraph.get_reader(rec, backend="iio")
+                reader = filtergraph.get_reader(rec, backend="iio", cache=False)
                 if pipelines is not None:
                     fg = filtergraph.create_filtergraph_from_string([reader], pipelines[irec])
                     reader = fg['out']
@@ -121,6 +125,12 @@ class CamCalibrator:
 
         self.board_params = self.get_board_params_from_name(self.board_name)
 
+    def close_readers(self):
+        if not self.readers:
+            return
+        for reader in self.readers:
+            reader.close()
+
     def perform_multi_calibration(self):
         n_corners = (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1)
         required_corner_idxs = [0,
@@ -128,36 +138,76 @@ class CamCalibrator:
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
                                 ]  # Corners that we require to be detected for pose estimation
-        if self.opts["optimize_only"]:  # We expect that detections and single cam calibs are already present
-            preoptim = np.load(self.data_path + '/preoptim.npy', allow_pickle=True)[()]
-            preoptim = compatibility.update_preoptim(preoptim, n_corners)
 
-            del self.opts['internals']
-            calibs_single = preoptim['info']['other']['calibs_single']
-            used_frames_ids = preoptim['info']['used_frames_ids']
-            corners = preoptim['info']['corners']
+        # === Detection ===
+        if isinstance(self.opts["detection"], list):
+            # TODO: Support True in the list instead of strings to only detect individual cams
+            assert len(self.opts["detection"]) == self.opts["n_cams"], ("Number of detection files must be equal "
+                                                                        "to number of cameras")
 
-            # We just redo this since it is fast and the output may help
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
-                                              required_corner_idxs=required_corner_idxs)
-        else:
+            corners = []
+            used_frames_ids = []
+            for detection_file in self.opts["detection"]:
+                detection_file = Path(detection_file)
+                if detection_file.suffix == ".yml":
+                    with open(detection_file, "r") as file:
+                        detection = yaml.safe_load(file)
+                elif detection_file.suffix == ".npy":
+                    detection = np.load(detection_file, allow_pickle=True)[()]
+                else:
+                    raise FileNotFoundError(f"{detection_file} is not supported")
+                corners.append(np.array(detection["corners"]))
+
+                used_frames_ids.append(np.array(detection["used_frames_ids"]))
+
+            used_frames_ids = used_frames_ids[0]
+            corners = np.array(corners)
+        elif self.opts["detection"]:
             # detect corners
             # Corners are originally detected by cv2 as ragged lists with additional id lists (to determine which
             # corners the values refer to) and frame masks (to determine which frames the list elements refer to).
             # This saves memory, but significantly increases complexity of code as we might index into camera frames,
             # used frames or global frames. For simplification, corners are returned as a single matrix of shape
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
-            # Memory footprint at this stage is al but critical.
-            corners, used_frames_ids = \
-                detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
-                               rec_pipelines=self.rec_pipelines)
+            # Memory footprint at this stage is not critical.
+            corners, used_frames_ids = detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
+                                                      rec_pipelines=self.rec_pipelines)
 
-            calibs_single = self.obtain_single_cam_calibrations(calibs_single=self.opts.pop('internals'),
-                                                                corners=corners)
+            for i_cam, (rfn, c) in enumerate(zip(self.rec_file_names, corners)):
+                detection = {
+                    "rec_file_name": rfn,  # Not used in readout, only for reference
+                    "corners": c.tolist(),
+                    "used_frames_ids": used_frames_ids.tolist()
+                }
+                with open(Path(self.data_path) / f"detection_{i_cam:03d}.yml", "w") as file:
+                    yaml.dump(detection, file, default_flow_style=True)
+        else:
+            print("Cannot proceed without detections. Exiting.")
+            return
 
+        # === Single cam calibration ===
+        if isinstance(self.opts["calibration_single"], list):
+            # TODO: Support True in the list instead of strings to only detect individual cams
+            assert len(self.opts["calibration_single"]) == self.opts["n_cams"], ("Number of calibration_single files "
+                                                                                 "must be equal to number of cameras")
+            calibs_single = []
+            for calibration_single_file in self.opts["calibration_single"]:
+                calibration_single_file = Path(calibration_single_file)
+                if calibration_single_file.suffix == ".yml":
+                    with open(calibration_single_file, "r") as file:
+                        calibs_single.append(yaml_helper.load_calib(yaml.safe_load(file)))
+                elif calibration_single_file.suffix == ".npy":
+                    calibs_single.append(np.load(calibration_single_file, allow_pickle=True)[()])
+                else:
+                    raise FileNotFoundError(f"{calibration_single_file} is not supported")
+            calibs_single = self.obtain_single_cam_calibrations(corners=corners, calibs_single=calibs_single)
+        elif self.opts["calibration_single"]:
+            calibs_single = self.obtain_single_cam_calibrations(corners=corners)
             if self.opts['optimize_ind_cams']:
                 for i_cam, calib in enumerate(calibs_single):
                     # analytically estimate initial camera poses
+                    # Although we don't have camera poses at this step, we use this function to correctly structure the
+                    # calibs_single to optimize poses.
                     calibs_interim = estimate_cam_poses([calib], self.opts, corners=corners[[i_cam]],
                                                         required_corner_idxs=required_corner_idxs)
 
@@ -166,94 +216,80 @@ class CamCalibrator:
                     calibs_single[i_cam].update(
                         helper.combine_calib_with_board_params(calibs_fit_single, rvecs_boards, tvecs_boards)[0])
                     calibs_single[i_cam]['frames_mask'] = np.sum(~np.isnan(corners[i_cam][:, :, 1]), axis=1) > 0
+        else:
+            print("Cannot proceed without single cam calbrations. Exiting.")
+            return
 
+        for i_cam, calib_single in enumerate(calibs_single):
+            save_path = Path(self.data_path) / f"calibration_single_{i_cam:03d}.yml"
+            with open(save_path, "w") as file:
+                yaml.dump(yaml_helper.numpy_collection_to_list(calib_single), file, default_flow_style=True)
+            # np.save(save_path.with_suffix(".npy"), calib_single, allow_pickle=True)
+
+        # === Multi cam calibration ===
+        if self.opts["calibration_multi"]:
             # analytically estimate initial camera poses
             calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
                                               required_corner_idxs=required_corner_idxs)
 
-            # Save intermediate result, for dev purposes on optimization (quote code above and unquote code below)
-            # pose_params = optimization.make_common_pose_params(calibs_multi, corners)
-            result = self.build_result(calibs_multi,
-                                       corners=corners, used_frames_ids=used_frames_ids,
-                                       # rvecs_boards=pose_params[0], tvecs_boards=pose_params[1],
-                                       other={'calibs_single': calibs_single})
-            self.save_multicalibration(result, 'preoptim')
+            if self.opts['debug']:
+                args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
+                test_objective_function(calibs_multi, vars_free, args, corners, self.board_params,
+                                        individual_poses=True)
 
-        if self.opts['debug']:
-            args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
-            test_objective_function(calibs_multi, vars_free, args, corners, self.board_params,
-                                    individual_poses=True)
+            print('OPTIMIZING ALL POSES')
+            # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
+            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_poses(corners, calibs_multi)
 
-        print('OPTIMIZING ALL POSES')
-        # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
-        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_poses(corners, calibs_multi)
-
-        if self.opts['debug']:
-            calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-            test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
-                                    individual_poses=True)
-
-        print('OPTIMIZING ALL PARAMETERS I')
-        calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
-
-        # According to tests with good calibration recordings, the following steps are unnecessary and optimality was
-        #  already reached in the previous step
-        if self.opts["optimize_board_poses"]:
             if self.opts['debug']:
                 calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
                 test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
                                         individual_poses=True)
 
-            print('OPTIMIZING BOARD POSES')
-            calibs_fit, rvecs_boards, tvecs_boards, _, _ = self.optimize_board_poses(corners, calibs_fit,
-                                                                                                 prev_fun=min_result.fun)
-            calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-
-            print('OPTIMIZING ALL PARAMETERS II')
+            print('OPTIMIZING ALL PARAMETERS I')
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
 
-        if self.opts["reject_corners"]:
+            # According to tests with good calibration recordings, the following steps are unnecessary and optimality
+            # was already reached in the previous step
+            if self.opts["optimize_board_poses"]:
+                if self.opts['debug']:
+                    calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
+                    test_objective_function(calibs_fit, min_result.x, args, corners, self.board_params,
+                                            individual_poses=True)
+
+                print('OPTIMIZING BOARD POSES')
+                calibs_fit, rvecs_boards, tvecs_boards, _, _ = self.optimize_board_poses(corners, calibs_fit,
+                                                                                         prev_fun=min_result.fun)
+                calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
+
+                print('OPTIMIZING ALL PARAMETERS II')
+                calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
+
+            # No board poses in final calibration!
+            calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
+            test_objective_function(calibs_test, min_result.x, args, corners, self.board_params,
+                                    individual_poses=True)
+
             result = self.build_result(calibs_fit,
                                        corners=corners, used_frames_ids=used_frames_ids,
                                        min_result=min_result, args=args,
                                        rvecs_boards=rvecs_boards, tvecs_boards=tvecs_boards,
                                        other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi,
-                                                'board_coords_3d_0': board.make_board_points(self.board_params)})
-            self.save_multicalibration(result, 'prereject')
+                                              'board_coords_3d_0': board.make_board_points(self.board_params)})
 
-            print('INSPECTING CORNERS')
-            corners, rejected_poses, rejected_corners = helper.reject_corners(corners, min_result.fun,
-                                                                              self.board_params,
-                                                                              self.opts["rejection"])
-            rvecs_boards = rvecs_boards[~rejected_poses]
-            tvecs_boards = tvecs_boards[~rejected_poses]
-            used_frames_ids = used_frames_ids[~rejected_poses]
-            calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
-
-            print('OPTIMIZING ALL PARAMETERS III')
-            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
-
-        # No board poses in final calibration!
-        calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
-        test_objective_function(calibs_test, min_result.x, args, corners, self.board_params,
-                                individual_poses=True)
-
-        result = self.build_result(calibs_fit,
-                                   corners=corners, used_frames_ids=used_frames_ids,
-                                   min_result=min_result, args=args,
-                                   rvecs_boards=rvecs_boards, tvecs_boards=tvecs_boards,
-                                   other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi,
-                                          'board_coords_3d_0': board.make_board_points(self.board_params)})
-
-        print('SAVE MULTI CAMERA CALIBRATION')
-        self.save_multicalibration(result)
-        # Builds a part of the v1 result that is necessary for other software
-        self.save_multicalibration(helper.build_v1_result(result), 'multicalibration_v1')
-
-        print('FINISHED MULTI CAMERA CALIBRATION')
+            print('SAVE MULTI CAMERA CALIBRATION')
+            self.save_multicalibration(result)
+            # Builds a part of the v1 result that is necessary for other software
+            self.save_multicalibration(helper.build_v1_result(result), 'multicalibration_v1')
+            print('FINISHED MULTI CAMERA CALIBRATION')
+        else:
+            return
+            
         return
 
-    def obtain_single_cam_calibrations(self, calibs_single, corners):
+    def obtain_single_cam_calibrations(self, corners, calibs_single=None):
+        if calibs_single is None:
+            calibs_single = len(corners)*[None]
 
         cams_2calibrate = []
         for i_cam, cam_calib in enumerate(calibs_single):
@@ -306,8 +342,8 @@ class CamCalibrator:
         pose_idxs = np.where(mask)[0]
         for pose_idx, pos in zip(pose_idxs, board_positions):
             if pos[0]:
-                calib['rvecs'][pose_idx] = pos[1][:,0]
-                calib['tvecs'][pose_idx] = pos[2][:,0]
+                calib['rvecs'][pose_idx] = pos[1][:, 0]
+                calib['tvecs'][pose_idx] = pos[2][:, 0]
             else:
                 calib['frames_mask'][pose_idx] = False
 
@@ -318,7 +354,7 @@ class CamCalibrator:
         if len(ids) < 4:
             return 0, np.full((3,), np.nan), np.full((3,), np.nan)
 
-        retval, rvec, tvec = cv2.solvePnP(board.make_board_points(board_params)[ids].reshape((-1,3)),
+        retval, rvec, tvec = cv2.solvePnP(board.make_board_points(board_params)[ids].reshape((-1, 3)),
                                           corners.reshape((-1, 2)),
                                           calib["A"], calib["k"],
                                           flags=cv2.SOLVEPNP_IPPE)
@@ -409,7 +445,8 @@ class CamCalibrator:
             print(".", end='', flush=True)
             corners_pose = corners[:, [i_pose]]
             for calib, calib_orig in zip(calibs_multi_pose, calibs_multi):
-                nearest_i_pose = helper.nearest_element(i_pose, good_poses)  # nearest_i_pose = i_pose if i_pose in good_poses
+                nearest_i_pose = helper.nearest_element(i_pose,
+                                                        good_poses)  # nearest_i_pose = i_pose if i_pose in good_poses
                 calib["rvecs"] = calib_orig["rvecs"][[nearest_i_pose]]
                 calib["tvecs"] = calib_orig["tvecs"][[nearest_i_pose]]
 
@@ -479,10 +516,12 @@ class CamCalibrator:
 
     def save_multicalibration(self, result, filename="multicam_calibration"):
         # save
-        result_path = self.data_path + '/' + filename
-        np.save(result_path + '.npy', result)
-        scipy_io_savemat(result_path + '.mat', result)
-        print('Saved multi camera calibration to file {:s}'.format(result_path))
+        result_path = Path(self.data_path + '/' + filename)
+        np.save(result_path.with_suffix('.npy'), result)
+        scipy_io_savemat(result_path.with_suffix('.mat'), result)
+        with open(result_path.with_suffix('.yml'), "w") as yml_file:
+            yaml.dump(yaml_helper.numpy_collection_to_list(result), yml_file, default_flow_style=True)
+        print(f'Saved multi camera calibration to file {result_path}')
         return
 
     # Debug function

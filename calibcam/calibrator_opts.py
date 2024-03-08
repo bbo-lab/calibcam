@@ -2,34 +2,60 @@ import cv2
 import numpy as np
 
 
-def get_default_opts(models=["pinhole"]):
-
+def get_default_opts(ncams=0, do_fill=False):
     default_opts = {
-        'debug': True,  # Will enable advanced tests and outputs
-        'jax_backend': 'cpu',  # GPU regularly runs out of memory for these problems
-        'coord_cam': 0,  # Reference camera that defines the multicam coordinate system
-        'frame_step': 1,  # Skip frames in recording
-        'allow_unequal_n_frame': True,  # Sometimes last frame is cut, so this may be okay.
-        'common_pose_r_err': 0.1,  # Iteratively exclude poses with higher rotation deviation from mean
-        'color_convert': False,  # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
-        'detect_cpu_divisor': 6,  # use N_CPU/detect_cpu_divisor threads for feature detection
-        'optimize_only': False,
+        # === Program function control ===
+        # If True, calibcam will perform detections. If list of yml files, these files will be used instead
+        'detection': False,
+        # If True, calibcam will perform single cam calibrations. If list of yml files, these files will be used instead
+        'calibration_single': False,
+        # If True, calibcam will perform multi cam calibration.
+        'calibration_multi': False,
+
+        # === Camera system description
+        # Number of cams
+        'n_cams': ncams,
+        # Camera models. Will be filled with opts["n_cams"]*["pinhole"] if left False
+        'models': False,
+        # Free variables. Will be filled with get_free_vars() if left False
+        'free_vars': False,
+
+        # === Settings ===
+        # Will enable advanced tests and outputs
+        'debug': True,
+        # GPU regularly runs out of memory for these problems
+        'jax_backend': 'cpu',
+        # Reference camera that defines the multicam coordinate system
+        'coord_cam': 0,
+        # Skip frames in recording
+        'frame_step': 1,
+        # Sometimes last frame is cut, so this may be okay.
+        'allow_unequal_n_frame': True,
+        # Iteratively exclude poses with higher rotation deviation from mean
+        'common_pose_r_err': 0.1,
+        # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
+        'color_convert': False,
+        # use N_CPU/detect_cpu_divisor threads for feature detection
+        'detect_cpu_divisor': 6,
+        # Use radial contrast value for rejecting corners, check rejection params below in detection_opts
+        'RC_reject_corners': False,
+        # DEPRECATED
         # Do not perform detection and single cam calibration. (Disable mostly for development.)
-        'numerical_jacobian': False,  # Use 2-point numerical jacobian instead of jax.jacobian
+        'optimize_only': False,
+        # Use 2-point numerical jacobian instead of jax.jacobian
+        'numerical_jacobian': False,
         # Optimise individual cameras immediately after performing opencv single calibration
         'optimize_ind_cams': False,
-
         # Optimize individual board poses then all params again.
         # In a test, optimality was already reached after a first general optimization
         'optimize_board_poses': False,
-        'max_allowed_res': 2.0,  # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
+        # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
+        'max_allowed_res': 5.0,
 
-        'reject_corners': False,  # Reject corners with high zscore, check rejection params below
-
-        'free_vars': [get_free_vars(model) for model in models],
-        'detection': {
+        'detection_opts': {
             'inter_frame_dist': 1.0,  # In pixels
+            'min_corners': 5,  # Minimum number of corners to detect in a frame
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },
@@ -42,13 +68,14 @@ def get_default_opts(models=["pinhole"]):
             'aruco_interpolate': {
                 'minMarkers': 2,
             },
+            'radial_contrast_reject': {
+                'options': {'lib': 'np'},
+                'width': 20,
+                'normalize': 50,
+                'norm_mean': 0.311,
+            }
         },
-        'aruco_calibration': [{
-            'flags': get_flags(model),
-            'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
-                         30,
-                         float(np.finfo(np.float32).eps)),
-        } for model in models],
+        'aruco_calibration': False,
         'pose_estimation': {
             'use_required_corners': True,
         },
@@ -62,15 +89,33 @@ def get_default_opts(models=["pinhole"]):
             'tr_solver': 'exact',
             'max_nfev': 120,
             'verbose': 2,
-        },
-        'rejection': {
-            'max_zscore': 3.0,
-            'max_res': 2.0,  # in pixels, only reject corners with high residual (rep. error) and zscore
-            'reject_poses': True  # Reject degenerate poses
         }
     }
 
+    if do_fill:
+        fill(default_opts)
+
     return default_opts
+
+
+def fill(opts):
+    if not opts["models"]:
+        opts["models"] = opts["n_cams"] * ["pinhole"]
+    if len(opts["models"]) == 1:
+        opts["models"] = opts["n_cams"] * ["models"]
+
+    if not opts["free_vars"]:
+        opts["free_vars"] = [get_free_vars(model) for model in opts["models"]]
+
+    if not opts["aruco_calibration"]:
+        opts['aruco_calibration'] = [{
+            'flags': get_flags(model),
+            'criteria': (cv2.TermCriteria_COUNT + cv2.TermCriteria_EPS,
+                         30,
+                         float(np.finfo(np.float32).eps)),
+        } for model in opts["models"]]
+
+    return opts  # not necessarily required due to pass by reference
 
 
 def get_free_vars(model: str):
@@ -109,7 +154,7 @@ def get_flags(model: str):
 def get_detector_parameters_opts():
     detector_parameters = {  # SPOT for detector params
         'adaptiveThreshWinSizeMin': 15,
-        'adaptiveThreshWinSizeMax': 30,
+        'adaptiveThreshWinSizeMax': 45,
         'adaptiveThreshWinSizeStep': 5,
 
         'cornerRefinementMethod': cv2.aruco.CORNER_REFINE_SUBPIX,
