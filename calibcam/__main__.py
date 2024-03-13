@@ -78,7 +78,7 @@ def main():
     if args.numerical_jacobian is not None:
         opts['numerical_jacobian'] = args.numerical_jacobian
     if args.model:
-        opts['model'] = args.model
+        opts['models'] = args.model
 
     # It is necessary for the videos to be in sync to perform multi calibration. If some videos lag behind other videos,
     # start_frames_indexes should be provided to adjust for the lag.

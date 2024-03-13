@@ -4,6 +4,7 @@ from copy import deepcopy
 import numpy as np
 from scipy.io import savemat as scipy_io_savemat
 import cv2
+import matplotlib.pyplot as plt
 
 from pathlib import Path
 import yaml
@@ -156,8 +157,12 @@ class CamCalibrator:
                     detection = np.load(detection_file, allow_pickle=True)[()]
                 else:
                     raise FileNotFoundError(f"{detection_file} is not supported")
-                corners.append(np.array(detection["corners"]))
 
+                # For multicam_calibration files
+                if ("corners" not in detection) and ("info" in detection):
+                    detection = detection["info"]
+
+                corners.append(np.squeeze(detection["corners"]))
                 used_frames_ids.append(np.array(detection["used_frames_ids"]))
 
             used_frames_ids = used_frames_ids[0]
@@ -197,7 +202,11 @@ class CamCalibrator:
                     with open(calibration_single_file, "r") as file:
                         calibs_single.append(yaml_helper.load_calib(yaml.safe_load(file)))
                 elif calibration_single_file.suffix == ".npy":
-                    calibs_single.append(np.load(calibration_single_file, allow_pickle=True)[()])
+                    calib = np.load(calibration_single_file, allow_pickle=True)[()]
+                    # For multicam_calibration files
+                    if "calibs" in calib:
+                        calib = calib["calibs"][0]
+                    calibs_single.append(calib)
                 else:
                     raise FileNotFoundError(f"{calibration_single_file} is not supported")
             calibs_single = self.obtain_single_cam_calibrations(corners=corners, calibs_single=calibs_single)
@@ -281,6 +290,12 @@ class CamCalibrator:
             self.save_multicalibration(result)
             # Builds a part of the v1 result that is necessary for other software
             self.save_multicalibration(helper.build_v1_result(result), 'multicalibration_v1')
+            print('SAVE FIUGRE WITH DETECTIONS')
+            rep_err = min_result.fun.reshape(corners.shape)
+            for i_cam, (i_reader, c, err) in enumerate(zip(self.readers, corners, rep_err)):
+                fig_cam = self.get_corners_cam_fig(camfunctions.get_header_from_reader(i_reader)['sensorsize'],
+                                                   c, err)
+                fig_cam.savefig(self.data_path + f"/detections_cam_{i_cam:03d}.svg", dpi=300, bbox_inches='tight')
             print('FINISHED MULTI CAMERA CALIBRATION')
         else:
             return
@@ -416,9 +431,9 @@ class CamCalibrator:
             board_params = self.board_params
 
         pose_opts = deepcopy(opts)
-        pose_opts['optimization']['ftol'] = 1e-13
-        pose_opts['optimization']['gtol'] = 1e-13
-        pose_opts['optimization']['xtol'] = 1e-13
+        pose_opts['optimization']['ftol'] = 1e-14
+        pose_opts['optimization']['gtol'] = 1e-14
+        pose_opts['optimization']['xtol'] = 1e-14
         free_vars = pose_opts['free_vars']
         for cam in free_vars:
             cam['cam_pose'] = False
@@ -557,3 +572,23 @@ class CamCalibrator:
         plt.plot(board_coords_3d_nd[(0, 4, 34), 0], board_coords_3d_nd[(0, 4, 34), 1], 'g+')
 
         plt.show()
+
+    @staticmethod
+    def get_corners_cam_fig(im_shape, corners_cam, repro_err_cam):
+
+        im_w, im_h = im_shape
+        corners_cam = corners_cam.reshape(-1, 2)
+        repro_err_cam = repro_err_cam.reshape(-1, 2)
+
+        fig, ax = plt.subplots()
+        ax.errorbar(corners_cam[:, 0], corners_cam[:, 1],
+                    fmt=".", ms=1.2,
+                    xerr=np.absolute(repro_err_cam[:, 0]), yerr=np.absolute(repro_err_cam[:, 0]),
+                    elinewidth=0.8, ecolor="red")
+        ax.set_xlim(0, im_w)
+        ax.set_ylim(0, im_h)
+        ax.set_xlabel("Image x (pix.)")
+        ax.set_ylabel("Image y (pix.)")
+        ax.invert_yaxis()
+
+        return fig

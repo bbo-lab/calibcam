@@ -102,7 +102,7 @@ def fill(opts):
     if not opts["models"]:
         opts["models"] = opts["n_cams"] * ["pinhole"]
     if len(opts["models"]) == 1:
-        opts["models"] = opts["n_cams"] * ["models"]
+        opts["models"] *= opts["n_cams"]
 
     if not opts["free_vars"]:
         opts["free_vars"] = [get_free_vars(model) for model in opts["models"]]
