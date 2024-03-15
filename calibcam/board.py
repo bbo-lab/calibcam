@@ -33,7 +33,7 @@ def make_board(board_params):
     return board
 
 
-def make_board_points(board_params, exact=True):
+def make_board_points(board_params, exact=False):
     board_width = board_params['boardWidth']
     board_height = board_params['boardHeight']
     if exact:
