@@ -500,7 +500,7 @@ class CamCalibrator:
         if corners is None:
             corners = []
         result = {
-            'version': 2.2,  # Increase when this structure changes
+            'version': 2.3,  # Increase when this structure changes
             'calibs': calibs,
             # This field shall always hold all intrinsically necessary information to project and triangulate.
             'board_params': self.board_params,  # All parameters to recreate the board
