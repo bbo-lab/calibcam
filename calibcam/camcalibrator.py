@@ -531,13 +531,12 @@ class CamCalibrator:
 
     def save_multicalibration(self, result, filename="multicam_calibration"):
         # save
-        result_path = Path(self.data_path + '/' + filename)
-        np.save(result_path.with_suffix('.npy'), result)
-        scipy_io_savemat(result_path.with_suffix('.mat'), result)
-        with open(result_path.with_suffix('.yml'), "w") as yml_file:
-            yaml.dump(yaml_helper.numpy_collection_to_list(result), yml_file, default_flow_style=True)
-        print(f'Saved multi camera calibration to file {result_path}')
-        return
+        return self.save_multicalibration(filename, result)
+
+    def save_multicalibration(self, filename, result):
+        data_path = self.data_path
+        result_path = Path(data_path + '/' + filename)
+        return save_multicalibration(result_path, result)
 
     # Debug function
     def plot(self, calibs, corners, used_frames_ids, board_params, cidx, fidx):
@@ -592,3 +591,12 @@ class CamCalibrator:
         ax.invert_yaxis()
 
         return fig
+
+
+def save_multicalibration(result_path, result):
+    np.save(result_path.with_suffix('.npy'), result)
+    scipy_io_savemat(result_path.with_suffix('.mat'), result)
+    with open(result_path.with_suffix('.yml'), "w") as yml_file:
+        yaml.dump(yaml_helper.numpy_collection_to_list(result), yml_file, default_flow_style=True)
+    print(f'Saved multi camera calibration to file {result_path}')
+    return

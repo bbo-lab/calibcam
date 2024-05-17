@@ -37,8 +37,8 @@ def make_board_points(board_params, exact=False):
     board_width = board_params['boardWidth']
     board_height = board_params['boardHeight']
     if exact:
-        square_size_x = board_params['square_size_real_x']
-        square_size_y = board_params['square_size_real_y']
+        square_size_x = board_params['square_size_real_y']
+        square_size_y = board_params['square_size_real_x']
     else:
         square_size_x = board_params['square_size_real']
         square_size_y = board_params['square_size_real']
