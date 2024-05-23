@@ -15,7 +15,9 @@ def generate_charuco_pattern(rows, columns, square_size_real, marker_ratio, aruc
     board = aruco.CharucoBoard_create(rows, columns, square_size_real, marker_ratio*square_size_real, aruco.Dictionary_get(aruco_dict))
 
     # Generate the Charuco board image
-    board_image = board.draw(((aruco_size+4)*columns, (aruco_size+4)*rows))
+    pixel_size = (round(((aruco_size+2)/marker_ratio)*rows), round(((aruco_size+2)/marker_ratio)*columns))
+    print(pixel_size)
+    board_image = board.draw(pixel_size)
 
     board = {
         "boardWidth": rows,
@@ -35,13 +37,17 @@ def generate_charuco_pattern(rows, columns, square_size_real, marker_ratio, aruc
 
 if __name__ == "__main__":
     # Parameters for the Charuco board
-    rows = 7  # Number of checkerboard rows
+    rows = 5  # Number of checkerboard rows
     columns = 7  # Number of checkerboard columns
     aruco_size = 4  # Number of aruco rows and columns
 
-    square_size_real = 0.14  # Size of each checker square in meters
-    marker_ratio = 0.75  # Ratio of aruco to checker square
-    output_file = f"board_pair_large_{rows}x{columns}_{rows*100*square_size_real}x{columns*100*square_size_real}.png"
+    square_size_real = 0.059  # Size of each checker square in meters
+    marker_ratio = 0.75  # Ratio of aruco to checker square. Assert that (aruco_size+2)/marker_ratio is an integer
+
+    square_pixel_width = (aruco_size+2)/marker_ratio
+    assert square_pixel_width==int(square_pixel_width), "Marker ratio does not match"
+
+    output_file = f"board_{rows}x{columns}_{rows*square_size_real:.5f}x{columns*square_size_real:.5f}.png"
 
     # Generate and save the Charuco pattern
     generate_charuco_pattern(rows, columns, square_size_real, marker_ratio, aruco_size, output_file)
