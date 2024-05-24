@@ -21,8 +21,10 @@ from calibcam.exceptions import *
 from calibcam import helper, camfunctions, board, compatibility
 
 from calibcam.calibrator_opts import get_default_opts
-from calibcam.pose_estimation import estimate_cam_poses
+from calibcam.pose_estimation import estimate_cam_poses, build_initialized_calibs
 from calibcam.single_camcalibration import calibrate_single_camera
+
+from glob import glob
 
 from calibcam import yaml_helper
 
@@ -140,6 +142,9 @@ class CamCalibrator:
                                 (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
                                 ]  # Corners that we require to be detected for pose estimation
 
+        if not self.opts["detection"] and (self.opts["calibration_single"] or self.opts["calibration_multi"]):
+            self.opts["detection"] = sorted(glob(self.data_path + "/detection_*.yml"))
+
         # === Detection ===
         if isinstance(self.opts["detection"], list):
             # TODO: Support True in the list instead of strings to only detect individual cams
@@ -191,6 +196,9 @@ class CamCalibrator:
             return
 
         # === Single cam calibration ===
+        if not self.opts["calibration_single"] and self.opts["calibration_multi"]:
+            self.opts["calibration_single"] = sorted(glob(self.data_path + "/calibration_single_*.yml"))
+
         if isinstance(self.opts["calibration_single"], list):
             # TODO: Support True in the list instead of strings to only detect individual cams
             assert len(self.opts["calibration_single"]) == self.opts["n_cams"], ("Number of calibration_single files "
@@ -237,9 +245,14 @@ class CamCalibrator:
 
         # === Multi cam calibration ===
         if self.opts["calibration_multi"]:
-            # analytically estimate initial camera poses
-            calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
-                                              required_corner_idxs=required_corner_idxs)
+            if (isinstance(self.opts["init_extrinsics"]["rvecs_cam"], np.ndarray) and
+                    isinstance(self.opts["init_extrinsics"]["tvecs_cam"], np.ndarray)):
+                calibs_multi = build_initialized_calibs(calibs_single, self.opts, corners=corners,
+                                   required_corner_idxs=required_corner_idxs)
+            else:
+                # analytically estimate initial camera poses
+                calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
+                                                  required_corner_idxs=required_corner_idxs)
 
             if self.opts['debug']:
                 args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
@@ -530,10 +543,6 @@ class CamCalibrator:
         return result
 
     def save_multicalibration(self, result, filename="multicam_calibration"):
-        # save
-        return self.save_multicalibration(filename, result)
-
-    def save_multicalibration(self, filename, result):
         data_path = self.data_path
         result_path = Path(data_path + '/' + filename)
         return save_multicalibration(result_path, result)

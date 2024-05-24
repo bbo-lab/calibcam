@@ -23,12 +23,11 @@ def get_board_params(board_source):
 
 
 def make_board(board_params):
-    board = cv2.aruco.CharucoBoard_create(board_params['boardWidth'],  # noqa
-                                          board_params['boardHeight'],
-                                          board_params['square_size_real'],
-                                          board_params['marker_size'] * board_params['square_size_real'],
-                                          cv2.aruco.getPredefinedDictionary(  # noqa
-                                              board_params['dictionary_type']))
+    board = cv2.aruco.CharucoBoard((board_params['boardWidth'],
+                                    board_params['boardHeight']),
+                                   board_params['square_size_real'],
+                                   board_params['marker_size'] * board_params['square_size_real'],
+                                   cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']))
 
     return board
 

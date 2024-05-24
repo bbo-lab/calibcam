@@ -37,7 +37,9 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
         corners_all.append(detection[0])
         ids_all.append(detection[1])
         fin_frames_masks[i_cam, :] = detection[2][:fin_frames_masks.shape[1]]
-        print(f'Detected features in {np.sum(fin_frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d}')
+        n_detections_cam = np.array([len(c) for c in corners_all[i_cam]])
+        print(f'Detected features in {np.sum(fin_frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d} - '
+              f'({int(np.mean(n_detections_cam)):02d}±{int(np.std(n_detections_cam))})')
 
     if return_matrix:
         return helper.make_corners_array(corners_all, ids_all, (board_params["boardWidth"] - 1) * (
@@ -90,11 +92,17 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
             frame = cv2.cvtColor(frame, opts['color_convert'])  # noqa
 
+        parameters = cv2.aruco.DetectorParameters()
+
+        detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),
+                                           parameters)
+
         # corner detection
-        corners, ids, rejected_img_points = \
-            cv2.aruco.detectMarkers(frame,  # noqa
-                                    cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
-                                    **finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect']))
+        corners, ids, rejected_img_points = detector.detectMarkers(frame)
+        # corners, ids, rejected_img_points = \
+        #     cv2.aruco.detectMarkers(frame,  # noqa
+        #                             cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
+        #                             **finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect']))
 
         if len(corners) == 0:
             continue

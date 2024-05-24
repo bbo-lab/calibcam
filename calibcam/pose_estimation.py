@@ -1,6 +1,24 @@
 import numpy as np
 from copy import deepcopy
 from scipy.spatial.transform import Rotation as R  # noqa
+from bbo.geometry import RigidTransform
+
+def build_initialized_calibs(calibs_single, opts, corners=None, required_corner_idxs=None):
+    calibs = deepcopy(calibs_single)
+
+    for i_calib, calib in enumerate(calibs):
+        calib["rvec_cam"] = opts["init_extrinsics"]["rvecs_cam"][i_calib]
+        calib["tvec_cam"] = opts["init_extrinsics"]["tvecs_cam"][i_calib]
+
+        cam2camsystem = RigidTransform(rotation=calib["rvec_cam"], translation=calib["tvec_cam"],
+                                       rotation_type="rotvec").inv()
+        board2cam = RigidTransform(rotation=calib["rvecs"], translation=calib["tvecs"], rotation_type="rotvec")
+        board2camsystem = cam2camsystem * board2cam
+
+        calib["rvecs"] = board2camsystem.get_rotation().as_rotvec()
+        calib["tvecs"] = board2camsystem.get_translation()
+
+    return calibs
 
 
 def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=None):

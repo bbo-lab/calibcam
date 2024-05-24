@@ -11,13 +11,14 @@ import sys
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
 import calibcamlib
 from calibcam import board, helper
-from calibcam.opt_jacfwd.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, obj_fcn_jacobian_wrapper_sparse, \
+from calibcam.repro.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, obj_fcn_jacobian_wrapper_sparse, \
     get_precalc  # noqa
 from scipy.spatial.transform import Rotation as R  # noqa
 
 
 def make_vars_full(vars_opt, args, verbose=False):
     n_cams = args['corners'].shape[0]
+    n_boards = args['corners'].shape[1]
 
     # Update full set of vars with free vars
     vars_full = args['vars_full']
@@ -30,33 +31,52 @@ def make_vars_full(vars_opt, args, verbose=False):
         print(mask_opt[0:7])
         print(vars_full[0:7])
 
-    return vars_full, n_cams
+    return vars_full, n_cams, n_boards
 
 
-def unravel_vars_full(vars_full, n_cams):
-    n_cam_param_list = np.array([3, 3, 9, 1, 5])  # r, t, A, xi, k
-    n_cam_params = n_cam_param_list.sum(dtype=int)
+def get_cam_field_sizes(m):
+    field_sizes = np.array([m * 3,  # cam extrinsic rotations
+                            m * 3,  # cam extrinsic positions
+                            m * 9,  # cam intrinsics A
+                            m,  # cam intrinsics xi
+                            m * 5,  # cam intrinsics k
+                            ])
+    return field_sizes
 
-    start_idx = 0
-    cam_pose_vars = vars_full[start_idx:start_idx + n_cams * 6]
-    rvecs_cams = cam_pose_vars[0:int(cam_pose_vars.size / 2)].reshape(-1, 3)
-    tvecs_cams = cam_pose_vars[int(cam_pose_vars.size / 2):].reshape(-1, 3)
 
-    start_idx = start_idx + n_cams * 6
-    cam_mats_vars = vars_full[start_idx:start_idx + n_cams * 9]
-    cam_matrices = cam_mats_vars.reshape(-1, 3, 3)
+def get_board_field_sizes(k):
+    field_sizes = np.array([k * 3,  # boards rotations
+                            k * 3,  # boards extrinsic positions
+                            ])
+    return field_sizes
 
-    start_idx = start_idx + n_cams * 9
-    xis_vars = vars_full[start_idx:start_idx + n_cams * 1]
-    xis = xis_vars.reshape(-1, 1)
 
-    start_idx = start_idx + n_cams * 1
-    ks_vars = vars_full[start_idx:start_idx + n_cams * 5]
-    ks = ks_vars.reshape(-1, 5)
+def get_var_edges(m, k):
+    field_sizes = np.concatenate(([0], get_cam_field_sizes(m), get_board_field_sizes(k)))
+    edges = np.cumsum(field_sizes)
+    return edges
 
-    board_pose_vars = vars_full[n_cams * n_cam_params:]
-    rvecs_boards = board_pose_vars[0:int(board_pose_vars.size / 2)].reshape(-1, 3)
-    tvecs_boards = board_pose_vars[int(board_pose_vars.size / 2):].reshape(-1, 3)
+
+def unravel_vars_full(vars_full, n_cams, n_boards):
+    edges = get_var_edges(n_cams, n_boards)
+    edge_idx = 0
+
+    rvecs_cams = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 3)
+    edge_idx += 1
+    tvecs_cams = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 3)
+    edge_idx += 1
+
+    cam_matrices = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 3, 3)
+    edge_idx += 1
+    xis = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 1)
+    edge_idx += 1
+    ks = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 5)
+    edge_idx += 1
+
+    rvecs_boards = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 3)
+    edge_idx += 1
+    tvecs_boards = vars_full[edges[edge_idx]:edges[edge_idx + 1]].reshape(-1, 3)
+    edge_idx += 1
 
     return rvecs_cams, tvecs_cams, cam_matrices, xis, ks, rvecs_boards, tvecs_boards
 
@@ -178,10 +198,11 @@ def make_free_parameter_mask(calibs, opts_free_vars, coord_cam_idx):
 
 def unravel_to_calibs(vars_opt, args):
     # Fill vars_full from initialization with vars_opts
-    vars_full, n_cams = make_vars_full(vars_opt, args, verbose=False)
+    vars_full, n_cams, n_boards = make_vars_full(vars_opt, args, verbose=False)
 
     # Unravel inputs.
-    rvecs_cams, tvecs_cams, cam_matrices, xis, ks, rvecs_boards, tvecs_boards = unravel_vars_full(vars_full, n_cams)
+    (rvecs_cams, tvecs_cams, cam_matrices, xis, ks,
+     rvecs_boards, tvecs_boards) = unravel_vars_full(vars_full, n_cams, n_boards)
 
     calibs = [
         {

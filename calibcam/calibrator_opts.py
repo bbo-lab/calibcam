@@ -52,6 +52,11 @@ def get_default_opts(ncams=0, do_fill=False):
         # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
         # error while optimizing individual board poses.
         'max_allowed_res': 5.0,
+        # Use these extrinsics for initialization dict('rvecs_cam': nx3, 'tvecs_cam': nx3)
+        'init_extrinsics': {
+            'rvecs_cams': -1,
+            'tvecs_cams': -1,
+        },
 
         'detection_opts': {
             'inter_frame_dist': 1.0,  # In pixels
@@ -86,8 +91,8 @@ def get_default_opts(ncams=0, do_fill=False):
             'gtol': 1e-9,
             'x_scale': 'jac',
             'loss': 'linear',
-            'tr_solver': 'exact',
-            'max_nfev': 120,
+            'tr_solver': 'lsmr',
+            'max_nfev': 500,
             'verbose': 2,
         }
     }
@@ -153,15 +158,22 @@ def get_flags(model: str):
 
 def get_detector_parameters_opts():
     detector_parameters = {  # SPOT for detector params
-        'adaptiveThreshWinSizeMin': 15,
-        'adaptiveThreshWinSizeMax': 45,
-        'adaptiveThreshWinSizeStep': 5,
-
+        'adaptiveThreshWinSizeMin': 3,
+        'adaptiveThreshWinSizeMax': 23,
+        'adaptiveThreshWinSizeStep': 10,
         'cornerRefinementMethod': cv2.aruco.CORNER_REFINE_SUBPIX,
-        'cornerRefinementWinSize': 3,
-        'cornerRefinementMaxIterations': 60,
-        'cornerRefinementMinAccuracy': 0.05,
-
+        'cornerRefinementWinSize': 5,
+        'cornerRefinementMaxIterations': 30,
+        'cornerRefinementMinAccuracy': 0.01,
+        # 'adaptiveThreshWinSizeMin': 15,
+        # 'adaptiveThreshWinSizeMax': 45,
+        # 'adaptiveThreshWinSizeStep': 5,
+        #
+        # 'cornerRefinementMethod': cv2.aruco.CORNER_REFINE_SUBPIX,
+        # 'cornerRefinementWinSize': 3,
+        # 'cornerRefinementMaxIterations': 60,
+        # 'cornerRefinementMinAccuracy': 0.05,
+        #
         'errorCorrectionRate': 0.3,
         'perspectiveRemovePixelPerCell': 8
     }
@@ -172,9 +184,10 @@ def finalize_aruco_detector_opts(aruco_detect_opts):
     # Separation is necessary as cv2.aruco.DetectorParameters cannot be pickled
     opts = aruco_detect_opts.copy()
 
-    detector_parameters = cv2.aruco.DetectorParameters_create()
+    detector_parameters = cv2.aruco.DetectorParameters()
     for key, value in aruco_detect_opts['parameters'].items():
         detector_parameters.__setattr__(key, value)
+        # print(f"{key}: {value}")
 
     opts['parameters'] = detector_parameters
     return opts

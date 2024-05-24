@@ -6,6 +6,7 @@ from pathlib import Path
 
 from calibcam import calibrator_opts, helper, yaml_helper
 from calibcam.camcalibrator import CamCalibrator
+from calibcamlib import Camerasystem
 import timeit
 
 
@@ -40,6 +41,8 @@ def main():
                              "The final output of the pipeline is used for calibration.")
     parser.add_argument('--write_opts', type=str, required=False, nargs=1, default=[None], help="")
     parser.add_argument('--data_path', type=str, required=False, nargs=1, default=[None], help="")
+    parser.add_argument('--gamma_correction', required=False, default=False, action="store_true", help="")
+    parser.add_argument('--init_extrinsics', type=str, required=False, nargs=1, default=[None], help="")
 
     args = parser.parse_args()
 
@@ -79,6 +82,14 @@ def main():
         opts['numerical_jacobian'] = args.numerical_jacobian
     if args.model:
         opts['models'] = args.model
+    if args.gamma_correction:
+        opts['gamma_correction'] = True
+    if args.init_extrinsics[0] is not None:
+        init_extrinsics = Camerasystem.load_dict(args.init_extrinsics[0])
+        opts['init_extrinsics'] = {
+            'rvecs_cam': np.array([c["rvec_cam"] for c in init_extrinsics['calibs']]),
+            'tvecs_cam': np.array([c["tvec_cam"] for c in init_extrinsics['calibs']])
+        }
 
     # It is necessary for the videos to be in sync to perform multi calibration. If some videos lag behind other videos,
     # start_frames_indexes should be provided to adjust for the lag.
