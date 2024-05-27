@@ -54,8 +54,8 @@ def get_default_opts(ncams=0, do_fill=False):
         'max_allowed_res': 5.0,
         # Use these extrinsics for initialization dict('rvecs_cam': nx3, 'tvecs_cam': nx3)
         'init_extrinsics': {
-            'rvecs_cams': -1,
-            'tvecs_cams': -1,
+            'rvecs_cam': -1,
+            'tvecs_cam': -1,
         },
 
         'detection_opts': {
