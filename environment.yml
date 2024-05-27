@@ -5,8 +5,8 @@ channels:
 dependencies:
   - python=3.10
   - numpy
-  - opencv=4.6.0
-  - py-opencv=4.6.0
+  - opencv>=4.7.0
+  - py-opencv>=4.7.0
   - pyyaml
   - scipy
   - imageio
@@ -22,4 +22,4 @@ dependencies:
     - bbo-ccvtools
     - bbo-calibcamlib
     - bbo-calibcam
-    - git+https://github.com/bbo-lab/videoreader.git@dev
+    - bbo-svidreader
