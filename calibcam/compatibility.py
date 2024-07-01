@@ -15,12 +15,12 @@ def update_preoptim_2_0_to_2_1(preoptim, n_corners):
         for i_cam, calib in enumerate(calibs_single):
             rvecs = calib["rvecs"]
             calib["rvecs"] = np.empty(shape=(len(used_frames_ids), 3))
-            calib["rvecs"][:] = np.NaN
+            calib["rvecs"][:] = np.nan
             calib["rvecs"][frames_masks[i_cam, used_frames_ids], :] = rvecs.reshape(-1, 3)
 
             tvecs = calib["tvecs"]
             calib["tvecs"] = np.empty(shape=(len(used_frames_ids), 3))
-            calib["tvecs"][:] = np.NaN
+            calib["tvecs"][:] = np.nan
             calib["tvecs"][frames_masks[i_cam, used_frames_ids], :] = tvecs.reshape(-1, 3)
 
         preoptim['info']['other']['calibs_single'] = calibs_single

@@ -129,10 +129,10 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
     from scipy.spatial.transform import Rotation as R  # noqa
 
     residuals_objfun = np.abs(optimization.obj_fcn_wrapper(vars_free, args).reshape(corners_detection.shape))
-    residuals_objfun[residuals_objfun == 0] = np.NaN
+    residuals_objfun[residuals_objfun == 0] = np.nan
 
     corners_cameralib = np.empty_like(residuals_objfun)
-    corners_cameralib[:] = np.NaN
+    corners_cameralib[:] = np.nan
     cs = Camerasystem.from_calibs(calibs)
     board_points = board.make_board_points(board_params)
     for i_cam, calib in enumerate(calibs):

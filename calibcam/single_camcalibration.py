@@ -77,9 +77,9 @@ def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=N
         mask_singlecam_calib = np.copy(mask)
 
     rvecs = np.empty(shape=(mask.size, 3))
-    rvecs[:] = np.NaN
+    rvecs[:] = np.nan
     tvecs = np.empty(shape=(mask.size, 3))
-    tvecs[:] = np.NaN
+    tvecs[:] = np.nan
 
     rvecs[mask_singlecam_calib, :] = np.asarray(others[0])[..., 0]
     tvecs[mask_singlecam_calib, :] = np.asarray(others[1])[..., 0]

@@ -49,7 +49,7 @@ class CamCalibrator:
         self.readers = None
         self.rec_file_names = None
         self.rec_pipelines = None
-        self.n_frames = np.NaN
+        self.n_frames = np.nan
 
         # Options
         self.opts = {}
@@ -521,8 +521,8 @@ class CamCalibrator:
             'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],
             # Headers. No content structure guaranteed
             'info': {  # Additional nonessential info from the calibration process
-                'cost_val_final': np.NaN,
-                'optimality_final': np.NaN,
+                'cost_val_final': np.nan,
+                'optimality_final': np.nan,
                 'corners': corners,
                 'used_frames_ids': used_frames_ids,
                 'rvecs_boards': rvecs_boards,
