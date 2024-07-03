@@ -15,7 +15,10 @@ See board.py in example folder for the generation of both printable PNG and boar
 
 ## Installation
 
-Install bbo-calibcam via pip, or create conda environment from environment.yml.
+Install bbo-calibcam via pip, or create conda environment from environment.yml:
+```
+conda env create -f https://raw.githubusercontent.com/bbo-lab/calibcam/main/environment.yml
+```
 
 
 ## Usage
