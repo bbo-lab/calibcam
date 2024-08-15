@@ -181,7 +181,7 @@ class CamCalibrator:
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
             # Memory footprint at this stage is not critical.
             corners, used_frames_ids = detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
-                                                      rec_pipelines=self.rec_pipelines)
+                                                      rec_pipelines=self.rec_pipelines, data_path=self.data_path)
 
             for i_cam, (rfn, c) in enumerate(zip(self.rec_file_names, corners)):
                 detection = {

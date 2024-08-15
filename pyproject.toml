@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bbo-calibcam"
+dynamic = ["version"]
+description = "Calibrate intrinsic and extrinsic parameters of cameras with charuco boards"
+readme = "README.md"
+license = "LGPL-3.0-or-later"
+authors = [
+    { name = "BBO-lab @ caesar", email = "kay-michael.voit@mpinb.mpg.de" },
+]
+classifiers = [
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "bbo-calibcamlib",
+    "bbo-ccvtools",
+    "bbo-svidreader",
+    "bbo_bbo",
+    "imageio",
+    "jax",
+    "jaxlib",
+    "numpy",
+    "pyyaml",
+    "scipy",
+]
+
+[project.urls]
+Homepage = "https://github.com/bbo-lab/calibcam"
+
+[tool.hatch.version]
+path = "calibcam/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/calibcam",
+]
+
+[tool.hatch.build.targets.wheel]
+      packages = ["calibcam"]
+
