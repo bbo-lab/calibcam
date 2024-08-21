@@ -15,17 +15,17 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=None, return_matrix=True,
                    data_path=None):
     print('DETECTING FEATURES')
-    if isinstance(opts['detect_use_single'], bool):
-        opts['detect_use_single'] = [opts['detect_use_single'] for _ in rec_file_names]
+    # if isinstance(opts['detect_use_single'], bool):
+    #     opts['detect_use_single'] = [opts['detect_use_single'] for _ in rec_file_names]
 
-    calibration_paths = []
-    for i_cam, use_singe_opt in enumerate(opts['detect_use_single']):
-        if isinstance(use_singe_opt, str):
-            calibration_paths.append(use_singe_opt)
-        elif isinstance(use_singe_opt, bool) and use_singe_opt is True:
-            calibration_paths.append(Path(data_path) / f"calibration_single_{i_cam:03d}.yml")
-        else:
-            calibration_paths.append(None)
+    # calibration_paths = []
+    # for i_cam, use_singe_opt in enumerate(opts['detect_use_single']):
+    #     if isinstance(use_singe_opt, str):
+    #         calibration_paths.append(use_singe_opt)
+    #     elif isinstance(use_singe_opt, bool) and use_singe_opt is True:
+    #         calibration_paths.append(Path(data_path) / f"calibration_single_{i_cam:03d}.yml")
+    #     else:
+    #         calibration_paths.append(None)
     # TODO finish implementation with refine markers function
 
     start_frm_indexes = opts.get('start_frame_indexes', np.zeros(len(rec_file_names), dtype=int))

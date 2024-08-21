@@ -9,7 +9,7 @@ from calibcam import helper, board
 def calibrate_single_camera(corners_cam, sensor_size, board_params, opts, mask=None, calib_init=None):
     if mask is None:
         mask = np.sum(~np.isnan(corners_cam[:, :, 1]),
-                      axis=1) > 0  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
+                      axis=1) >= opts['corners_min_n']  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
 
     n_used_frames = np.sum(mask)
 

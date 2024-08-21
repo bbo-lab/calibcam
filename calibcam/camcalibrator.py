@@ -404,7 +404,8 @@ class CamCalibrator:
                                                  'sensorsize'],
                                              self.board_params,
                                              {'free_vars': self.opts['free_vars'][i_cam],
-                                              'aruco_calibration': self.opts['aruco_calibration'][i_cam]
+                                              'aruco_calibration': self.opts['aruco_calibration'][i_cam],
+                                              'corners_min_n': self.opts['corners_min_n'],
                                               },
                                              calib_init=calibs_init[i_cam])
             for i_cam in camera_indexes)
