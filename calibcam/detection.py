@@ -41,12 +41,19 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
     corners_all = []
     ids_all = []
 
-    # Empirically, detection seems to utilize about 6 cores
-    detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
-        delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
-                                    stop_frm_indexes[i_rec], init_frames_masks[i_rec],
-                                    rec_pipeline=rec_pipelines[i_rec])
-        for i_rec, rec_file_name in enumerate(rec_file_names))
+    if "parallel_detection" in opts and not opts["parallel_detection"]:
+        detections = []
+        for i_rec, rec_file_name in enumerate(rec_file_names):
+            detections.append(detect_corners_cam(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
+                                        stop_frm_indexes[i_rec], init_frames_masks[i_rec],
+                                        rec_pipeline=rec_pipelines[i_rec]))
+    else:
+        # Empirically, detection seems to utilize about 6 cores
+        detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
+            delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
+                                        stop_frm_indexes[i_rec], init_frames_masks[i_rec],
+                                        rec_pipeline=rec_pipelines[i_rec])
+            for i_rec, rec_file_name in enumerate(rec_file_names))
 
     for i_cam, detection in enumerate(detections):
         corners_all.append(detection[0])
