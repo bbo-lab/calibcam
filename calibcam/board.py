@@ -29,10 +29,10 @@ def make_board(board_params):
                                    board_params['marker_size'] * board_params['square_size_real'],
                                    cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']))
 
-    if ("version" not in board_params or
-            ("legacy" in board_params and board_params["legacy"])):  # TODO: This identification might still need some refinement
+    if "legacy" in board_params:
+        board.setLegacyPattern(board_params["legacy"])
+    elif "version" not in board_params: # TODO: This identification might still need some refinement
         board.setLegacyPattern(True)
-        pass
 
     return board
 
