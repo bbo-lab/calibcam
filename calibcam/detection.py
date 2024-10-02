@@ -3,6 +3,7 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+import yaml
 from ccvtools import rawio  # noqa
 from svidreader import filtergraph
 from joblib import Parallel, delayed
@@ -28,14 +29,29 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
     #         calibration_paths.append(None)
     # TODO finish implementation with refine markers function
 
-    start_frm_indexes = opts.get('start_frame_indexes', np.zeros(len(rec_file_names), dtype=int))
-    stop_frm_indexes = opts.get('stop_frame_indexes', np.full(len(rec_file_names), fill_value=n_frames, dtype=int))
+    opts['start_frame_indexes'] = opts.get('start_frame_indexes', np.zeros(len(rec_file_names), dtype=int))
+    start_frm_indexes = opts['start_frame_indexes']
+
+    opts['stop_frame_indexes'] = opts.get('stop_frame_indexes',
+                                          np.full(len(rec_file_names), fill_value=n_frames, dtype=int))
+    stop_frm_indexes = opts['stop_frame_indexes']
+
+    opts["init_frames_masks"] = opts.get('init_frames_masks', [None] * len(rec_file_names))
+    init_frames_masks = opts["init_frames_masks"]
+    if isinstance(init_frames_masks, str):
+        if Path(init_frames_masks).suffix == ".yml":
+            with open(init_frames_masks, "r") as stream:
+                init_frames_masks = yaml.safe_load(stream)["init_frames_masks"]
+                init_frames_masks = [np.array(ifm).astype(np.uint32) for ifm in init_frames_masks]
+        elif Path(init_frames_masks).suffix == ".npy":
+            init_frames_masks = np.load(init_frames_masks)
+    for i_mask, if_mask in enumerate(init_frames_masks):
+        if not if_mask is None and not if_mask.dtype == bool:
+            init_frames_masks[i_mask] = np.zeros(n_frames, dtype=bool)
+            init_frames_masks[i_mask][if_mask] = True
+
     if rec_pipelines is None:
         rec_pipelines = [None] * len(rec_file_names)
-
-    init_frames_masks = opts.get('init_frames_masks', [None] * len(rec_file_names))
-    if isinstance(init_frames_masks, str):
-        init_frames_masks = np.load(init_frames_masks)
 
     fin_frames_masks = np.zeros(shape=(len(rec_file_names), np.min(stop_frm_indexes - start_frm_indexes)), dtype=bool)
     corners_all = []
@@ -71,7 +87,6 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
 
 
 def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None, rec_pipeline=None):
-
     reader = filtergraph.get_reader(video, backend="iio", cache=False)
     if rec_pipeline is not None:
         fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
@@ -96,9 +111,14 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
         init_frames_mask = np.ones(stop_frm_idx - start_frm_idx, dtype=bool)
     fin_frames_mask = np.zeros(stop_frm_idx - start_frm_idx, dtype=bool)
 
+    step_mask = np.ones_like(init_frames_mask, dtype=bool)
+    step_mask[::opts["frame_step"]] = True
+
+    process_frame_idxs = start_frm_idx + np.where(step_mask & init_frames_mask)[0]
+
     # Detect corners over cams
-    for (i_frame, frame) in enumerate(islice(reader, start_frm_idx, stop_frm_idx, opts["frame_step"])):
-        i_frame = i_frame * opts["frame_step"]
+    for frame_idx in process_frame_idxs:
+        frame = reader.get_data(frame_idx)
 
         if opts.get("gamma_correction", None) is not None: # TODO: Generalize this
             frame -= np.min(frame)
@@ -106,9 +126,6 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
             frame /= np.max(frame)
             frame = np.sqrt(frame)
             frame = (frame*255).astype(np.uint8)
-
-        if not init_frames_mask[i_frame]:
-            continue
 
         # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
@@ -150,7 +167,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
 
         if opts['RC_reject_corners']:
             # Reject corners based on radial contrast value
-            RC_frame = RC_reader.read(i_frame + start_frm_idx)
+            RC_frame = RC_reader.read(frame_idx)
             corners_frame = np.squeeze(charuco_corners).astype(int).T
             RC_bool = RC_frame[tuple(corners_frame[::-1, np.newaxis])] > 0
             charuco_ids = charuco_ids[RC_bool[0]]
@@ -186,7 +203,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
                 if np.max(dist) < opts['detection_opts']['inter_frame_dist']:
                     continue
 
-        fin_frames_mask[i_frame] = True
+        fin_frames_mask[frame_idx] = True
         corners_cam.append(charuco_corners)
         ids_cam.append(charuco_ids)
 

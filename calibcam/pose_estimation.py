@@ -60,7 +60,7 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
         print(
             f"Orienting cam {oricam_idx} on cam {refcam_idx} on {ori_nori_mat[refcam_idx, oricam_idx]} potential poses")
 
-        r_error = np.Inf
+        r_error = np.inf
         R_trans = None
         Rs_trans = None
         # Copy, we will remove frames this

@@ -208,7 +208,12 @@ class CamCalibrator:
                 calibration_single_file = Path(calibration_single_file)
                 if calibration_single_file.suffix == ".yml":
                     with open(calibration_single_file, "r") as file:
-                        calibs_single.append(yaml_helper.load_calib(yaml.safe_load(file)))
+                        calibs_dict = yaml_helper.load_calib(yaml.safe_load(file))
+                        if "calibs" in calibs_dict:
+                            calibs_dict = calibs_dict["calibs"][0]  # Use 0th calibration from multicam calibration file
+                        calibs_dict = yaml_helper.collection_to_array(calibs_dict)
+                        assert "A" in calibs_dict and "k" in calibs_dict, "File did not contain valid calibration"
+                        calibs_single.append(calibs_dict)
                 elif calibration_single_file.suffix == ".npy":
                     calib = np.load(calibration_single_file, allow_pickle=True)[()]
                     # For multicam_calibration files
@@ -351,13 +356,23 @@ class CamCalibrator:
         corners_nn = corners_cam[mask]
         corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)
 
-        board_positions = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-            delayed(self.estimate_single_board_position)(calib,
-                                                         corners_use[i_pose],
-                                                         ids_use[i_pose],
-                                                         self.board_params,
-                                                         self.opts)
-            for i_pose in range(len(corners_use)))
+        if True:
+            board_positions = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
+                delayed(self.estimate_single_board_position)(calib,
+                                                             corners_use[i_pose],
+                                                             ids_use[i_pose],
+                                                             self.board_params,
+                                                             self.opts)
+                for i_pose in range(len(corners_use)))
+        else:
+            board_positions = []
+            for i_pose in range(len(corners_use)):
+                board_positions.append(
+                    self.estimate_single_board_position(calib,
+                                                        corners_use[i_pose],
+                                                        ids_use[i_pose],
+                                                        self.board_params,
+                                                        self.opts))
 
         if 'rvec_cam' in calib:
             calib['rvec_cam'] = np.zeros_like(calib['rvec_cam'])
