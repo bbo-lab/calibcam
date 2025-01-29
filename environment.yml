@@ -22,3 +22,4 @@ dependencies:
     - bbo-calibcamlib
     - bbo-calibcam
     - bbo-svidreader
+    - matplotlib
