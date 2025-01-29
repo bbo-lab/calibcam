@@ -1,6 +1,5 @@
 import os
 from copy import deepcopy
-
 import numpy as np
 from scipy.io import savemat as scipy_io_savemat
 import cv2

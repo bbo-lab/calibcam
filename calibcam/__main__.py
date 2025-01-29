@@ -4,14 +4,14 @@ import yaml
 import numpy as np
 from pathlib import Path
 
-from calibcam import calibrator_opts, helper, yaml_helper
+from calibcam import calibrator_opts, helper, yaml_helper, __version__
 from calibcam.camcalibrator import CamCalibrator
 from calibcamlib import Camerasystem
 import timeit
 
 
 def main():
-    print("Starting")
+    print(f"Starting ({__version__})")
     tic = timeit.default_timer()
     # PArse command line arguments
     parser = argparse.ArgumentParser(description="Calibrate set of cameras")

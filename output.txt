@@ -1,0 +1,16 @@
+Starting (3.0.6)
+Found 16870 frames in cam 0
+Found 16870 frames in cam 1
+DETECTING FEATURES
+Setting offset to 0!
+Inferring sensor size from image
+Setting offset to 0!
+Inferring sensor size from image
+Detected features in 2503  frames in camera 00 - (10±3)
+Detected features in 3214  frames in camera 01 - (09±3)
+PERFORM SINGLE CAMERA CALIBRATION
+32
+Setting offset to 0!
+Inferring sensor size from image
+Setting offset to 0!
+Inferring sensor size from image

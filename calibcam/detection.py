@@ -111,7 +111,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
         init_frames_mask = np.ones(stop_frm_idx - start_frm_idx, dtype=bool)
     fin_frames_mask = np.zeros(stop_frm_idx - start_frm_idx, dtype=bool)
 
-    step_mask = np.ones_like(init_frames_mask, dtype=bool)
+    step_mask = np.zeros_like(init_frames_mask, dtype=bool)
     step_mask[::opts["frame_step"]] = True
 
     process_frame_idxs = start_frm_idx + np.where(step_mask & init_frames_mask)[0]

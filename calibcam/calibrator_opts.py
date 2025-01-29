@@ -73,7 +73,7 @@ def get_default_opts(ncams=0, do_fill=False):
                 'parameters': get_detector_parameters_opts(),
             },
             'aruco_interpolate': {
-                'minMarkers': 2,
+                'minMarkers': 1,
             },
             'radial_contrast_reject': {
                 'options': {'lib': 'np'},
