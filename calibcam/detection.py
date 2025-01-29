@@ -36,7 +36,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
                                           np.full(len(rec_file_names), fill_value=n_frames, dtype=int))
     stop_frm_indexes = opts['stop_frame_indexes']
 
-    opts["init_frames_masks"] = opts.get('init_frames_masks', [None] * len(rec_file_names))
+    opts["init_frames_masks"] = opts.get('init_frames_masks', [False] * len(rec_file_names))
     init_frames_masks = opts["init_frames_masks"]
     if isinstance(init_frames_masks, str):
         if Path(init_frames_masks).suffix == ".yml":
@@ -46,7 +46,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
         elif Path(init_frames_masks).suffix == ".npy":
             init_frames_masks = np.load(init_frames_masks)
     for i_mask, if_mask in enumerate(init_frames_masks):
-        if not if_mask is None and not if_mask.dtype == bool:
+        if not isinstance(if_mask, bool) and not if_mask.dtype == bool:
             init_frames_masks[i_mask] = np.zeros(n_frames, dtype=bool)
             init_frames_masks[i_mask][if_mask] = True
 
@@ -57,7 +57,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
     corners_all = []
     ids_all = []
 
-    if "parallel_detection" in opts and not opts["parallel_detection"]:
+    if not opts["parallelize"]:
         detections = []
         for i_rec, rec_file_name in enumerate(rec_file_names):
             detections.append(detect_corners_cam(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
@@ -107,7 +107,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
 
     corners_cam = []
     ids_cam = []
-    if init_frames_mask is None:
+    if isinstance(init_frames_mask, bool):
         init_frames_mask = np.ones(stop_frm_idx - start_frm_idx, dtype=bool)
     fin_frames_mask = np.zeros(stop_frm_idx - start_frm_idx, dtype=bool)
 

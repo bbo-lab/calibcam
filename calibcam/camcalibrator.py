@@ -355,7 +355,7 @@ class CamCalibrator:
         corners_nn = corners_cam[mask]
         corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)
 
-        if True:
+        if self.opts["parallelize"]:
             board_positions = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
                 delayed(self.estimate_single_board_position)(calib,
                                                              corners_use[i_pose],
@@ -412,17 +412,29 @@ class CamCalibrator:
             calibs_init = [None for _ in corners]
 
         print(int(np.floor(multiprocessing.cpu_count())))
-        calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-            delayed(calibrate_single_camera)(corners[i_cam],
-                                             camfunctions.get_header_from_reader(self.readers[i_cam])[
-                                                 'sensorsize'],
-                                             self.board_params,
-                                             {'free_vars': self.opts['free_vars'][i_cam],
-                                              'aruco_calibration': self.opts['aruco_calibration'][i_cam],
-                                              'corners_min_n': self.opts['corners_min_n'],
-                                              },
-                                             calib_init=calibs_init[i_cam])
-            for i_cam in camera_indexes)
+
+        if self.opts["parallelize"]:
+            calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
+                delayed(calibrate_single_camera)(corners[i_cam],
+                                                 camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                                     'sensorsize'],
+                                                 self.board_params,
+                                                 {'free_vars': self.opts['free_vars'][i_cam],
+                                                  'aruco_calibration': self.opts['aruco_calibration'][i_cam],
+                                                  'corners_min_n': self.opts['corners_min_n'],
+                                                  },
+                                                 calib_init=calibs_init[i_cam])
+                for i_cam in camera_indexes)
+        else:
+            calibs_single = [calibrate_single_camera(corners[i_cam],
+                                                 camfunctions.get_header_from_reader(self.readers[i_cam])[
+                                                     'sensorsize'],
+                                                 self.board_params,
+                                                 {'free_vars': self.opts['free_vars'][i_cam],
+                                                  'aruco_calibration': self.opts['aruco_calibration'][i_cam],
+                                                  'corners_min_n': self.opts['corners_min_n'],
+                                                  },
+                                                 calib_init=calibs_init[i_cam]) for i_cam in camera_indexes]
 
         for i_cam, calib in enumerate(calibs_single):
             print(
