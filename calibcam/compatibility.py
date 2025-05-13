@@ -8,7 +8,7 @@ def update_preoptim_2_0_to_2_1(preoptim, n_corners):
         calibs_single = preoptim['info']['other']['calibs_single']
 
         preoptim['info']['corners'] = helper.make_corners_array(preoptim['info']['corners'],
-                                                                preoptim['info']['corner_ids'], n_corners, frames_masks)
+                                                                preoptim['info']['corner_ids'], frames_masks)
 
         used_frames_ids = np.where(np.any(frames_masks, axis=0))[0]
 

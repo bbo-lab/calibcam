@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 
 from calibcam import calibrator_opts, helper, yaml_helper, __version__
+from calibcam.board import load_board_params
 from calibcam.camcalibrator import CamCalibrator
 from calibcamlib import Camerasystem
 import timeit
@@ -25,7 +26,7 @@ def main():
     parser.add_argument('--opts', type=str, required=False, nargs='*', default=[],
                         help="List of options files to include. Later files supersede earlier files, "
                              "commandline arguments supersede files")
-    parser.add_argument('--board', type=str, required=False, nargs=1, default=[None], help="")
+    parser.add_argument('--board', type=str, required=False, nargs='*', default=[None], help="")
     parser.add_argument('--model', type=str, required=False, nargs='*', default=False, help="")
     parser.add_argument('--frame_step', type=int, required=False, nargs=1, default=[None], help="")
     parser.add_argument('--start_frame_indexes', type=int, required=False, nargs='*', default=None, help="")
@@ -48,32 +49,37 @@ def main():
 
     n_cams = len(args.videos)
 
-    # Build options from defaults and --opts parameters TODO: Currently not functional for yml, implement helpers!
-    opts = calibrator_opts.get_default_opts(n_cams)
-    for opts_file in args.opts:
-        opts_file = Path(opts_file)
-        if opts_file.suffix == ".yml":
-            with open(opts_file, "r") as file:
-                file_opts = yaml_helper.load_opts(yaml.safe_load(file))
-        elif opts_file.suffix == ".npy":
-            file_opts = np.load(opts_file, allow_pickle=True)[()]
-        else:
-            raise FileNotFoundError(f"{opts_file} is not supported")
-        opts = helper.deepmerge_dicts(file_opts, opts)
+    opts = build_options(args, n_cams)
 
-    # Deal with process parameters
-    if not any([args.detection, args.calibration_single, args.calibration_multi]):
-        # No parameter has been set, which is interpreted as all desired
-        args.detection, args.calibration_single, args.calibration_multi = (True, True, True)
-    # Parameter with empty list means True
-    for param in ["detection", "calibration_single", "calibration_multi"]:
-        if isinstance(getattr(args, param), list):
-            if len(getattr(args, param)) == 0:
-                opts[param] = True
-            else:
-                opts[param] = getattr(args, param)
-        elif getattr(args, param):
-            opts[param] = True
+    recFileNames = args.videos
+
+    if args.pipelines is None:
+        recPipelines = None
+    elif len(args.pipelines) == len(recFileNames):
+        recPipelines = args.pipelines
+    elif len(args.pipelines) == 1:
+        recPipelines = args.pipelines * len(recFileNames)
+    else:
+        print("Sorry, the number of pipelines does not match the number of videos!")
+        raise RuntimeError
+
+    board_params = make_board_params(args.board, recFileNames)
+
+    calibrator = CamCalibrator(recFileNames, pipelines=recPipelines, board_params=board_params, opts=opts,
+                               data_path=args.data_path[0])
+    calibrator.perform_multi_calibration()
+    print("Camera calibrated")
+    calibrator.close_readers()
+
+    toc = timeit.default_timer()
+
+    print(f"Overall procedure took {toc - tic} s")
+
+    return
+
+
+def build_args_into_opts(opts, args, n_cams):
+    opts = define_process_stages(args, opts)
 
     # Fill commandline options
     if args.optimize_only is not None:
@@ -90,31 +96,61 @@ def main():
             'rvecs_cam': np.array([c["rvec_cam"] for c in init_extrinsics['calibs']]),
             'tvecs_cam': np.array([c["tvec_cam"] for c in init_extrinsics['calibs']])
         }
-
-    # It is necessary for the videos to be in sync to perform multi calibration. If some videos lag behind other videos,
-    # start_frames_indexes should be provided to adjust for the lag.
-    if args.start_frame_indexes is not None:
+    if args.start_frame_indexes is not None:  # Starting frame offsets
         assert len(args.start_frame_indexes) == n_cams, "number of start_frame_indexes " \
-                                                                  "does not match number of videos!"
+                                                        "does not match number of videos!"
         opts['start_frame_indexes'] = np.array(args.start_frame_indexes)
-
-    if args.frame_step[0] is not None:
-        opts['frame_step'] = args.frame_step[0]
-
     # Sometimes, it is better to use only certain portion of the video for calibration.
     # start_frame_indexes and stop_frame_indexes can be used to specify the frames to be used for calibration.
     if args.stop_frame_indexes is not None:
         assert len(args.stop_frame_indexes) == n_cams, "number of stop_frame_indexes " \
-                                                                 "does not match number of videos!"
+                                                       "does not match number of videos!"
         opts['stop_frame_indexes'] = np.array(args.stop_frame_indexes)
-
+    if args.frame_step[0] is not None:  # Only use every frame_step_th frame
+        opts['frame_step'] = args.frame_step[0]
     # Use frames_masks together with start_frames_indexes to provide the frames to be used for calibration.
     # TODO: EXPLAIN USE!!!
     if args.frames_masks[0] is not None:
         opts['init_frames_masks'] = args.frames_masks[0]
-
     # Fill defaults for opts that depend on other opts
     calibrator_opts.fill(opts)
+
+    return opts
+
+
+def define_process_stages(args, opts):
+    # Deal with process parameters
+    if not any([args.detection, args.calibration_single, args.calibration_multi]):
+        # No parameter has been set, which is interpreted as all desired
+        args.detection, args.calibration_single, args.calibration_multi = (True, True, True)
+    # Parameter with empty list means True
+    for param in ["detection", "calibration_single", "calibration_multi"]:
+        if isinstance(getattr(args, param), list):
+            if len(getattr(args, param)) == 0:
+                opts[param] = True
+            else:
+                opts[param] = getattr(args, param)
+        elif getattr(args, param):
+            opts[param] = True
+
+    return opts
+
+
+def build_options(args, n_cams):
+    # Build options from defaults and --opts parameters TODO: Currently not functional for yml, implement helpers!
+    opts = calibrator_opts.get_default_opts(n_cams)
+    for opts_file in args.opts:
+        opts_file = Path(opts_file)
+        if opts_file.suffix == ".yml":
+            with open(opts_file, "r") as file:
+                file_opts = yaml_helper.load_opts(yaml.safe_load(file))
+        elif opts_file.suffix == ".npy":
+            file_opts = np.load(opts_file, allow_pickle=True)[()]
+        else:
+            raise FileNotFoundError(f"{opts_file} is not supported")
+        opts = helper.deepmerge_dicts(file_opts, opts)
+
+    opts = build_args_into_opts(opts, args, n_cams)
 
     # Write options to file for later editing.
     if isinstance(args.write_opts[0], str):
@@ -124,29 +160,35 @@ def main():
         np.save(write_path / "opts.npy", opts, allow_pickle=True)
         print(f"Options written to {write_path / 'opts.{npy/yml}'}")
 
-    recFileNames = args.videos
+    return opts
 
-    if args.pipelines is None:
-        recPipelines = None
-    elif len(args.pipelines) == len(recFileNames):
-        recPipelines = args.pipelines
-    elif len(args.pipelines) == 1:
-        recPipelines = args.pipelines * len(recFileNames)
-    else:
-        print("Sorry, the number of pipelines does not match the number of videos!")
-        raise RuntimeError
 
-    calibrator = CamCalibrator(recFileNames, pipelines=recPipelines, board_name=args.board[0], opts=opts,
-                               data_path=args.data_path[0])
-    calibrator.perform_multi_calibration()
-    print("Camera calibrated")
-    calibrator.close_readers()
+def make_board_params(board_args, videos):
+    n_videos = len(videos)
 
-    toc = timeit.default_timer()
+    if len(board_args) == 1:
+        if board_args[0] is None:
+            return None
 
-    print(f"Overall procedure took {toc - tic} s")
+        board_params = load_board_params(board_args[0])
+        if isinstance(board_params, dict):
+            return [board_params]*n_videos
+        else:
+            assert(len(board_params) == n_videos, f"Single board file must either contain a single board, or a list of "
+                                                  f"boards of the size of the number of videos ({n_videos})")
+            return board_params
 
-    return
+    current_board_file = None
+    board_params = []
+    for board_arg in board_args:
+        if board_arg.isdigit():
+            assert(current_board_file is not None, "Must specifiy board file before board idx!")
+            board_params.append(load_board_params(current_board_file, int(board_arg)))
+        else:
+            current_board_file = board_arg
+
+    assert(len(board_params) == n_videos, f"Board specifications do not match number of videos ({n_videos})!")
+    return board_params
 
 
 if __name__ == '__main__':

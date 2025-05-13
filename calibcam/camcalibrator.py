@@ -15,7 +15,7 @@ import multiprocessing
 from joblib import Parallel, delayed
 
 from calibcam.camfunctions import test_objective_function, make_optim_input
-from calibcam.detection import detect_corners
+from calibcam.detection import detect_corners, Detections
 from calibcam.exceptions import *
 from calibcam import helper, camfunctions, board, compatibility
 
@@ -29,20 +29,15 @@ from calibcam import yaml_helper
 
 
 class CamCalibrator:
-    def __init__(self, recordings, pipelines=None, board_name=None, data_path=None, calibs_init=None, opts=None):
+    def __init__(self, recordings, pipelines=None, board_params=None, data_path=None, calibs_init=None, opts=None):
         if opts is None:
             opts = {}
-
-        self.board_name = board_name  # Currently, recordings are needed to determine the board path in most cases
 
         if data_path is not None:
             self.data_path = data_path
             os.makedirs(self.data_path, exist_ok=True)
         else:
             self.data_path = os.path.expanduser(os.path.dirname(recordings[0]))
-
-        # Board
-        self.board_params = None
 
         # Videos
         self.readers = None
@@ -61,13 +56,12 @@ class CamCalibrator:
         self.calibs_init = None
         self.calibs_init = self.load_calibs_init(calibs_init, self.data_path)
 
+        self.board_params = self.resolve_board_params(board_params)
         return
 
-    def get_board_params_from_name(self, board_name):
-        if board_name is not None:
-            board_params = board.get_board_params(board_name)
-        else:
-            board_params = board.get_board_params(Path(self.rec_file_names[0]).parent)
+    def resolve_board_params(self, board_params):
+        if board_params is None:
+            board_params = board.load_board_params(Path(self.rec_file_names[0]).parent)
         return board_params
 
     @staticmethod
@@ -125,8 +119,6 @@ class CamCalibrator:
                 # raise exception for outside confirmation
                 raise UnequalFrameCountException
 
-        self.board_params = self.get_board_params_from_name(self.board_name)
-
     def close_readers(self):
         if not self.readers:
             return
@@ -134,12 +126,11 @@ class CamCalibrator:
             reader.close()
 
     def perform_multi_calibration(self):
-        n_corners = (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1)
-        required_corner_idxs = [0,
-                                self.board_params["boardWidth"] - 2,
-                                (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 2),
-                                (self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1) - 1,
-                                ]  # Corners that we require to be detected for pose estimation
+        required_corner_idxs = [[0,
+                                bp["boardWidth"] - 2,
+                                (bp["boardWidth"] - 1) * (bp["boardHeight"] - 2),
+                                (bp["boardWidth"] - 1) * (bp["boardHeight"] - 1) - 1,
+                                ] for bp in self.board_params] # Corners that we require to be detected for pose estimation
 
         if not self.opts["detection"] and (self.opts["calibration_single"] or self.opts["calibration_multi"]):
             self.opts["detection"] = sorted(glob(self.data_path + "/detection_*.yml"))
@@ -150,27 +141,7 @@ class CamCalibrator:
             assert len(self.opts["detection"]) == self.opts["n_cams"], ("Number of detection files must be equal "
                                                                         "to number of cameras")
 
-            corners = []
-            used_frames_ids = []
-            for detection_file in self.opts["detection"]:
-                detection_file = Path(detection_file)
-                if detection_file.suffix == ".yml":
-                    with open(detection_file, "r") as file:
-                        detection = yaml.safe_load(file)
-                elif detection_file.suffix == ".npy":
-                    detection = np.load(detection_file, allow_pickle=True)[()]
-                else:
-                    raise FileNotFoundError(f"{detection_file} is not supported")
-
-                # For multicam_calibration files
-                if ("corners" not in detection) and ("info" in detection):
-                    detection = detection["info"]
-
-                corners.append(np.squeeze(detection["corners"]))
-                used_frames_ids.append(np.array(detection["used_frames_ids"]))
-
-            used_frames_ids = used_frames_ids[0]
-            corners = np.array(corners)
+            detections = Detections.from_file(self.opts["detection"])
         elif self.opts["detection"]:
             # detect corners
             # Corners are originally detected by cv2 as ragged lists with additional id lists (to determine which
@@ -179,14 +150,15 @@ class CamCalibrator:
             # used frames or global frames. For simplification, corners are returned as a single matrix of shape
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
             # Memory footprint at this stage is not critical.
-            corners, used_frames_ids = detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
-                                                      rec_pipelines=self.rec_pipelines, data_path=self.data_path)
+            detections = detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
+                                                      rec_pipelines=self.rec_pipelines, data_path=self.data_path, return_matrix=True)
 
             for i_cam, (rfn, c) in enumerate(zip(self.rec_file_names, corners)):
                 detection = {
                     "rec_file_name": rfn,  # Not used in readout, only for reference
-                    "corners": c.tolist(),
-                    "used_frames_ids": used_frames_ids.tolist()
+                    "corners": [cc.tolist() for cc in c],
+                    "used_frames_ids": used_frames_ids.tolist(),
+                    "used_corner_ids": used_corner_ids.tolist(),
                 }
                 with open(Path(self.data_path) / f"detection_{i_cam:03d}.yml", "w") as file:
                     yaml.dump(detection, file, default_flow_style=True)
@@ -230,7 +202,7 @@ class CamCalibrator:
                     # Although we don't have camera poses at this step, we use this function to correctly structure the
                     # calibs_single to optimize poses.
                     calibs_interim = estimate_cam_poses([calib], self.opts, corners=corners[[i_cam]],
-                                                        required_corner_idxs=required_corner_idxs)
+                                                        required_corner_idxs=required_corner_idxs[i_cam])
 
                     calibs_fit_single, rvecs_boards, tvecs_boards, _, _ = self.optimize_poses(corners[[i_cam]],
                                                                                               calibs_interim)
@@ -252,11 +224,11 @@ class CamCalibrator:
             if (isinstance(self.opts["init_extrinsics"]["rvecs_cam"], np.ndarray) and
                     isinstance(self.opts["init_extrinsics"]["tvecs_cam"], np.ndarray)):
                 calibs_multi = build_initialized_calibs(calibs_single, self.opts, corners=corners,
-                                   required_corner_idxs=required_corner_idxs)
+                                   required_corner_idxs=required_corner_idxs[i_cam])
             else:
                 # analytically estimate initial camera poses
                 calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
-                                                  required_corner_idxs=required_corner_idxs)
+                                                  required_corner_idxs=required_corner_idxs[i_cam])
 
             if self.opts['debug']:
                 args, vars_free = make_optim_input(self.board_params, calibs_multi, corners, self.opts)
@@ -418,7 +390,7 @@ class CamCalibrator:
                 delayed(calibrate_single_camera)(corners[i_cam],
                                                  camfunctions.get_header_from_reader(self.readers[i_cam])[
                                                      'sensorsize'],
-                                                 self.board_params,
+                                                 self.board_params[i_cam],
                                                  {'free_vars': self.opts['free_vars'][i_cam],
                                                   'aruco_calibration': self.opts['aruco_calibration'][i_cam],
                                                   'corners_min_n': self.opts['corners_min_n'],
@@ -429,7 +401,7 @@ class CamCalibrator:
             calibs_single = [calibrate_single_camera(corners[i_cam],
                                                  camfunctions.get_header_from_reader(self.readers[i_cam])[
                                                      'sensorsize'],
-                                                 self.board_params,
+                                                 self.board_params[i_cam],
                                                  {'free_vars': self.opts['free_vars'][i_cam],
                                                   'aruco_calibration': self.opts['aruco_calibration'][i_cam],
                                                   'corners_min_n': self.opts['corners_min_n'],

@@ -26,7 +26,7 @@ def get_default_opts(ncams=0, do_fill=False):
         # GPU regularly runs out of memory for these problems
         'jax_backend': 'cpu',
         # Parallelize detection and calibration
-        'parallelize': True,
+        'parallelize': False,
         # Reference camera that defines the multicam coordinate system
         'coord_cam': 0,
         # Skip frames in recording

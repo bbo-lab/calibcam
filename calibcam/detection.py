@@ -1,10 +1,12 @@
 import multiprocessing
+from copy import deepcopy
 from pathlib import Path
 
 import cv2
 import numpy as np
 import yaml
 from ccvtools import rawio  # noqa
+from hatch.cli import self
 from svidreader import filtergraph
 from joblib import Parallel, delayed
 from itertools import islice
@@ -13,8 +15,7 @@ from calibcam import camfunctions, board, helper
 from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 
-def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=None, return_matrix=True,
-                   data_path=None):
+def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=None, data_path=None):
     print('DETECTING FEATURES')
     # if isinstance(opts['detect_use_single'], bool):
     #     opts['detect_use_single'] = [opts['detect_use_single'] for _ in rec_file_names]
@@ -36,6 +37,7 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
                                           np.full(len(rec_file_names), fill_value=n_frames, dtype=int))
     stop_frm_indexes = opts['stop_frame_indexes']
 
+    # Load frame masks
     opts["init_frames_masks"] = opts.get('init_frames_masks', [False] * len(rec_file_names))
     init_frames_masks = opts["init_frames_masks"]
     if isinstance(init_frames_masks, str):
@@ -58,32 +60,27 @@ def detect_corners(rec_file_names, n_frames, board_params, opts, rec_pipelines=N
     ids_all = []
 
     if not opts["parallelize"]:
-        detections = []
+        detections_cams = []
         for i_rec, rec_file_name in enumerate(rec_file_names):
-            detections.append(detect_corners_cam(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
+            detections_cams.append(detect_corners_cam(rec_file_name, opts, board_params[i_rec], start_frm_indexes[i_rec],
                                         stop_frm_indexes[i_rec], init_frames_masks[i_rec],
                                         rec_pipeline=rec_pipelines[i_rec]))
     else:
         # Empirically, detection seems to utilize about 6 cores
-        detections = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
-            delayed(detect_corners_cam)(rec_file_name, opts, board_params, start_frm_indexes[i_rec],
+        detections_cams = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
+            delayed(detect_corners_cam)(rec_file_name, opts, board_params[i_rec], start_frm_indexes[i_rec],
                                         stop_frm_indexes[i_rec], init_frames_masks[i_rec],
                                         rec_pipeline=rec_pipelines[i_rec])
             for i_rec, rec_file_name in enumerate(rec_file_names))
 
-    for i_cam, detection in enumerate(detections):
-        corners_all.append(detection[0])
-        ids_all.append(detection[1])
-        fin_frames_masks[i_cam, :] = detection[2][:fin_frames_masks.shape[1]]
-        n_detections_cam = np.array([len(c) for c in corners_all[i_cam]])
-        print(f'Detected features in {np.sum(fin_frames_masks[i_cam]).astype(int):04d}  frames in camera {i_cam:02d} - '
-              f'({int(np.mean(n_detections_cam)):02d}±{int(np.std(n_detections_cam))})')
+    detections = Detections()
+    for i_cam, detection in enumerate(detections_cams):
+        detections += detection
+        n_detections = detection.get_n_detections()
+        print(f'Detected features in {detection.get_n_frames():04d} frames in camera {i_cam:02d} - '
+              f'({int(np.mean(n_detections)):02d}±{int(np.std(n_detections_cam))})')
 
-    if return_matrix:
-        return helper.make_corners_array(corners_all, ids_all, (board_params["boardWidth"] - 1) * (
-                board_params["boardHeight"] - 1), fin_frames_masks), np.where(np.any(fin_frames_masks, axis=0))[0]
-    else:
-        return corners_all, ids_all, fin_frames_masks
+    return detections
 
 
 def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=None, init_frames_mask=None, rec_pipeline=None):
@@ -146,10 +143,12 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
         if len(corners) == 0:
             continue
 
+        board_obj = board.make_board(board_params)
+
         # corner refinement
         corners_ref, ids_ref = \
             cv2.aruco.refineDetectedMarkers(frame,  # noqa
-                                            board.make_board(board_params),
+                                            board_obj,
                                             corners,
                                             ids,
                                             rejected_img_points,
@@ -160,7 +159,7 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
             cv2.aruco.interpolateCornersCharuco(corners_ref,  # noqa
                                                 ids_ref,
                                                 frame,
-                                                board.make_board(board_params),
+                                                board_obj,
                                                 **opts['detection_opts']['aruco_interpolate'])
         if charuco_corners is None:
             continue
@@ -210,3 +209,140 @@ def detect_corners_cam(video, opts, board_params, start_frm_idx=0, stop_frm_idx=
     reader.close()
 
     return corners_cam, ids_cam, fin_frames_mask
+
+
+class Detections:
+    def __init__(self, markers_array=None):
+        self.markers_array = markers_array
+
+    @staticmethod
+    def from_list(markers_list, *args, **kwargs):
+        if isinstance(markers_list, dict):
+            marker_coords = markers_list["marker_coords"]
+            frame_idxs = markers_list["frame_idxs"]
+            marker_ids = markers_list["marker_ids"]
+        else:
+            marker_coords = markers_list
+            frame_idxs = args[0]
+            marker_ids = args[1]
+        markers_array = helper.make_corners_array(marker_coords, frame_idxs, marker_ids)
+        return Detections(markers_array)
+
+    @staticmethod
+    def from_array(markers_array):
+        return Detections(markers_array)
+
+    def to_array(self):
+        return self.markers_array
+
+    def to_list(self):
+        raise NotImplementedError()
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            key = slice(key, key + 1) # Do not squeeze dimension
+
+        return Detections({
+            "marker_coords": self.markers_array["marker_coords"][key,],
+            "frame_idxs": self.markers_array["frame_idxs"],
+            "marker_ids": self.markers_array["marker_ids"],
+        })
+
+    def __add__(self, o):
+        if self.markers_array is None:
+            return o
+
+        if not (
+                len(self.markers_array["frame_idxs"]) == len(o.markers_array["frame_idxs"]) and
+                np.all(self.markers_array["frame_idxs"] == o.markers_array["frame_idxs"]) and
+                len(self.markers_array["marker_ids"]) == len(o.markers_array["marker_ids"]) and
+                np.all(self.markers_array["marker_ids"] == o.markers_array["marker_ids"])
+        ):
+            frame_idxs = np.unique(np.concatenate((self.markers_array["frame_idxs"], o.markers_array[2])))
+            marker_ids = np.unique(np.concatenate((self.markers_array["marker_ids"], o.markers_array[2])))
+            marker_coords = np.full(
+                (
+                    len(self.markers_array["marker_coords"]) + len(o.markers_array["marker_coords"]),
+                    len(frame_idxs),
+                    len(marker_ids),
+                    2
+                ),
+                fill_value=np.nan,
+                dtype=self.markers_array["marker_coords"].dtype
+            )
+            marker_coords[:len(self.markers_array["marker_coords"]),
+            np.isin(self.markers_array["frame_idxs"], frame_idxs),
+            np.isin(self.markers_array["marker_ids"], marker_ids)] = self.markers_array["marker_coords"]
+            marker_coords[len(self.markers_array["marker_coords"]):,
+            np.isin(o.markers_array["frame_idxs"], frame_idxs),
+            np.isin(o.markers_array["marker_ids"], marker_ids)] = o.markers_array["marker_coords"]
+        else:
+            frame_idxs = self.markers_array["frame_idxs"]
+            marker_ids = self.markers_array["marker_ids"]
+            marker_coords = np.concatenate((self.markers_array["marker_coords"], o.markers_array["marker_coords"]), axis=0)
+
+        return Detections({
+            "marker_coords": marker_coords,
+            "frame_idxs": frame_idxs,
+            "marker_ids": marker_ids,
+        })
+
+    @staticmethod
+    def from_file(detection_files):
+        if isinstance(detection_files, list):
+            return sum([Detections.from_file(df) for df in detection_files], Detections())
+
+        detection_files = Path(detection_files)
+        if detection_files.suffix == ".yml":
+            with open(detection_files, "r") as file:
+                detection = yaml.safe_load(file)
+        elif detection_files.suffix == ".npy":
+            detection = np.load(detection_files, allow_pickle=True)[()]
+        else:
+            raise FileNotFoundError(f"{detection_files} is not supported")
+
+        if "marker_coords" in detection:
+            marker_coords = np.array(detection["marker_coords"])
+        elif "corners" in detection:
+            marker_coords = np.array([detection["corners"]])
+        else:
+            # TODO: write import code for multicamcal files
+            raise ValueError("Unsupported dictionary content")
+
+        if "marker_ids" in detection:
+            marker_ids = np.array(detection["marker_ids"])
+        elif "used_corner_ids" in detection:
+            marker_ids = np.array(detection["used_corner_ids"])
+        else:
+            marker_ids = np.arange(np.array(marker_coords).shape[1])
+
+        if "frame_idxs" in detection:
+            frame_idxs = np.array(detection["frame_idxs"])
+        elif "used_frames_ids" in detection:
+            frame_idxs = np.array(detection["used_frames_ids"])
+        else:
+            frame_idxs = np.arange(np.array(marker_coords).shape[0])
+
+        return Detections({
+            "marker_coords": marker_coords,
+            "frame_idxs": frame_idxs,
+            "marker_ids": marker_ids,
+        })
+
+    def to_file(self, file_paths):
+        if isinstance(file_paths, str):
+            file_path = Path(file_paths)
+            file_paths = []
+            for i in range(len(self.markers_list)):
+                file_paths.append(file_path.parent / f"{file_path.stem}_{i:02d}{file_path.suffix}")
+
+        assert len(file_paths) == len(self.markers_list), "Number of files must match number of detections"
+
+        for file_path, markers_cam in zip(file_paths, self.markers_list):
+            if Path(file_path).suffix == ".yml":
+                with open(file_path, "w") as file:
+                    yaml.safe_dump(markers_cam, file)
+            elif Path(file_path).suffix == ".npy":
+                np.save(file_path, markers_cam)
+            else:
+                raise FileNotFoundError(f"{file_path} is not supported")

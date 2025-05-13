@@ -44,40 +44,73 @@ def deepmerge_dicts(source, destination):
     return destination
 
 
-def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
-    used_frames_mask = np.any(frames_masks, axis=0)
-    used_frame_idxs = np.where(used_frames_mask)[0]
+def make_corners_array(corners_list, *args, **kwargs):
+    # Converts a list of corner points with matching frame and marker idx lists so a single multidimentional array
+    # If the lists are very sparse, this can significantly increase the memory usage, but usually it is not a problem.
 
-    corners = np.empty(shape=(frames_masks.shape[0], used_frames_mask.sum(), n_corners, 2), dtype=np.float32)
-    corners[:] = np.nan
-    for i_cam, frames_mask_cam in enumerate(frames_masks):
-        frame_idxs_cam = np.where(frames_mask_cam)[0]
+    if isinstance(corners_list, dict):
+        corners_all = [c['marker_coords'] for c in corners_list]
+        frame_idxs_all = [c["frame_idxs"] for c in corners_list]
+        marker_ids_all = [c["marker_ids"] for c in corners_list]
+    else:
+        corners_all = corners_list
+        frame_idxs_all = args[0]
+        marker_ids_all = args[1]
 
-        for i_frame, f_idx in enumerate(used_frame_idxs):
-            # print(ids_all[i_cam][i_frame].ravel())
-            # print(corners[i_cam, f_idx].shape)
-            # print(corners_all[i_cam][i_frame].shape)
+    frame_idxs_used = np.unique(sum(sum(frame_idxs_all,[]),[]))
+    marker_ids_used = np.unique(sum(sum(marker_ids_all,[]),[]))
+
+    marker_ids_map = {value: idx for idx, value in enumerate(marker_ids_used)}
+    n_corners = len(marker_ids_used)
+
+    corners = np.full(shape=(len(frame_idxs_all), len(frame_idxs_used), n_corners, 2), fill_value=np.nan, dtype=np.float32)
+    for i_cam, frame_idxs_cam in enumerate(frame_idxs_all):
+        for i_frame, f_idx in enumerate(frame_idxs_used):
             cam_fr_idx = np.where(frame_idxs_cam == f_idx)[0]
             if cam_fr_idx.size < 1:
                 continue
+            cam_fr_idx = cam_fr_idx[0]
 
-            cam_fr_idx = int(cam_fr_idx)
-            if ids_all is None:
+            if marker_ids_all is None:
                 corners[i_cam, i_frame] = \
                     corners_all[i_cam][cam_fr_idx][:, 0, :]
             else:
-                corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
-                    corners_all[i_cam][cam_fr_idx][:, 0, :]
-    return corners
+                indices = np.array([marker_ids_map[id] for id in marker_ids_all.ravel()])
+                corners[i_cam, i_frame][indices, :] = np.array(corners_all[i_cam][cam_fr_idx])
+
+    return {
+        "marker_coords": corners,
+        "frame_idxs": frame_idxs_used,
+        "marker_ids": marker_ids_used,
+    }
 
 
-def corners_array_to_ragged(corners_array):
-    corner_shape = corners_array.shape[2]
-
-    ids_use = [np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1, 1) for c in corners_array]
-    corners_use = [c[i, :].astype(np.float32).reshape(-1, 1, corner_shape) for c, i in zip(corners_array, ids_use)]
-
-    return corners_use, ids_use
+# def corners_array_to_ragged(markers, squeeze=True):
+#     markers_list = []
+#     for marker_coords_cam in markers["marker_coords"]:
+#         marker_coords_used = []
+#         frame_idxs_used = []
+#         marker_ids_used = []
+#         for i_frame, marker_coords_cam_frame in enumerate(marker_coords_cam):
+#
+#
+#         marker_ids_used = [
+#             markers["marker_ids"][np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1)]
+#             for c in marker_coords_cam]
+#         marker_coords_used = [
+#             c[]
+#         ]
+#
+#         markers_list.append({
+#             "marker_coords": corners,
+#             "frame_idxs": frame_idxs_used,
+#             "marker_ids": marker_ids_used,
+#         })
+#
+#     ids_use = [np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1) for c in corners_array]
+#     corners_use = [c[i, :].astype(np.float32).reshape(-1, 1, corner_shape) for c, i in zip(corners_array, ids_use)]
+#
+#     return corners_use, ids_use
 
 
 def build_v1_result(result):

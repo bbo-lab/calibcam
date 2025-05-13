@@ -2,7 +2,7 @@ from svidreader import filtergraph
 import imageio
 from calibcam import board
 from calibcam.calibrator_opts import get_default_opts, finalize_aruco_detector_opts
-from calibcam.board import get_board_params
+from calibcam.board import load_board_params
 import matplotlib
 matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
@@ -17,7 +17,7 @@ def main(frame_num=1295):
     imageio.imwrite(f'test/sample_images_1/{frame_num}.png', test_frame)
 
     board_name = "/media/smb/soma-fs.ad01.caesar.de/bbo/projects/junker-bird/experiments/20230612_20230615_FlightWindow/calibrations/board_small"
-    board_params = get_board_params(board_name)
+    board_params = load_board_params(board_name)
     opts = get_default_opts(1, do_fill=True)
     detection = opts['detection']
     detection['aruco_refine']['errorCorrectionRate'] = 0.1
