@@ -72,3 +72,17 @@ def make_board_points(board_params, exact=False):
                             board_2], 1)
 
     return board  # n_corners x 3
+
+
+class Board:
+    def __init__(self, board_params):
+        self.board_params = board_params
+
+    def get_board_params(self):
+        return self.board_params
+
+    def get_cv2_board(self):
+        return make_board(self.board_params)
+
+    def get_board_points(self, exact=False):
+        return make_board_points(self.board_params, exact=exact)

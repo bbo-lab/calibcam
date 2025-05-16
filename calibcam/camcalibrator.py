@@ -1,3 +1,5 @@
+import logging
+
 import os
 from copy import deepcopy
 import numpy as np
@@ -14,6 +16,7 @@ from svidreader import filtergraph
 import multiprocessing
 from joblib import Parallel, delayed
 
+from calibcam.board import Board
 from calibcam.camfunctions import test_objective_function, make_optim_input
 from calibcam.detection import detect_corners, Detections
 from calibcam.exceptions import *
@@ -27,9 +30,12 @@ from glob import glob
 
 from calibcam import yaml_helper
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
 
 class CamCalibrator:
-    def __init__(self, recordings, pipelines=None, board_params=None, data_path=None, calibs_init=None, opts=None):
+    def __init__(self, recordings, pipelines=None, board_params=None, data_path=None, opts=None):
         if opts is None:
             opts = {}
 
@@ -52,27 +58,13 @@ class CamCalibrator:
         # Recordings
         self.load_recordings(recordings, pipelines)
 
-        # Calibs initialization
-        self.calibs_init = None
-        self.calibs_init = self.load_calibs_init(calibs_init, self.data_path)
-
-        self.board_params = self.resolve_board_params(board_params)
+        self.boards = [Board(bp) for bp in self.resolve_board_params(board_params)]
         return
 
     def resolve_board_params(self, board_params):
         if board_params is None:
             board_params = board.load_board_params(Path(self.rec_file_names[0]).parent)
         return board_params
-
-    @staticmethod
-    def load_calibs_init(calibs_init, data_path=None):
-        # TODO Remove this in favor of a commandline option
-        calib_init_path = data_path + "/multicam_calibration_init.npy"
-        if calibs_init is None and data_path is not None and os.path.isfile(calib_init_path):
-            print(f"Loading initialization from {calib_init_path}")
-            calibs_init = np.load(calib_init_path, allow_pickle=True).item()["calibs"]
-
-        return calibs_init
 
     @staticmethod
     def load_opts(opts, data_path=None):
@@ -127,10 +119,11 @@ class CamCalibrator:
 
     def perform_multi_calibration(self):
         required_corner_idxs = [[0,
-                                bp["boardWidth"] - 2,
-                                (bp["boardWidth"] - 1) * (bp["boardHeight"] - 2),
-                                (bp["boardWidth"] - 1) * (bp["boardHeight"] - 1) - 1,
-                                ] for bp in self.board_params] # Corners that we require to be detected for pose estimation
+                                 bp["boardWidth"] - 2,
+                                 (bp["boardWidth"] - 1) * (bp["boardHeight"] - 2),
+                                 (bp["boardWidth"] - 1) * (bp["boardHeight"] - 1) - 1,
+                                 ] for bp in
+                                self.board_params]  # Corners that we require to be detected for pose estimation
 
         if not self.opts["detection"] and (self.opts["calibration_single"] or self.opts["calibration_multi"]):
             self.opts["detection"] = sorted(glob(self.data_path + "/detection_*.yml"))
@@ -150,18 +143,9 @@ class CamCalibrator:
             # used frames or global frames. For simplification, corners are returned as a single matrix of shape
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
             # Memory footprint at this stage is not critical.
-            detections = detect_corners(self.rec_file_names, self.n_frames, self.board_params, self.opts,
-                                                      rec_pipelines=self.rec_pipelines, data_path=self.data_path, return_matrix=True)
-
-            for i_cam, (rfn, c) in enumerate(zip(self.rec_file_names, corners)):
-                detection = {
-                    "rec_file_name": rfn,  # Not used in readout, only for reference
-                    "corners": [cc.tolist() for cc in c],
-                    "used_frames_ids": used_frames_ids.tolist(),
-                    "used_corner_ids": used_corner_ids.tolist(),
-                }
-                with open(Path(self.data_path) / f"detection_{i_cam:03d}.yml", "w") as file:
-                    yaml.dump(detection, file, default_flow_style=True)
+            detections = detect_corners(self.rec_file_names, self.n_frames, self.boards, self.opts,
+                                        rec_pipelines=self.rec_pipelines, data_path=self.data_path)
+            detections.to_file(Path(self.data_path) / f"detection.yml")
         else:
             print("Cannot proceed without detections. Exiting.")
             return
@@ -174,6 +158,8 @@ class CamCalibrator:
             # TODO: Support True in the list instead of strings to only detect individual cams
             assert len(self.opts["calibration_single"]) == self.opts["n_cams"], ("Number of calibration_single files "
                                                                                  "must be equal to number of cameras")
+
+            # Import saved calibration; TODO refactor
             calibs_single = []
             for calibration_single_file in self.opts["calibration_single"]:
                 calibration_single_file = Path(calibration_single_file)
@@ -193,9 +179,13 @@ class CamCalibrator:
                     calibs_single.append(calib)
                 else:
                     raise FileNotFoundError(f"{calibration_single_file} is not supported")
-            calibs_single = self.obtain_single_cam_calibrations(corners=corners, calibs_single=calibs_single)
+
+            # Fill with board positions for current detectionsö TODO: Refactor to separate functions
+            calibs_single = self.obtain_single_cam_calibrations(READERS, detections=detections, boards=BOARDS,
+                                                                opts=OPTS, calibs_single=calibs_single)
         elif self.opts["calibration_single"]:
-            calibs_single = self.obtain_single_cam_calibrations(corners=corners)
+            calibs_single = self.obtain_single_cam_calibrations(READERS, detections=detections, boards=BOARDS,
+                                                                opts=OPTS)
             if self.opts['optimize_ind_cams']:
                 for i_cam, calib in enumerate(calibs_single):
                     # analytically estimate initial camera poses
@@ -224,7 +214,7 @@ class CamCalibrator:
             if (isinstance(self.opts["init_extrinsics"]["rvecs_cam"], np.ndarray) and
                     isinstance(self.opts["init_extrinsics"]["tvecs_cam"], np.ndarray)):
                 calibs_multi = build_initialized_calibs(calibs_single, self.opts, corners=corners,
-                                   required_corner_idxs=required_corner_idxs[i_cam])
+                                                        required_corner_idxs=required_corner_idxs[i_cam])
             else:
                 # analytically estimate initial camera poses
                 calibs_multi = estimate_cam_poses(calibs_single, self.opts, corners=corners,
@@ -261,7 +251,8 @@ class CamCalibrator:
                 calibs_fit = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards)
 
                 print('OPTIMIZING ALL PARAMETERS II')
-                calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners, calibs_fit)
+                calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(corners,
+                                                                                                     calibs_fit)
 
             # No board poses in final calibration!
             calibs_test = helper.combine_calib_with_board_params(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
@@ -288,125 +279,125 @@ class CamCalibrator:
             print('FINISHED MULTI CAMERA CALIBRATION')
         else:
             return
-            
+
         return
 
-    def obtain_single_cam_calibrations(self, corners, calibs_single=None):
+    @staticmethod
+    def obtain_single_cam_calibrations(readers, detections, boards, opts, calibs_single=None):
+        # Determine missing calibrations and sends off missing ones to a parallel job
         if calibs_single is None:
-            calibs_single = len(corners)*[None]
+            calibs_single = len(detections) * [None]
 
         cams_2calibrate = []
         for i_cam, cam_calib in enumerate(calibs_single):
             if cam_calib is not None:
-                calibs_single[i_cam] = self.estimate_board_positions_in_single_cam(cam_calib, corners[i_cam])
+                calibs_single[i_cam] = CamCalibrator.estimate_board_positions_in_single_cam(cam_calib,
+                                                                                            detections[i_cam],
+                                                                                            boards[i_cam],
+                                                                                            opts)
             else:
                 cams_2calibrate.append(i_cam)
-
         #  perform single calibration if needed
-        cams_calibrated = self.perform_single_cam_calibrations(corners,
-                                                               camera_indexes=cams_2calibrate,
-                                                               calibs_init=self.calibs_init)
+        cams_calibrated = CamCalibrator.perform_single_cam_calibrations(readers, detections, boards, opts,
+                                                                        cams_2calibrate)
+
         for i, i_cam in enumerate(cams_2calibrate):
             calibs_single[i_cam] = cams_calibrated[i]
 
         return calibs_single
 
-    @DeprecationWarning
-    def perform_board_position_estimation(self, calibs_single, corners):
-        print('ESTIMATE BOARD POSITIONS')
+    @staticmethod
+    def estimate_board_positions_in_single_cam(calib, detections_cam: Detections, board: Board, opts):
+        markers = detections_cam.to_array()
 
-        for i_cam, calib in enumerate(calibs_single):
-            calibs_single[i_cam] = self.estimate_board_positions_in_single_cam(calib, corners[i_cam])
+        board_points = board.get_board_points()
 
-        return calibs_single
+        markers = detections_cam.to_list()[0]
+        marker_coords = markers["marker_coords"]
+        frame_idxs = markers["frame_idxs"]
+        marker_ids = markers["marker_ids"]
+        n_frames = len(frame_idxs)
 
-    def estimate_board_positions_in_single_cam(self, calib, corners_cam, mask=None):
-        if mask is None:
-            mask = np.sum(~np.isnan(corners_cam[:, :, 1]), axis=1) > 0
-
-        corners_nn = corners_cam[mask]
-        corners_use, ids_use = helper.corners_array_to_ragged(corners_nn)
-
-        if self.opts["parallelize"]:
+        if opts["parallize"]:
             board_positions = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-                delayed(self.estimate_single_board_position)(calib,
-                                                             corners_use[i_pose],
-                                                             ids_use[i_pose],
-                                                             self.board_params,
-                                                             self.opts)
-                for i_pose in range(len(corners_use)))
+                delayed(CamCalibrator.estimate_single_board_position)(calib,
+                                                                      marker_coords[i_pose],
+                                                                      marker_ids[i_pose],
+                                                                      board_points)
+                for i_pose in range(n_frames)
+            )
         else:
             board_positions = []
-            for i_pose in range(len(corners_use)):
+            for i_pose in range(n_frames):
                 board_positions.append(
-                    self.estimate_single_board_position(calib,
-                                                        corners_use[i_pose],
-                                                        ids_use[i_pose],
-                                                        self.board_params,
-                                                        self.opts))
+                    CamCalibrator.estimate_single_board_position(calib,
+                                                                 marker_coords[i_pose],
+                                                                 marker_ids[i_pose],
+                                                                 board_points)
+                )
 
         if 'rvec_cam' in calib:
             calib['rvec_cam'] = np.zeros_like(calib['rvec_cam'])
-            calib['tvec_cam'] = np.zeros_like(calib['tvec_cam'])
+        calib['tvec_cam'] = np.zeros_like(calib['tvec_cam'])
 
-        calib['rvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
-        calib['tvecs'] = np.full((corners_cam.shape[0], 3), np.nan)
+        calib['rvecs'] = np.full((detections_cam.shape[0], 3), np.nan)
+        calib['tvecs'] = np.full((detections_cam.shape[0], 3), np.nan)
         calib['frames_mask'] = mask
 
         pose_idxs = np.where(mask)[0]
         for pose_idx, pos in zip(pose_idxs, board_positions):
-            if pos[0]:
-                calib['rvecs'][pose_idx] = pos[1][:, 0]
-                calib['tvecs'][pose_idx] = pos[2][:, 0]
-            else:
-                calib['frames_mask'][pose_idx] = False
+            if
+        pos[0]:
+        calib['rvecs'][pose_idx] = pos[1][:, 0]
+        calib['tvecs'][pose_idx] = pos[2][:, 0]
+        else:
+        calib['frames_mask'][pose_idx] = False
 
         return calib
 
     @staticmethod
-    def estimate_single_board_position(calib, corners, ids, board_params, opts):
+    def estimate_single_board_position(calib, marker_coords, ids, board_points):
         if len(ids) < 4:
             return 0, np.full((3,), np.nan), np.full((3,), np.nan)
 
-        retval, rvec, tvec = cv2.solvePnP(board.make_board_points(board_params)[ids].reshape((-1, 3)),
-                                          corners.reshape((-1, 2)),
+        if calib.get("xi", 0) != 0:
+            logger.log(logging.WARN, "xi is defined in calibration, but not used for board position estimation.")
+
+        retval, rvec, tvec = cv2.solvePnP(board_points[ids].reshape((-1, 3)),
+                                          marker_coords.reshape((-1, 2)),
                                           calib["A"], calib["k"],
                                           flags=cv2.SOLVEPNP_IPPE)
         return retval, rvec, tvec
 
-    def perform_single_cam_calibrations(self, corners, camera_indexes=None, calibs_init=None):
+    @staticmethod
+    def perform_single_cam_calibrations(readers, detections: Detections, boards, opts, camera_indexes=None):
         print('PERFORM SINGLE CAMERA CALIBRATION')
 
         if camera_indexes is None:
-            camera_indexes = range(len(self.readers))
-
-        if calibs_init is None:
-            calibs_init = [None for _ in corners]
+            camera_indexes = range(len(readers))
 
         print(int(np.floor(multiprocessing.cpu_count())))
 
-        if self.opts["parallelize"]:
+        if opts["parallelize"]:
             calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
-                delayed(calibrate_single_camera)(corners[i_cam],
-                                                 camfunctions.get_header_from_reader(self.readers[i_cam])[
+                delayed(calibrate_single_camera)(detections[i_cam],
+                                                 camfunctions.get_header_from_reader(readers[i_cam])[
                                                      'sensorsize'],
-                                                 self.board_params[i_cam],
-                                                 {'free_vars': self.opts['free_vars'][i_cam],
-                                                  'aruco_calibration': self.opts['aruco_calibration'][i_cam],
-                                                  'corners_min_n': self.opts['corners_min_n'],
-                                                  },
-                                                 calib_init=calibs_init[i_cam])
+                                                 boards[i_cam],
+                                                 {'free_vars': opts['free_vars'][i_cam],
+                                                  'aruco_calibration': opts['aruco_calibration'][i_cam],
+                                                  'corners_min_n': opts['corners_min_n'],
+                                                  })
                 for i_cam in camera_indexes)
         else:
-            calibs_single = [calibrate_single_camera(corners[i_cam],
-                                                 camfunctions.get_header_from_reader(self.readers[i_cam])[
-                                                     'sensorsize'],
-                                                 self.board_params[i_cam],
-                                                 {'free_vars': self.opts['free_vars'][i_cam],
-                                                  'aruco_calibration': self.opts['aruco_calibration'][i_cam],
-                                                  'corners_min_n': self.opts['corners_min_n'],
-                                                  },
-                                                 calib_init=calibs_init[i_cam]) for i_cam in camera_indexes]
+            calibs_single = [calibrate_single_camera(detections[i_cam],
+                                                     camfunctions.get_header_from_reader(readers[i_cam])[
+                                                         'sensorsize'],
+                                                     boards[i_cam],
+                                                     {'free_vars': opts['free_vars'][i_cam],
+                                                      'aruco_calibration': opts['aruco_calibration'][i_cam],
+                                                      'corners_min_n': opts['corners_min_n'],
+                                                      }) for i_cam in camera_indexes]
 
         for i_cam, calib in enumerate(calibs_single):
             print(

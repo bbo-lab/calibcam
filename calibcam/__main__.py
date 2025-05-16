@@ -174,20 +174,20 @@ def make_board_params(board_args, videos):
         if isinstance(board_params, dict):
             return [board_params]*n_videos
         else:
-            assert(len(board_params) == n_videos, f"Single board file must either contain a single board, or a list of "
-                                                  f"boards of the size of the number of videos ({n_videos})")
+            assert len(board_params) == n_videos, (f"Single board file must either contain a single board, or a list of"
+                                                   f" boards of the size of the number of videos ({n_videos})")
             return board_params
 
     current_board_file = None
     board_params = []
     for board_arg in board_args:
         if board_arg.isdigit():
-            assert(current_board_file is not None, "Must specifiy board file before board idx!")
+            assert current_board_file is not None, "Must specifiy board file before board idx!"
             board_params.append(load_board_params(current_board_file, int(board_arg)))
         else:
             current_board_file = board_arg
 
-    assert(len(board_params) == n_videos, f"Board specifications do not match number of videos ({n_videos})!")
+    assert len(board_params) == n_videos, f"Board specifications do not match number of videos ({n_videos})!"
     return board_params
 
 
