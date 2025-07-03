@@ -249,8 +249,8 @@ class Detections:
             marker_ids_c = []
             frame_idxs_c = []
             for frame_idx, mc_f in zip(fis, mc_c):
-                mask = np.isnan(mc_f[:,0])
-                if ~any(mask):
+                mask = ~np.isnan(mc_f[:,0])
+                if ~np.any(mask):
                     continue
                 marker_coords_c.append(mc_f[mask])
                 frame_idxs_c.append(frame_idx)

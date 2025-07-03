@@ -67,8 +67,8 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, ve
     return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
 
-def make_optim_input(board_params, calibs_multi, corners, opts):
-    board_coords_3d_0 = board.make_board_points(board_params)
+def make_optim_input(boards, calibs_multi, corners, opts):
+    board_coords_3d_0 = boards
     # Generate vectors of all and of free variables
     vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, corners, board_params, opts)
     args = {

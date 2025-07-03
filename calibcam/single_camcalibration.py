@@ -98,7 +98,7 @@ def calibrate_single_camera(corners_cam, sensor_size, board: Board, opts, mask=N
     }
 
     if not opts['free_vars']['xi']:
-        # Not that from here on values are NOT expanded to full frames range, see frames_mask
+        # Note that from here on values are NOT expanded to full frames range, see frames_mask
         cal['std_intrinsics'] = others[2]
         cal['std_extrinsics'] = others[3]
         cal['per_view_errors'] = others[4]

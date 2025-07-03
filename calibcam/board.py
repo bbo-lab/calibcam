@@ -6,6 +6,8 @@ import pathlib
 import cv2
 from pathlib import Path
 
+from cv2 import aruco
+
 
 def load_board_params(board_path, board_idx=None):
     if not isinstance(board_path, str) and isinstance(board_path, Iterable):
@@ -50,7 +52,7 @@ def make_board(board_params):
 
 
 def make_board_points(board_params, exact=False):
-    if isinstance(board_params, Iterable):
+    if isinstance(board_params, Iterable) and not isinstance(board_params, dict):
         return [make_board_points(bp, exact) for bp in board_params]
 
     board_width = board_params['boardWidth']
@@ -68,10 +70,15 @@ def make_board_points(board_params, exact=False):
                         axis=0).ravel().reshape(n_corners, 1)
     board_1 = np.repeat(np.arange(1, board_height), board_width - 1, axis=0).reshape(n_corners, 1)
     board_2 = np.zeros(n_corners).reshape(n_corners, 1)
-    board = np.concatenate([board_0 * square_size_x, board_1 * square_size_y,
+    board_points = np.concatenate([board_0 * square_size_x, board_1 * square_size_y,
                             board_2], 1)
 
-    return board  # n_corners x 3
+    if "rotation" in board_params:
+        board_points = board_points*board_params["rotation"].T
+    if "offset" in board_params:
+        board_points = board_points+board_params["offset"].reshape(1,3)
+
+    return board_points  # n_corners x 3
 
 
 class Board:
@@ -86,3 +93,29 @@ class Board:
 
     def get_board_points(self, exact=False):
         return make_board_points(self.board_params, exact=exact)
+
+    def get_board_img(self, pixel_size = None):
+        if pixel_size is None:
+            board_params = self.get_board_params()
+            marker_ratio = board_params["marker_size"]
+            rows = board_params["boardWidth"]
+            columns = board_params["boardHeight"]
+            aruco_dict = board_params["dictionary_type"]
+
+            match aruco_dict:
+                case aruco.DICT_4X4_250:
+                    aruco_size = 4
+                case aruco.DICT_5X5_250:
+                    aruco_size = 5
+                case _:
+                    raise NotImplementedError
+
+            # Generate the Charuco board image
+            pixel_size = (round(((aruco_size + 2) / marker_ratio) * rows),
+                          round(((aruco_size + 2) / marker_ratio) * columns))
+
+        board = self.get_cv2_board()
+        return board.generateImage(pixel_size)
+
+
+

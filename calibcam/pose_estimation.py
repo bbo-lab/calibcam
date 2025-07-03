@@ -21,24 +21,33 @@ def build_initialized_calibs(calibs_single, opts, corners=None, required_corner_
     return calibs
 
 
-def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=None):
+def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idxs=None):
     calibs = deepcopy(calibs_single)
 
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
 
+    max_frame = max([np.max(calib["frame_idxs"]) for calib in calibs_single]) + 1
+    rs = np.full((len(calibs_single), max_frame, 3), np.nan)
+    for i_calib, calib in enumerate(calibs_single):
+        rs[i_calib, calib["frame_idxs"], :] = calib["rvecs"]
+    ts = np.full((len(calibs_single), max_frame, 3), np.nan)
+    for i_calib, calib in enumerate(calibs_single):
+        ts[i_calib, calib["frame_idxs"], :] = calib["tvecs"]
+
+    frames_masks_req = np.zeros((len(calibs_single), max_frame), dtype=bool)
+    for i_calib, calib in enumerate(calibs_single):
+        frames_masks_req[i_calib, calib["frame_idxs"]] = True
+
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
-    frames_masks_req = get_required_corners_masks(corners=corners,
-                                                  required_corner_idxs=required_corner_idxs
+    discard_frame_idxs = get_discard_frame_idxs(detections=detections,
+                                              required_corner_idxs=required_corner_idxs
                                                   if opts['pose_estimation']['use_required_corners']
                                                   else None)
 
-    # Opencv omnidirectional camera calibration does not calculate extrisic paraemters for all the frames. In such case,
-    # it is necessary to omit such frames from estimating camera poses.
-    frames_rs_calcd = [calib["frames_mask"] for calib in calibs_single]
-    # frames_rs_calcd = np.all(np.asarray(frames_rs_calcd), axis=0)
-    frames_rs_calcd = np.asarray(frames_rs_calcd)
-    frames_masks_req = frames_masks_req & frames_rs_calcd
+    for fmr, dfi, rs_cam in zip(frames_masks_req, discard_frame_idxs, rs):
+        fmr[dfi] = False
+        fmr[:] &= np.all(~np.isnan(rs_cam), axis=1)
 
     # n_cam x n_cam matrix of frames between two cams
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
@@ -47,9 +56,6 @@ def estimate_cam_poses(calibs_single, opts, corners=None, required_corner_idxs=N
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
     common_frame_mat[:, opts['coord_cam']] = common_frame_mat[:, opts['coord_cam']] * 10
     common_frame_mat[opts['coord_cam'], :] = common_frame_mat[:, opts['coord_cam']].T
-
-    rs = np.asarray([calib["rvecs"] for calib in calibs_single])
-    ts = np.asarray([calib["tvecs"] for calib in calibs_single])
 
     while not np.all(cams_oriented):
         # Find unoriented cam with the most overlaps with an oriented camera
@@ -131,8 +137,12 @@ def calc_common_frame_mat(frames_masks):
     return common_frame_mat
 
 
-def get_required_corners_masks(corners, required_corner_idxs=None):
+def get_discard_frame_idxs(detections, required_corner_idxs=None, min_marker_count=4):
+    markers = detections.to_array()
+    marker_coords = markers["marker_coords"]
     if required_corner_idxs is None:
-        return np.sum(~np.isnan(corners[:, :, :, 1]), axis=2) > 0
+        return [markers["frame_idxs"][m]
+                for m in np.sum(~np.isnan(marker_coords[:, :, :, 1]), axis=2) < min_marker_count]
     else:
-        return np.sum(~np.isnan(corners[:, :, required_corner_idxs, 1]), axis=2) > 0
+        return [markers["frame_idxs"][m]
+                for m in np.any(np.isnan(marker_coords[:, :, required_corner_idxs, 1]), axis=2)]
