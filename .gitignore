@@ -136,3 +136,5 @@ dmypy.json
 *.swo
 
 test/out
+
+examples/
