@@ -1,3 +1,5 @@
+import sys
+
 import cv2
 import numpy as np
 
@@ -11,6 +13,15 @@ def get_default_opts(ncams=0, do_fill=False):
         'calibration_single': False,
         # If True, calibcam will perform multi cam calibration.
         'calibration_multi': False,
+
+        # === Frame selection
+        "frames_start_index": 0,
+        "frames_end_index": sys.maxsize,
+        "frames_index_step": 1,
+        # == or overwriting any of the above
+        "frames_index_lists": None,
+        # == Offset is applied for match between cams in both cases. (0,5) means that frame 0 of cam 0 corresponds to frame 5 of cam 1
+        "frames_offset_indexs": None,
 
         # === Camera system description
         # Number of cams
@@ -38,6 +49,7 @@ def get_default_opts(ncams=0, do_fill=False):
         # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'color_convert': False,
         # use N_CPU/detect_cpu_divisor threads for feature detection
+        # Empirically, detection seems to utilize about 6 cores
         'detect_cpu_divisor': 6,
         # Use radial contrast value for rejecting corners, check rejection params below in detection_opts
         'RC_reject_corners': False,
@@ -61,6 +73,7 @@ def get_default_opts(ncams=0, do_fill=False):
             'rvecs_cam': -1,
             'tvecs_cam': -1,
         },
+
 
         'detection_opts': {
             'inter_frame_dist': 1.0,  # In pixels

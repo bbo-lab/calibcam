@@ -134,7 +134,7 @@ class CamCalibrator:
             # TODO: Support True in the list instead of strings to only detect individual cams
             assert len(self.opts["detection"]) == self.opts["n_cams"], ("Number of detection files must be equal "
                                                                         "to number of cameras")
-
+            print("Loading detections from files")
             detections = Detections.from_file(self.opts["detection"])
         elif self.opts["detection"]:
             # detect corners
@@ -144,12 +144,20 @@ class CamCalibrator:
             # used frames or global frames. For simplification, corners are returned as a single matrix of shape
             #  n_cams x n_timepoints_with_used_detections x n_corners x 2
             # Memory footprint at this stage is not critical.
+            print("Performing charuco detection")
+
             detections = detect_corners(self.rec_file_names, self.n_frames, self.boards, self.opts,
                                         rec_pipelines=self.rec_pipelines, data_path=self.data_path)
             detections.to_file(Path(self.data_path) / f"detection.yml")
         else:
             print("Cannot proceed without detections. Exiting.")
             return
+
+        for i_cam, detection in enumerate(detections):
+            n_detections_frames = detection.get_n_detections_frames()
+            n_detections_markers = detection.get_n_detections_markers()
+            print(f'Detected features in {n_detections_frames[0]:04d} frames in camera {i_cam:02d} - '
+                  f'({int(np.mean(n_detections_markers)):02d}±{int(np.std(n_detections_markers))})')
 
         # === Single cam calibration ===
         if not self.opts["calibration_single"] and self.opts["calibration_multi"]:
@@ -287,7 +295,7 @@ class CamCalibrator:
     def obtain_single_cam_calibrations(readers, detections, boards, opts, calibs_single=None):
         # Determine missing calibrations and sends off missing ones to a parallel job
         if calibs_single is None:
-            calibs_single = len(detections) * [None]
+            calibs_single = detections.get_n_cams() * [None]
 
         cams_2calibrate = []
         for i_cam, cam_calib in enumerate(calibs_single):
@@ -317,7 +325,7 @@ class CamCalibrator:
         marker_coords = markers["marker_coords"][0]
         frame_idxs = markers["frame_idxs"][0]
         marker_ids = markers["marker_ids"][0]
-        n_frames = len(frame_idxs)
+        n_frames = np.max(frame_idxs)
 
         calib['rvecs'] = np.full((n_frames, 3), np.nan)
         calib['tvecs'] = np.full((n_frames, 3), np.nan)
@@ -333,18 +341,18 @@ class CamCalibrator:
             )
         else:
             board_positions = []
-            for i_pose in range(n_frames):
+            for marker_coords_fr, marker_ids_fr in zip(marker_coords, marker_ids):
                 board_positions.append(
                     CamCalibrator.estimate_single_board_position(calib,
-                                                                 marker_coords[i_pose],
-                                                                 marker_ids[i_pose],
+                                                                 marker_coords_fr,
+                                                                 marker_ids_fr,
                                                                  board_points)
                 )
 
         for i_pos, pos in enumerate(board_positions):
             if pos[0]:
-                calib['rvecs'][i_pos] = pos[1][:, 0]
-                calib['tvecs'][i_pos] = pos[2][:, 0]
+                calib['rvecs'][frame_idxs[i_pos]] = pos[1][:, 0]
+                calib['tvecs'][frame_idxs[i_pos]] = pos[2][:, 0]
 
         return calib
 

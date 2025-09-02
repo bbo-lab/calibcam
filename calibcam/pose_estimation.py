@@ -27,17 +27,17 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
 
-    max_frame = max([np.max(calib["frame_idxs"]) for calib in calibs_single]) + 1
+    max_frame = max([np.where(calib["frames_mask"])[0][-1] for calib in calibs_single]) + 1
     rs = np.full((len(calibs_single), max_frame, 3), np.nan)
     for i_calib, calib in enumerate(calibs_single):
-        rs[i_calib, calib["frame_idxs"], :] = calib["rvecs"]
+        rs[i_calib] = calib["rvecs"]
     ts = np.full((len(calibs_single), max_frame, 3), np.nan)
     for i_calib, calib in enumerate(calibs_single):
-        ts[i_calib, calib["frame_idxs"], :] = calib["tvecs"]
+        ts[i_calib] = calib["tvecs"]
 
     frames_masks_req = np.zeros((len(calibs_single), max_frame), dtype=bool)
     for i_calib, calib in enumerate(calibs_single):
-        frames_masks_req[i_calib, calib["frame_idxs"]] = True
+        frames_masks_req[i_calib, calib["frames_mask"][:max_frame]] = True
 
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
     discard_frame_idxs = get_discard_frame_idxs(detections=detections,

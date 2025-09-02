@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+
 from copy import deepcopy
 from svidreader.video_supplier import VideoSupplier
 import scipy.stats as stats
@@ -44,44 +46,45 @@ def deepmerge_dicts(source, destination):
     return destination
 
 
-def make_corners_array(corners_list, *args, **kwargs):
+def make_corners_array(marker_coords_all, marker_ids_all, detection_idxs_all, frame_idxs_all):
     # Converts a list of corner points with matching frame and marker idx lists so a single multidimentional array
     # If the lists are very sparse, this can significantly increase the memory usage, but usually it is not a problem.
 
-    if isinstance(corners_list, dict):
-        corners_all = [c['marker_coords'] for c in corners_list]
-        frame_idxs_all = [c["frame_idxs"] for c in corners_list]
-        marker_ids_all = [c["marker_ids"] for c in corners_list]
-    else:
-        corners_all = corners_list
-        frame_idxs_all = args[0]
-        marker_ids_all = args[1]
+    if not isinstance(detection_idxs_all[0], Iterable):
+        # Result from single cam
+        marker_coords_all = [marker_coords_all]
+        marker_ids_all = [marker_ids_all]
+        detection_idxs_all = [detection_idxs_all]
+        frame_idxs_all = [frame_idxs_all]
 
-    frame_idxs_used = np.unique(sum(sum(frame_idxs_all,[]),[]))
-    marker_ids_used = np.unique(sum(sum(marker_ids_all,[]),[]))
+    n_cams = len(detection_idxs_all)
+    detection_idxs_used = np.unique(np.concatenate(detection_idxs_all))
+    n_frames = len(detection_idxs_used)
 
-    marker_ids_map = {value: idx for idx, value in enumerate(marker_ids_used)}
+    marker_ids_used = np.unique(np.concatenate(sum(marker_ids_all,[])))
     n_corners = len(marker_ids_used)
 
-    corners = np.full(shape=(len(frame_idxs_all), len(frame_idxs_used), n_corners, 2), fill_value=np.nan, dtype=np.float32)
-    for i_cam, frame_idxs_cam in enumerate(frame_idxs_all):
-        for i_frame, f_idx in enumerate(frame_idxs_used):
-            cam_fr_idx = np.where(frame_idxs_cam == f_idx)[0]
+    marker_ids_map = {value: idx for idx, value in enumerate(marker_ids_used)}
+
+    marker_coords = np.full(shape=(n_cams, n_frames, n_corners, 2), fill_value=np.nan, dtype=np.float32)
+    frame_idxs = np.full(shape=(n_cams, n_frames), fill_value=-1, dtype=np.int32)
+
+    for i_cam, detection_idxs_cam in enumerate(detection_idxs_all):
+        for i_det, f_idx in enumerate(detection_idxs_used):
+            cam_fr_idx = np.where(detection_idxs_cam == f_idx)[0]
             if cam_fr_idx.size < 1:
                 continue
             cam_fr_idx = cam_fr_idx[0]
 
-            if marker_ids_all is None:
-                corners[i_cam, i_frame] = \
-                    corners_all[i_cam][cam_fr_idx][:, 0, :]
-            else:
-                indices = np.array([marker_ids_map[id] for id in marker_ids_all.ravel()])
-                corners[i_cam, i_frame][indices, :] = np.array(corners_all[i_cam][cam_fr_idx])
+            indices = np.array([marker_ids_map[id] for id in np.asarray(marker_ids_all[i_cam][cam_fr_idx]).ravel()])
+            marker_coords[i_cam, i_det, indices, :] = marker_coords_all[i_cam][cam_fr_idx][:,0]
+            frame_idxs[i_cam, i_det] = frame_idxs_all[i_cam][cam_fr_idx]
 
     return {
-        "marker_coords": corners,
-        "frame_idxs": frame_idxs_used,
+        "marker_coords": marker_coords,
         "marker_ids": marker_ids_used,
+        "detection_idxs": detection_idxs_used,
+        "frame_idxs": frame_idxs,
     }
 
 

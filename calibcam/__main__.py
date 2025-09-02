@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import sys
+
 import argparse
 import yaml
 import numpy as np
@@ -28,12 +30,12 @@ def main():
                              "commandline arguments supersede files")
     parser.add_argument('--board', type=str, required=False, nargs='*', default=[None], help="")
     parser.add_argument('--model', type=str, required=False, nargs='*', default=False, help="")
-    parser.add_argument('--frame_step', type=int, required=False, nargs=1, default=[None], help="")
-    parser.add_argument('--start_frame_indexes', type=int, required=False, nargs='*', default=None, help="")
-    parser.add_argument('--stop_frame_indexes', type=int, required=False, nargs='*', default=None, help="")
-    parser.add_argument('--frames_masks', type=str, required=False, nargs=1, default=[None],
-                        help="A .npy file. The frames_masks start from the start_frame_indexes and end at "
-                             "the stop_frame_indexes if they are provided.")
+
+    parser.add_argument('--frames_start', type=int, required=False, default=None, help="")
+    parser.add_argument('--frames_end', type=int, required=False, default=None, help="")
+    parser.add_argument('--frames_step', type=int, required=False, default=None, help="")
+    parser.add_argument('--frames_offsets', type=int, required=False, nargs='*', default=None, help="")
+
     parser.add_argument('--optimize_only', required=False, default=None, action="store_true", help="")
     parser.add_argument('--numerical_jacobian', required=False, default=None, action="store_true", help="")
     # Other
@@ -96,22 +98,18 @@ def build_args_into_opts(opts, args, n_cams):
             'rvecs_cam': np.array([c["rvec_cam"] for c in init_extrinsics['calibs']]),
             'tvecs_cam': np.array([c["tvec_cam"] for c in init_extrinsics['calibs']])
         }
-    if args.start_frame_indexes is not None:  # Starting frame offsets
-        assert len(args.start_frame_indexes) == n_cams, "number of start_frame_indexes " \
-                                                        "does not match number of videos!"
-        opts['start_frame_indexes'] = np.array(args.start_frame_indexes)
-    # Sometimes, it is better to use only certain portion of the video for calibration.
-    # start_frame_indexes and stop_frame_indexes can be used to specify the frames to be used for calibration.
-    if args.stop_frame_indexes is not None:
-        assert len(args.stop_frame_indexes) == n_cams, "number of stop_frame_indexes " \
-                                                       "does not match number of videos!"
-        opts['stop_frame_indexes'] = np.array(args.stop_frame_indexes)
-    if args.frame_step[0] is not None:  # Only use every frame_step_th frame
-        opts['frame_step'] = args.frame_step[0]
-    # Use frames_masks together with start_frames_indexes to provide the frames to be used for calibration.
-    # TODO: EXPLAIN USE!!!
-    if args.frames_masks[0] is not None:
-        opts['init_frames_masks'] = args.frames_masks[0]
+
+    if args.frames_start is not None:
+        opts['frames_start'] = args.frames_start
+    if args.frames_end is not None:
+        opts['frames_end'] = args.frames_end
+    if args.frames_step is not None:
+        opts['frames_step'] = args.frames_step
+
+    if args.frames_offsets is not None:
+        assert len(args.frames_offsets) == n_cams, "Number of frames_offsets does not match number of videos!"
+        opts['frames_offsets'] = np.array(args.frames_offsets)
+
     # Fill defaults for opts that depend on other opts
     calibrator_opts.fill(opts)
 
