@@ -50,7 +50,7 @@ def make_corners_array(marker_coords_all, marker_ids_all, detection_idxs_all, fr
     # Converts a list of corner points with matching frame and marker idx lists so a single multidimentional array
     # If the lists are very sparse, this can significantly increase the memory usage, but usually it is not a problem.
 
-    if not isinstance(detection_idxs_all[0], Iterable):
+    if len(detection_idxs_all)==0 or not isinstance(detection_idxs_all[0], Iterable):
         # Result from single cam
         marker_coords_all = [marker_coords_all]
         marker_ids_all = [marker_ids_all]

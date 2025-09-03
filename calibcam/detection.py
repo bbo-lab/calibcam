@@ -22,69 +22,69 @@ def detect_corners(rec_file_names, n_frames, boards, opts, rec_pipelines=None, d
     else:
         frames_offsets = opts['frames_offsets']
 
-    if opts['frame_idx_lists'] is None:
+    if rec_pipelines is None:
+        rec_pipelines = [None] * len(rec_file_names)
+
+    if opts['frames_lists'] is None:
         frames_start = opts['frames_start']
-        frames_end = opts['frames_start']
+        frames_end = opts['frames_end']
         frames_step = opts['frame_step']
 
-        frame_idx_lists = []
+        frames_lists = []
         for rec_file_name, rec_pipeline, offset in zip(rec_file_names, rec_pipelines, frames_offsets):
             reader = filtergraph.get_reader(rec_file_name, backend="iio", cache=False)
             if rec_pipeline is not None:
                 fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
                 reader = fg['out']
 
-            frame_idx_list = np.arange(
+            frames_list = np.arange(
                 frames_start+offset,
                 min(frames_end+offset, camfunctions.get_n_frames_from_reader(reader)),
-                frames_step
+                frames_step,
+                dtype=int
             )
-            frame_idx_lists.append(frame_idx_list)
+            frames_lists.append(frames_list)
     else:
-        frame_idx_lists = opts['frame_idx_lists']
-        if isinstance(frame_idx_lists, str):
-            frame_idx_lists = Path(data_path)
+        frames_lists = opts['frames_lists']
+        if isinstance(frames_lists, str):
+            frames_lists = Path(data_path)
 
-        def load_frame_idx_lists(frame_idx_list):
-            if isinstance(frame_idx_list, str):
-                frame_idx_list = Path(frame_idx_list)
-            if frame_idx_list.suffix == ".yml":
-                with open(frame_idx_list, "r") as stream:
-                    frame_idx_list = yaml.safe_load(stream)["frame_idx_list"]
-            elif frame_idx_list.suffix == ".npy":
-                frame_idx_list = np.load(frame_idx_list, allow_pickle=True)[()]["frame_idx_list"]
+        def load_frames_lists(frames_list):
+            if isinstance(frames_list, str):
+                frames_list = Path(frames_list)
+            if frames_list.suffix == ".yml":
+                with open(frames_list, "r") as stream:
+                    frames_list = yaml.safe_load(stream)["frames_list"]
+            elif frames_list.suffix == ".npy":
+                frames_list = np.load(frames_list, allow_pickle=True)[()]["frames_list"]
             else:
-                raise ValueError("Unknown file type for frame_idx_list")
-            return frame_idx_list
+                raise ValueError("Unknown file type for frames_list")
+            return frames_list
 
-        if isinstance(frame_idx_lists, Path):
-            frame_idx_lists = [load_frame_idx_lists(frame_idx_lists)] * len(rec_file_names)
+        if isinstance(frames_lists, Path):
+            frames_lists = [load_frames_lists(frames_lists)] * len(rec_file_names)
         else:
-            frame_idx_lists = [load_frame_idx_lists(f) for f in frame_idx_lists]
-
-
-    if rec_pipelines is None:
-        rec_pipelines = [None] * len(rec_file_names)
+            frames_lists = [load_frames_lists(f) for f in frames_lists]
 
     if not opts["parallelize"]:
         detections_cams = []
-        for rec_file_name, brd, frame_idx_list, offset, rec_pipeline \
-                in zip(rec_file_names, boards, frame_idx_lists, frames_offsets, rec_pipelines):
+        for rec_file_name, brd, frames_list, offset, rec_pipeline \
+                in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines):
             detections_cams.append(detect_corners_cam(
-                rec_file_name, opts, boards, frame_idx_list, offset_from_real=offset, rec_pipeline=rec_pipeline))
+                rec_file_name, opts, brd, frames_list, offset_from_real=offset, rec_pipeline=rec_pipeline))
     else:
         detections_cams = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
-            delayed(detect_corners_cam)(rec_file_name, opts, brd, frame_idx_list, offset_from_real=offset,
+            delayed(detect_corners_cam)(rec_file_name, opts, brd, frames_list, offset_from_real=offset,
                                         rec_pipeline=rec_pipeline)
-            for rec_file_name, brd, frame_idx_list, offset, rec_pipeline
-            in zip(rec_file_names, boards, frame_idx_lists, frames_offsets, rec_pipelines))
+            for rec_file_name, brd, frames_list, offset, rec_pipeline
+            in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines))
 
     detections = sum(detections_cams, Detections())
 
     return detections
 
 
-def detect_corners_cam(video, opts, board: Board, frame_idx_list, offset_from_real=0, rec_pipeline=None):
+def detect_corners_cam(video, opts, board: Board, frames_list, offset_from_real=0, rec_pipeline=None):
     board_params = board.get_board_params()
 
     reader = filtergraph.get_reader(video, backend="iio", cache=False)
@@ -102,17 +102,17 @@ def detect_corners_cam(video, opts, board: Board, frame_idx_list, offset_from_re
         RC_params = opts['detection_opts']['radial_contrast_reject']
         RC_reader = helper.RadialContrast(reader, **RC_params)
 
-    frame_idx_list = np.asarray(frame_idx_list)
-    frame_idx_list = frame_idx_list[frame_idx_list<camfunctions.get_n_frames_from_reader(reader)]
+    frames_list = np.asarray(frames_list)
+    frames_list = frames_list[frames_list<camfunctions.get_n_frames_from_reader(reader)]
 
     corners_cam = []
     ids_cam = []
     detection_idxs_cam = []
 
-    fin_frames_mask = np.zeros_like(frame_idx_list, dtype=bool)
+    fin_frames_mask = np.zeros_like(frames_list, dtype=bool)
 
     # Detect corners over cams
-    for i_fr, frame_idx in enumerate(frame_idx_list):
+    for i_fr, frame_idx in enumerate(frames_list):
         if frame_idx < 0 or frame_idx >= camfunctions.get_n_frames_from_reader(reader):
             corners_cam.append([])
             ids_cam.append([])
@@ -203,7 +203,7 @@ def detect_corners_cam(video, opts, board: Board, frame_idx_list, offset_from_re
 
         corners_cam.append(charuco_corners)
         ids_cam.append(charuco_ids)
-        detection_idxs_cam.append(charuco_ids)
+        detection_idxs_cam.append(i_fr)
 
     reader.close()
 
@@ -211,7 +211,7 @@ def detect_corners_cam(video, opts, board: Board, frame_idx_list, offset_from_re
         "marker_coords": corners_cam,
         "marker_ids": ids_cam,
         "detection_idxs": detection_idxs_cam,
-        "frame_idxs": frame_idx_list[detection_idxs_cam],
+        "frame_idxs": frames_list[detection_idxs_cam],
     }
 
     return Detections.from_list(markers_list)  #corners_cam, ids_cam, fin_frames_mask

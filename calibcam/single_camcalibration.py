@@ -33,8 +33,25 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         return {}
 
     detections_array_use = detections_cam_array["marker_coords"][:, mask]
-    frame_idxs_use = detections_cam_array["frame_idxs"][mask]
     ids_use = detections_cam_array["marker_ids"]
+    detection_idxs_use = detections_cam_array["detection_idxs"][mask]
+    frame_idxs_use = [detections_cam_array["frame_idxs"][0][mask]]
+
+    cal = {
+        'rvec_cam': np.asarray([0., 0., 0.]),
+        'tvec_cam': np.asarray([0., 0., 0.]),
+        'A': None,
+        'xi': np.asarray([0]),
+        'k': None,
+        'rvecs': None,
+        'tvecs': None,
+        'repro_error': None,
+        'detection_idxs': None,
+        'frame_idxs': None,
+        'stdDeviationsIntrinsics': False,
+        'stdDeviationsExtrinsics': False,
+        'perViewErrors': False,
+    }
 
     if opts['free_vars']['xi']:
         # Omnidir camera model
@@ -55,20 +72,25 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
                                         k,
                                         **opts['aruco_calibration'])
 
-        retval, A, xi, k = cal_res[:4]
-        others = cal_res[4:]
+        retval, A, xi, k, rvecs_used, tvecs_used, idxs_used = cal_res
 
-        k = np.concatenate((k.squeeze(), [0.0]))
-        # Opencv Omnidir calibrate does not use all the given frames for calibration.
-        # The extrisic paraemters are not calculated for these frames.
-        mask_singlecam_calib = np.zeros_like(mask, dtype=bool)
-        mask_singlecam_calib[np.where(mask)[0][others[2].flatten()]] = True
+        cal['A'] = np.asarray(A)
+        cal['xi'] = np.asarray(xi)
+        cal['k'] = np.concatenate((k.squeeze(), [0.0]))
 
+        rvecs = np.full(shape=(len(detection_idxs_use), 3), fill_value=np.nan)
+        rvecs[idxs_used] = np.asarray(rvecs_used)
+        cal['rvecs'] = rvecs
+
+        tvecs = np.full(shape=(len(detection_idxs_use), 3), fill_value=np.nan)
+        tvecs[idxs_used] = np.asarray(tvecs_used)
+        cal['tvecs'] = tvecs
     else:
         detections_list_use = Detections.from_array({
             "marker_coords": detections_array_use,
-            "frame_idxs": frame_idxs_use,
             "marker_ids": ids_use,
+            "detection_idxs": detection_idxs_use,
+            "frame_idxs": frame_idxs_use,
         }).to_list()
 
         # Pinhole camera model
@@ -80,36 +102,12 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
                                                            k,
                                                            **opts['aruco_calibration'])
 
-        retval, A, k = cal_res[:3]
-        others = cal_res[3:]
+        retval, A, k, rvecs, tvecs, stdDeviationsIntrinsics, stdDeviationsExtrinsics, perViewErrors = cal_res
 
-        if xi is None:
-            xi = [0.0]
-        mask_singlecam_calib = np.copy(mask)
-
-    rvecs = np.full(shape=(len(frame_idxs_use), 3), fill_value=np.nan)
-    tvecs = np.full(shape=(len(frame_idxs_use), 3), fill_value=np.nan)
-
-    rvecs[mask_singlecam_calib, :] = np.asarray(others[0])[..., 0]
-    tvecs[mask_singlecam_calib, :] = np.asarray(others[1])[..., 0]
-
-    cal = {
-        'rvec_cam': np.asarray([0., 0., 0.]),
-        'tvec_cam': np.asarray([0., 0., 0.]),
-        'A': np.asarray(A),
-        'xi': np.asarray(xi),
-        'k': np.asarray(k).ravel(),
-        'rvecs': np.asarray(rvecs),
-        'tvecs': np.asarray(tvecs),
-        'repro_error': retval,
-        'frames_idxs': frame_idxs_use,
-    }
-
-    if not opts['free_vars']['xi']:
-        # Note that from here on values are NOT expanded to full frames range, see frames_mask
-        cal['std_intrinsics'] = others[2]
-        cal['std_extrinsics'] = others[3]
-        cal['per_view_errors'] = others[4]
+        cal['A'] = np.asarray(A)
+        cal['k'] = np.concatenate((k.squeeze(), [0.0]))
+        cal['rvecs'] = np.asarray(rvecs)
+        cal['tvecs'] = np.asarray(tvecs)
 
     print('Finished single camera calibration.')
     return cal

@@ -27,25 +27,29 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
 
-    max_frame = max([np.where(calib["frames_mask"])[0][-1] for calib in calibs_single]) + 1
-    rs = np.full((len(calibs_single), max_frame, 3), np.nan)
-    for i_calib, calib in enumerate(calibs_single):
+    n_cams = detections.get_n_cams()
+    n_frames = detections.get_n_frames()
+
+    assert n_cams == len(calibs), "Number of detections must match number of single calibrations"
+
+    rs = np.full((n_cams, n_frames, 3), np.nan)
+    for i_calib, calib in enumerate(calibs):
         rs[i_calib] = calib["rvecs"]
-    ts = np.full((len(calibs_single), max_frame, 3), np.nan)
-    for i_calib, calib in enumerate(calibs_single):
+    ts = np.full((n_cams, n_frames, 3), np.nan)
+    for i_calib, calib in enumerate(calibs):
         ts[i_calib] = calib["tvecs"]
 
-    frames_masks_req = np.zeros((len(calibs_single), max_frame), dtype=bool)
-    for i_calib, calib in enumerate(calibs_single):
-        frames_masks_req[i_calib, calib["frames_mask"][:max_frame]] = True
+    frames_masks_req = np.zeros((n_cams, n_frames), dtype=bool)
+    for i_calib, calib in enumerate(calibs):
+        frames_masks_req[i_calib, calib["frames_mask"][:n_frames]] = True
 
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
-    discard_frame_idxs = get_discard_frame_idxs(detections=detections,
+    discard_detection_idxs = get_discard_detection_idxs(detections=detections,
                                               required_corner_idxs=required_corner_idxs
                                                   if opts['pose_estimation']['use_required_corners']
                                                   else None)
 
-    for fmr, dfi, rs_cam in zip(frames_masks_req, discard_frame_idxs, rs):
+    for fmr, dfi, rs_cam in zip(frames_masks_req, discard_detection_idxs, rs):
         fmr[dfi] = False
         fmr[:] &= np.all(~np.isnan(rs_cam), axis=1)
 
@@ -79,9 +83,9 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
             #  removing the highest deviations.
             if R_trans is not None and Rs_trans is not None:
                 # Remove frame with the highest error
-                common_frame_idxs = np.where(common_frame_mask)[0]
+                common_detection_idxs = np.where(common_frame_mask)[0]
                 frames_masks_req_ori[
-                    common_frame_idxs[
+                    common_detection_idxs[
                         np.argmax(np.sum(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=1))
                     ]
                 ] = False
@@ -137,12 +141,12 @@ def calc_common_frame_mat(frames_masks):
     return common_frame_mat
 
 
-def get_discard_frame_idxs(detections, required_corner_idxs=None, min_marker_count=4):
+def get_discard_detection_idxs(detections, required_corner_idxs=None, min_marker_count=4):
     markers = detections.to_array()
     marker_coords = markers["marker_coords"]
     if required_corner_idxs is None:
-        return [markers["frame_idxs"][m]
+        return [markers["detection_idxs"][m]
                 for m in np.sum(~np.isnan(marker_coords[:, :, :, 1]), axis=2) < min_marker_count]
     else:
-        return [markers["frame_idxs"][m]
+        return [markers["detection_idxs"][m]
                 for m in np.any(np.isnan(marker_coords[:, :, required_corner_idxs, 1]), axis=2)]

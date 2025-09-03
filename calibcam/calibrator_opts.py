@@ -15,13 +15,13 @@ def get_default_opts(ncams=0, do_fill=False):
         'calibration_multi': False,
 
         # === Frame selection
-        "frames_start_index": 0,
-        "frames_end_index": sys.maxsize,
-        "frames_index_step": 1,
+        "frames_start": 0,
+        "frames_end": sys.maxsize,
+        "frames_step": 1,
         # == or overwriting any of the above
-        "frames_index_lists": None,
+        "frames_lists": None,
         # == Offset is applied for match between cams in both cases. (0,5) means that frame 0 of cam 0 corresponds to frame 5 of cam 1
-        "frames_offset_indexs": None,
+        "frames_offsets": None,
 
         # === Camera system description
         # Number of cams
