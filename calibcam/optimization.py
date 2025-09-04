@@ -4,14 +4,11 @@ import warnings
 
 import numpy as np
 
-import sys
-
 # This could also be done dynamically, based on opts ...
 # from calibcam.opt_vmapgrad.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, get_precalc  # noqa
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
 import calibcamlib
-from calibcam import board, helper
-from calibcam.detection import Detections
+from calibcam import helper
 from calibcam.repro.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, obj_fcn_jacobian_wrapper_sparse, \
     get_precalc  # noqa
 from scipy.spatial.transform import Rotation as R  # noqa

@@ -273,16 +273,14 @@ class CamCalibrator:
             test_objective_function(calibs_test, min_result.x, args, marker_coords, board_points_all,
                                     individual_poses=True)
 
-            result = self.build_result(calibs_fit, used_frames_ids=frame_idxs,
-                                       min_result=min_result, args=args,
-                                       rvecs_boards=rvecs_boards, tvecs_boards=tvecs_boards,
-                                       other={'calibs_single': calibs_single, 'calibs_multi': calibs_multi,
-                                              'board_coords_3d_0': board_points_all})
+            result = self.build_result(calibs_fit, used_frames_ids=frame_idxs, min_result=min_result, args=args)
 
             print('SAVE MULTI CAMERA CALIBRATION')
-            self.save_multicalibration(result)
+            self.save_multicalibration(result, rvecs_boards, tvecs_boards)
             # Builds a part of the v1 result that is necessary for other software
-            self.save_multicalibration(helper.build_v1_result(result), 'multicalibration_v1')
+            # self.save_multicalibration(helper.build_v1_result(result), rvecs_boards, tvecs_boards, 'multicalibration_v1')
+
+
             print('SAVE FIUGRE WITH DETECTIONS')
             rep_err = min_result.fun.reshape(marker_coords.shape)
             for i_cam, (i_reader, c, err) in enumerate(zip(self.readers, marker_coords, rep_err)):
@@ -485,24 +483,19 @@ class CamCalibrator:
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
-    def build_result(self, calibs,
-                     corners=None, used_frames_ids=None,
-                     rvecs_boards=None, tvecs_boards=None, min_result=None, args=None,
-                     other=None):
+    def build_result(self, calibs, corners=None, used_frames_ids=None, min_result=None, args=None, other=None):
 
         # savemat cannot deal with None
         if other is None:
             other = dict()
-        if tvecs_boards is None:
-            tvecs_boards = []
-        if rvecs_boards is None:
-            rvecs_boards = []
         if used_frames_ids is None:
             used_frames_ids = []
         if corners is None:
             corners = []
+        calibs = deepcopy(calibs)
+
         result = {
-            'version': 2.3,  # Increase when this structure changes
+            'version': 3,  # Increase when this structure changes
             'calibs': calibs,
             # This field shall always hold all intrinsically necessary information to project and triangulate.
             'board_params': [brd.get_board_params() for brd in self.boards],  # All parameters to recreate the board
@@ -513,8 +506,6 @@ class CamCalibrator:
                 'cost_val_final': np.nan,
                 'optimality_final': np.nan,
                 'used_frames_ids': used_frames_ids,
-                'rvecs_boards': rvecs_boards,
-                'tvecs_boards': tvecs_boards,
                 'opts': self.opts,
                 'other': other,  # Additional info without guaranteed structure
             }
@@ -530,10 +521,10 @@ class CamCalibrator:
 
         return result
 
-    def save_multicalibration(self, result, filename="multicam_calibration"):
+    def save_multicalibration(self, result, rvecs_boards, tvecs_boards, filename="multicam_calibration"):
         data_path = self.data_path
         result_path = Path(data_path + '/' + filename)
-        return save_multicalibration(result_path, result)
+        return save_multicalibration(result_path, result, rvecs_boards, tvecs_boards)
 
     # Debug function
     def plot(self, calibs, corners, used_frames_ids, board_params, cidx, fidx):
@@ -590,7 +581,15 @@ class CamCalibrator:
         return fig
 
 
-def save_multicalibration(result_path, result):
+def save_multicalibration(result_path, result, rvecs_boards, tvecs_boards):
+    boards_dict = {
+        'rvecs': rvecs_boards,
+        'tvecs': tvecs_boards,
+        'frame_idxs': result['info']['used_frames_ids'],
+    }
+    with open(result_path.parent / f"{result_path.stem}_board_positions.yml", "w") as yml_file:
+        yaml.dump(yaml_helper.numpy_collection_to_list(boards_dict), yml_file, default_flow_style=True)
+
     np.save(result_path.with_suffix('.npy'), result)
     scipy_io_savemat(result_path.with_suffix('.mat'), result)
     with open(result_path.with_suffix('.yml'), "w") as yml_file:

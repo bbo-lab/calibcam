@@ -8,9 +8,8 @@ import yaml
 from ccvtools import rawio  # noqa
 from svidreader import filtergraph
 from joblib import Parallel, delayed
-from itertools import islice
 
-from calibcam import camfunctions, board, helper
+from calibcam import camfunctions, helper
 from calibcam.board import Board
 from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
@@ -376,20 +375,20 @@ class Detections:
         markers_array = self.strip_nans(markers_array)
         return Detections(markers_array)
 
-    def get_frame_detections(self, frame_idx, cam_idxs=None):
-        if cam_idxs is None:
-            cam_idxs = range(self.get_n_cams())
-
-        detections = np.full(
-            (self.get_n_cams(), self.get_n_markers(), self.get_n_dim()), np.nan, dtype=np.float32)
-
-        for i_cam in cam_idxs:
-            mask = self._markers_array["frame_idxs"][i_cam] == frame_idx
-            if np.any(mask):
-                detections[i_cam] = self._markers_array["marker_coords"][i_cam][mask][0]
-
-        marker_ids = self._markers_array["marker_ids"]
-        return detections, marker_ids
+    # def get_frame_detections(self, frame_idx, cam_idxs=None):
+    #     if cam_idxs is None:
+    #         cam_idxs = range(self.get_n_cams())
+    #
+    #     detections = np.full(
+    #         (self.get_n_cams(), self.get_n_markers(), self.get_n_dim()), np.nan, dtype=np.float32)
+    #
+    #     for i_cam in cam_idxs:
+    #         mask = self._markers_array["frame_idxs"][i_cam] == frame_idx
+    #         if np.any(mask):
+    #             detections[i_cam] = self._markers_array["marker_coords"][i_cam][mask][0]
+    #
+    #     marker_ids = self._markers_array["marker_ids"]
+    #     return detections, marker_ids
 
     def get_n_cams(self):
         """

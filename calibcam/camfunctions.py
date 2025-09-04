@@ -3,8 +3,7 @@ from scipy.optimize import least_squares, OptimizeResult
 
 import timeit
 
-from calibcam import optimization, board, helper, calibrator_opts
-from calibcam.detection import Detections
+from calibcam import optimization, helper, calibrator_opts
 from calibcam.exceptions import *
 
 import sys
