@@ -17,7 +17,7 @@ from calibcam.calibrator_opts import finalize_aruco_detector_opts
 
 def detect_corners(rec_file_names, n_frames, boards, opts, rec_pipelines=None, data_path=None):
     print('DETECTING FEATURES')
-    if opts['frames_offsets'] is None:
+    if isinstance(opts['frames_offsets'], bool):
         frames_offsets = np.zeros(len(rec_file_names))
     else:
         frames_offsets = opts['frames_offsets']
@@ -25,10 +25,10 @@ def detect_corners(rec_file_names, n_frames, boards, opts, rec_pipelines=None, d
     if rec_pipelines is None:
         rec_pipelines = [None] * len(rec_file_names)
 
-    if opts['frames_lists'] is None:
+    if isinstance(opts['frames_lists'], bool):
         frames_start = opts['frames_start']
         frames_end = opts['frames_end']
-        frames_step = opts['frame_step']
+        frames_step = opts['frames_step']
 
         frames_lists = []
         for rec_file_name, rec_pipeline, offset in zip(rec_file_names, rec_pipelines, frames_offsets):
@@ -222,6 +222,7 @@ class Detections:
         if markers_array is not None:
             markers_array = deepcopy(markers_array)
             markers_array = self.strip_nans(markers_array)
+            markers_array["marker_coords"] = markers_array["marker_coords"].astype(np.float32)
         self._markers_array = markers_array
 
     @staticmethod
@@ -242,6 +243,18 @@ class Detections:
 
     @staticmethod
     def from_list(markers_list, *args, **kwargs):
+        """
+        Convert to lists compatible to the output of cv2.aruco.detectMarkers() and cv2.aruco.interpolateCornersCharuco()
+        but with additional leading camera dimension.
+        :param markers_list:
+        :param args:
+        :param kwargs:
+        :return: dictionary of coords, marker ids, detection and frame idxs
+        marker_coords: (n_cam,) list of (n_frames,) lists of (n_markers, 1, 2)
+        marker_ids: (n_cam,) list of (n_frames,) lists of (n_markers, 1)
+        detection_idxs: (n_cam,) list of (n_frames,) lists of (n_markers, ?)
+        frame_idxs: (n_cam,) list of (n_frames,) lists of (n_markers, ?)
+        """
         if isinstance(markers_list, dict):
             marker_coords = markers_list["marker_coords"]
             detection_idxs = markers_list["detection_idxs"]
@@ -282,7 +295,7 @@ class Detections:
                     continue
                 marker_coords_c.append(mc_f[mask].reshape(-1, 1, 2))
                 frame_idxs_c.append(frame_idx.tolist())
-                detection_idxs_c.append(frame_idx.tolist())
+                detection_idxs_c.append(detection_idx.tolist())
                 marker_ids_c.append(mis[mask].reshape(-1, 1))
             marker_coords.append(marker_coords_c)
             marker_ids.append(marker_ids_c)
@@ -363,6 +376,21 @@ class Detections:
         markers_array = self.strip_nans(markers_array)
         return Detections(markers_array)
 
+    def get_frame_detections(self, frame_idx, cam_idxs=None):
+        if cam_idxs is None:
+            cam_idxs = range(self.get_n_cams())
+
+        detections = np.full(
+            (self.get_n_cams(), self.get_n_markers(), self.get_n_dim()), np.nan, dtype=np.float32)
+
+        for i_cam in cam_idxs:
+            mask = self._markers_array["frame_idxs"][i_cam] == frame_idx
+            if np.any(mask):
+                detections[i_cam] = self._markers_array["marker_coords"][i_cam][mask][0]
+
+        marker_ids = self._markers_array["marker_ids"]
+        return detections, marker_ids
+
     def get_n_cams(self):
         """
         Returns camera dimension of contained array
@@ -380,6 +408,12 @@ class Detections:
         Returns marker dimension of contained array
         """
         return self._markers_array["marker_coords"].shape[2]
+
+    def get_n_dim(self):
+        """
+        Returns marker dimension of contained array
+        """
+        return self._markers_array["marker_coords"].shape[3]
 
     def get_n_detections(self):
         """
@@ -414,9 +448,9 @@ class Detections:
             raise FileNotFoundError(f"{detection_files} is not supported")
 
         if "marker_coords" in detection:
-            marker_coords = np.array(detection["marker_coords"])
+            marker_coords = np.array(detection["marker_coords"], dtype=np.float32)
         elif "corners" in detection:
-            marker_coords = np.array([detection["corners"]])
+            marker_coords = np.array([detection["corners"]], dtype=np.float32)
         else:
             # TODO: write import code for multicamcal files
             raise ValueError("Unsupported dictionary content")

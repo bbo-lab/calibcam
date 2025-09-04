@@ -8,6 +8,8 @@ from pathlib import Path
 
 from cv2 import aruco
 
+from calibcam import helper
+
 
 def load_board_params(board_path, board_idx=None):
     if not isinstance(board_path, str) and isinstance(board_path, Iterable):
@@ -41,7 +43,8 @@ def make_board(board_params):
                                     board_params['boardHeight']),
                                    board_params['square_size_real'],
                                    board_params['marker_size'] * board_params['square_size_real'],
-                                   cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']))
+                                   cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),
+                                   ids=board_params.get('ids', None))
 
     if "legacy" in board_params:
         board.setLegacyPattern(board_params["legacy"])
@@ -81,6 +84,15 @@ def make_board_points(board_params, exact=False):
     return board_points  # n_corners x 3
 
 
+def combine_boards_to_points(boards, marker_ids):
+    board_points = [[brd.get_board_points()[:, np.newaxis]] for brd in boards]
+    board_ids = [[brd.get_board_ids()[:, np.newaxis]] for brd in boards]
+    board_coords = helper.make_corners_array(board_points, board_ids)
+
+    marker_mask = np.isin(board_coords["marker_ids"], marker_ids)
+    return np.nanmean(board_coords["marker_coords"], axis=1)[0, marker_mask]
+
+
 class Board:
     def __init__(self, board_params):
         self.board_params = board_params
@@ -93,6 +105,12 @@ class Board:
 
     def get_board_points(self, exact=False):
         return make_board_points(self.board_params, exact=exact)
+
+    def get_board_ids(self):
+        if "ids" in self.board_params:
+            return self.board_params["ids"]
+        else:
+            return np.arange((self.board_params["boardWidth"] - 1) * (self.board_params["boardHeight"] - 1))
 
     def get_board_img(self, pixel_size = None):
         if pixel_size is None:

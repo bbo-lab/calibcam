@@ -35,7 +35,7 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
     detections_array_use = detections_cam_array["marker_coords"][:, mask]
     ids_use = detections_cam_array["marker_ids"]
     detection_idxs_use = detections_cam_array["detection_idxs"][mask]
-    frame_idxs_use = [detections_cam_array["frame_idxs"][0][mask]]
+    frame_idxs_use = detections_cam_array["frame_idxs"][0][mask]
 
     cal = {
         'rvec_cam': np.asarray([0., 0., 0.]),
@@ -45,9 +45,8 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         'k': None,
         'rvecs': None,
         'tvecs': None,
-        'repro_error': None,
-        'detection_idxs': None,
-        'frame_idxs': None,
+        'detection_idxs': detection_idxs_use,
+        'frame_idxs': frame_idxs_use,
         'stdDeviationsIntrinsics': False,
         'stdDeviationsExtrinsics': False,
         'perViewErrors': False,
@@ -79,23 +78,26 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         cal['k'] = np.concatenate((k.squeeze(), [0.0]))
 
         rvecs = np.full(shape=(len(detection_idxs_use), 3), fill_value=np.nan)
-        rvecs[idxs_used] = np.asarray(rvecs_used)
+        rvecs[idxs_used] = np.asarray(rvecs_used).reshape((-1, 3))
         cal['rvecs'] = rvecs
 
         tvecs = np.full(shape=(len(detection_idxs_use), 3), fill_value=np.nan)
-        tvecs[idxs_used] = np.asarray(tvecs_used)
+        tvecs[idxs_used] = np.asarray(tvecs_used).reshape((-1, 3))
         cal['tvecs'] = tvecs
     else:
         detections_list_use = Detections.from_array({
             "marker_coords": detections_array_use,
             "marker_ids": ids_use,
             "detection_idxs": detection_idxs_use,
-            "frame_idxs": frame_idxs_use,
+            "frame_idxs": [frame_idxs_use],
         }).to_list()
 
-        # Pinhole camera model
-        cal_res = cv2.aruco.calibrateCameraCharucoExtended(detections_list_use["marker_coords"][0],  # noqa
-                                                           detections_list_use["marker_ids"][0],
+        charuco_corners = detections_list_use["marker_coords"][0]
+        charuco_ids = detections_list_use["marker_ids"][0]
+
+        # Pinhole camera model [d.reshape((-1,2)) for d in detections_list_use["marker_coords"][0]]
+        cal_res = cv2.aruco.calibrateCameraCharucoExtended(charuco_corners,
+                                                           charuco_ids,
                                                            board.get_cv2_board(),
                                                            sensor_size,
                                                            A,
@@ -105,9 +107,9 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         retval, A, k, rvecs, tvecs, stdDeviationsIntrinsics, stdDeviationsExtrinsics, perViewErrors = cal_res
 
         cal['A'] = np.asarray(A)
-        cal['k'] = np.concatenate((k.squeeze(), [0.0]))
-        cal['rvecs'] = np.asarray(rvecs)
-        cal['tvecs'] = np.asarray(tvecs)
+        cal['k'] = np.asarray(k).squeeze()
+        cal['rvecs'] = np.asarray(rvecs).reshape((-1, 3))
+        cal['tvecs'] = np.asarray(tvecs).reshape((-1, 3))
 
     print('Finished single camera calibration.')
     return cal

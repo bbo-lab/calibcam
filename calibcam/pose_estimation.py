@@ -3,8 +3,12 @@ from copy import deepcopy
 from scipy.spatial.transform import Rotation as R  # noqa
 from bbo.geometry import RigidTransform
 
-def build_initialized_calibs(calibs_single, opts, corners=None, required_corner_idxs=None):
+from calibcam.detection import Detections
+
+
+def build_initialized_calibs(calibs_single, opts, detections: Detections):
     calibs = deepcopy(calibs_single)
+    detection_idxs = detections.to_array()["detection_idxs"]
 
     for i_calib, calib in enumerate(calibs):
         calib["rvec_cam"] = opts["init_extrinsics"]["rvecs_cam"][i_calib]
@@ -15,14 +19,23 @@ def build_initialized_calibs(calibs_single, opts, corners=None, required_corner_
         board2cam = RigidTransform(rotation=calib["rvecs"], translation=calib["tvecs"], rotation_type="rotvec")
         board2camsystem = cam2camsystem * board2cam
 
-        calib["rvecs"] = board2camsystem.get_rotation().as_rotvec()
-        calib["tvecs"] = board2camsystem.get_translation()
+        calib["rvecs"] = np.full((detections.get_n_frames(), 3), np.nan)
+        calib["tvecs"] = np.full((detections.get_n_frames(), 3), np.nan)
+        mask = np.isin(detection_idxs, calib["detection_idxs"])
+        calib["rvecs"][mask] = board2camsystem.get_rotation().as_rotvec()
+        calib["tvecs"][mask] = board2camsystem.get_translation()
+
+        orig_frame_idxs = calib["frame_idxs"]
+        calib["frame_idxs"] = np.full(detections.get_n_frames(), -1, dtype=int)
+        calib["frame_idxs"][mask] = orig_frame_idxs
+        calib["detection_idxs"] = detection_idxs
 
     return calibs
 
 
 def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idxs=None):
     calibs = deepcopy(calibs_single)
+    detections_array = detections.to_array()
 
     cams_oriented = np.zeros(len(calibs), dtype=bool)
     cams_oriented[opts['coord_cam']] = True
@@ -33,15 +46,14 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
     assert n_cams == len(calibs), "Number of detections must match number of single calibrations"
 
     rs = np.full((n_cams, n_frames, 3), np.nan)
-    for i_calib, calib in enumerate(calibs):
-        rs[i_calib] = calib["rvecs"]
     ts = np.full((n_cams, n_frames, 3), np.nan)
-    for i_calib, calib in enumerate(calibs):
-        ts[i_calib] = calib["tvecs"]
-
     frames_masks_req = np.zeros((n_cams, n_frames), dtype=bool)
     for i_calib, calib in enumerate(calibs):
-        frames_masks_req[i_calib, calib["frames_mask"][:n_frames]] = True
+        mask = np.isin(detections_array["detection_idxs"], calib["detection_idxs"])
+        rs[i_calib, mask] = calib["rvecs"]
+        ts[i_calib, mask] = calib["tvecs"]
+        frames_masks_req[i_calib, mask] = True
+
 
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
     discard_detection_idxs = get_discard_detection_idxs(detections=detections,
@@ -49,9 +61,12 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
                                                   if opts['pose_estimation']['use_required_corners']
                                                   else None)
 
-    for fmr, dfi, rs_cam in zip(frames_masks_req, discard_detection_idxs, rs):
-        fmr[dfi] = False
+    for i_cam, (fmr, dfi, rs_cam) in enumerate(zip(frames_masks_req, discard_detection_idxs, rs)):
+        mask = np.isin(detections_array["detection_idxs"], dfi)
+        fmr[mask] = False
         fmr[:] &= np.all(~np.isnan(rs_cam), axis=1)
+        print(f"Found {np.sum(fmr):04d} frames pose estimation of for cam {i_cam:03d}")
+
 
     # n_cam x n_cam matrix of frames between two cams
     common_frame_mat = calc_common_frame_mat(frames_masks_req)

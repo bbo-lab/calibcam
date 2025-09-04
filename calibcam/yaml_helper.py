@@ -5,7 +5,7 @@ from calibcamlib.yaml_helper import collection_to_array, numpy_collection_to_lis
 
 
 def get_calib_numpy_fields():
-    return ['rvec_cam', 'tvec_cam', 'A', 'xi', 'k', 'rvecs', 'tvecs', 'frames_mask', 'frames_idxs', 'std_intrinsics',
+    return ['rvec_cam', 'tvec_cam', 'A', 'xi', 'k', 'rvecs', 'tvecs', 'detection_idxs', 'frame_idxs', 'std_intrinsics',
             'std_extrinsics', 'per_view_errors']
 
 

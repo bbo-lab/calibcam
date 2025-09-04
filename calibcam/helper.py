@@ -46,9 +46,12 @@ def deepmerge_dicts(source, destination):
     return destination
 
 
-def make_corners_array(marker_coords_all, marker_ids_all, detection_idxs_all, frame_idxs_all):
+def make_corners_array(marker_coords_all, marker_ids_all, detection_idxs_all=None, frame_idxs_all=None):
     # Converts a list of corner points with matching frame and marker idx lists so a single multidimentional array
     # If the lists are very sparse, this can significantly increase the memory usage, but usually it is not a problem.
+
+    if detection_idxs_all is None:
+        detection_idxs_all = [range(len(marker_coords)) for marker_coords in marker_coords_all]
 
     if len(detection_idxs_all)==0 or not isinstance(detection_idxs_all[0], Iterable):
         # Result from single cam
@@ -66,7 +69,7 @@ def make_corners_array(marker_coords_all, marker_ids_all, detection_idxs_all, fr
 
     marker_ids_map = {value: idx for idx, value in enumerate(marker_ids_used)}
 
-    marker_coords = np.full(shape=(n_cams, n_frames, n_corners, 2), fill_value=np.nan, dtype=np.float32)
+    marker_coords = np.full(shape=(n_cams, n_frames, n_corners, marker_coords_all[0][0].shape[-1]), fill_value=np.nan, dtype=np.float32)
     frame_idxs = np.full(shape=(n_cams, n_frames), fill_value=-1, dtype=np.int32)
 
     for i_cam, detection_idxs_cam in enumerate(detection_idxs_all):
@@ -78,7 +81,8 @@ def make_corners_array(marker_coords_all, marker_ids_all, detection_idxs_all, fr
 
             indices = np.array([marker_ids_map[id] for id in np.asarray(marker_ids_all[i_cam][cam_fr_idx]).ravel()])
             marker_coords[i_cam, i_det, indices, :] = marker_coords_all[i_cam][cam_fr_idx][:,0]
-            frame_idxs[i_cam, i_det] = frame_idxs_all[i_cam][cam_fr_idx]
+            if frame_idxs_all is not None and frame_idxs_all[i_cam] is not None:
+                frame_idxs[i_cam, i_det] = frame_idxs_all[i_cam][cam_fr_idx]
 
     return {
         "marker_coords": marker_coords,
@@ -129,7 +133,7 @@ def build_v1_result(result):
     }
 
 
-def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards, copy=False):
+def combine_calib_with_board_poses(calibs, rvecs_boards, tvecs_boards, copy=False):
     if copy:
         calibs = deepcopy(calibs)
 

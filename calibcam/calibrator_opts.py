@@ -19,9 +19,9 @@ def get_default_opts(ncams=0, do_fill=False):
         "frames_end": sys.maxsize,
         "frames_step": 1,
         # == or overwriting any of the above
-        "frames_lists": None,
+        "frames_lists": False,
         # == Offset is applied for match between cams in both cases. (0,5) means that frame 0 of cam 0 corresponds to frame 5 of cam 1
-        "frames_offsets": None,
+        "frames_offsets": False,
 
         # === Camera system description
         # Number of cams
@@ -40,8 +40,6 @@ def get_default_opts(ncams=0, do_fill=False):
         'parallelize': False,
         # Reference camera that defines the multicam coordinate system
         'coord_cam': 0,
-        # Skip frames in recording
-        'frame_step': 1,
         # Sometimes last frame is cut, so this may be okay.
         'allow_unequal_n_frame': True,
         # Iteratively exclude poses with higher rotation deviation from mean

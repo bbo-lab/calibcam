@@ -11,6 +11,7 @@ import sys
 # Calculating Jacobians would be much more straightforward, but seems to be prohibitively slow ...
 import calibcamlib
 from calibcam import board, helper
+from calibcam.detection import Detections
 from calibcam.repro.optfunctions import obj_fcn_wrapper, obj_fcn_jacobian_wrapper, obj_fcn_jacobian_wrapper_sparse, \
     get_precalc  # noqa
 from scipy.spatial.transform import Rotation as R  # noqa
@@ -81,13 +82,13 @@ def unravel_vars_full(vars_full, n_cams, n_boards):
     return rvecs_cams, tvecs_cams, cam_matrices, xis, ks, rvecs_boards, tvecs_boards
 
 
-def make_initialization(calibs, corners, board_params, opts):
+def make_initialization(calibs, corners, board_points, opts):
     opts_free_vars = opts['free_vars']
 
     # camera_params are raveled with first all rvecs, then tvecs, then A, then k
     camera_params = make_cam_params(calibs, opts_free_vars)
     # pose_params are raveled with first all rvecs and then all tvecs
-    pose_params = make_common_pose_params(calibs, corners, board_params).ravel()
+    pose_params = make_common_pose_params(calibs, corners, board_points).ravel()
 
     vars_full = np.concatenate((camera_params, pose_params), axis=0)
     mask_free_input = make_free_parameter_mask(calibs, opts_free_vars, opts['coord_cam'])
@@ -126,8 +127,9 @@ def make_cam_params(calibs, opts_free_vars):
     return camera_params
 
 
-def make_common_pose_params(calibs, corners_array, board_params):
-    pose_params = np.zeros(shape=(2, corners_array.shape[1], 3))
+def make_common_pose_params(calibs, marker_coords, board_points):
+    n_frames = marker_coords.shape[1]
+    pose_params = np.zeros(shape=(2, n_frames, 3))
 
     # Decide which of the n_cam pose estimation from each frame to use based on reprojection error
     repro_errors = np.zeros(shape=len(calibs))
@@ -136,19 +138,23 @@ def make_common_pose_params(calibs, corners_array, board_params):
     offsets = np.zeros(shape=(len(calibs), 2))  # Offsets were previously removed from corners
 
     pose_params_calcd = []
-    for i_pose in range(pose_params.shape[1]):
+    for i_pose in range(n_frames):
+        repro_errors[:] = np.nan
         for i_cam, calib in enumerate(calibs):
-            proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board.make_board_points(board_params))
+            assert calib['rvecs'].shape[0] == marker_coords.shape[1]
+
+            proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board_points)
                               + calib['tvecs'][i_pose], offsets)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=RuntimeWarning)
-                repro_errors[i_cam] = np.nanmean(np.abs(proj - corners_array[:, i_pose]))
+                repro_errors[i_cam] = np.nanmean(np.abs(proj - marker_coords[:, i_pose]))
 
         # OpenCV omnidirectional camera calibration sometimes does not provide rvecs and tvecs for certain frames
         # when it fails to initialise.
         if np.any(~np.isnan(repro_errors)):
-            pose_params[0, i_pose, :] = calibs[np.nanargmin(repro_errors)]['rvecs'][i_pose].ravel()
-            pose_params[1, i_pose, :] = calibs[np.nanargmin(repro_errors)]['tvecs'][i_pose].ravel()
+            best_cam_idx = np.nanargmin(repro_errors)
+            pose_params[0, i_pose, :] = calibs[best_cam_idx]['rvecs'][i_pose].ravel()
+            pose_params[1, i_pose, :] = calibs[best_cam_idx]['tvecs'][i_pose].ravel()
             pose_params_calcd.append(i_pose)
 
     # If the pose params are not calculated in the previous step,
