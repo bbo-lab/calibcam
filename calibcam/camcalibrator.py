@@ -228,9 +228,14 @@ class CamCalibrator:
             detections_array = detections.to_array()
             marker_coords = detections_array['marker_coords']
             marker_ids = detections_array['marker_ids']
+            frame_idxs = detections.to_array()["frame_idxs"]
+
+            result = self.build_result(calibs_multi, used_frames_ids=frame_idxs, min_result=None)
+            print('SAVE MULTI CAMERA CALIBRATION')
+            self.save_multicalibration(result, None, None, "multicalibraton_joinedsingles")
+
             board_points_all = board.combine_boards_to_points(self.boards, marker_ids)
 
-            frame_idxs = detections.to_array()["frame_idxs"]
             if self.opts['debug']:
                 args, vars_free = make_optim_input(
                     board_points_all, calibs_multi, marker_coords, self.opts)
@@ -273,7 +278,7 @@ class CamCalibrator:
             test_objective_function(calibs_test, min_result.x, args, marker_coords, board_points_all,
                                     individual_poses=True)
 
-            result = self.build_result(calibs_fit, used_frames_ids=frame_idxs, min_result=min_result, args=args)
+            result = self.build_result(calibs_fit, used_frames_ids=frame_idxs, min_result=min_result)
 
             print('SAVE MULTI CAMERA CALIBRATION')
             self.save_multicalibration(result, rvecs_boards, tvecs_boards)
@@ -483,7 +488,7 @@ class CamCalibrator:
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
-    def build_result(self, calibs, corners=None, used_frames_ids=None, min_result=None, args=None, other=None):
+    def build_result(self, calibs, corners=None, used_frames_ids=None, min_result=None, other=None):
 
         # savemat cannot deal with None
         if other is None:
@@ -582,13 +587,14 @@ class CamCalibrator:
 
 
 def save_multicalibration(result_path, result, rvecs_boards, tvecs_boards):
-    boards_dict = {
-        'rvecs': rvecs_boards,
-        'tvecs': tvecs_boards,
-        'frame_idxs': result['info']['used_frames_ids'],
-    }
-    with open(result_path.parent / f"{result_path.stem}_board_positions.yml", "w") as yml_file:
-        yaml.dump(yaml_helper.numpy_collection_to_list(boards_dict), yml_file, default_flow_style=True)
+    if rvecs_boards is None:
+        boards_dict = {
+            'rvecs': rvecs_boards,
+            'tvecs': tvecs_boards,
+            'frame_idxs': result['info']['used_frames_ids'],
+        }
+        with open(result_path.parent / f"{result_path.stem}_board_positions.yml", "w") as yml_file:
+            yaml.dump(yaml_helper.numpy_collection_to_list(boards_dict), yml_file, default_flow_style=True)
 
     np.save(result_path.with_suffix('.npy'), result)
     scipy_io_savemat(result_path.with_suffix('.mat'), result)

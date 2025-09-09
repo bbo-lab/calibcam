@@ -36,6 +36,8 @@ def main():
     parser.add_argument('--frames_step', type=int, required=False, default=None, help="")
     parser.add_argument('--frames_offsets', type=int, required=False, nargs='*', default=None, help="")
 
+    parser.add_argument('--init_extrinsics_frames', type=int, nargs='*', required=False, default=[], help="")
+
     parser.add_argument('--optimize_only', required=False, default=None, action="store_true", help="")
     parser.add_argument('--numerical_jacobian', required=False, default=None, action="store_true", help="")
     # Other
@@ -105,6 +107,9 @@ def build_args_into_opts(opts, args, n_cams):
         opts['frames_end'] = args.frames_end
     if args.frames_step is not None:
         opts['frames_step'] = args.frames_step
+
+    if args.init_extrinsics_frames is not None:
+        opts['init_extrinsics_frames'] = args.init_extrinsics_frames
 
     if args.frames_offsets is not None:
         assert len(args.frames_offsets) == n_cams, "Number of frames_offsets does not match number of videos!"

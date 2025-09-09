@@ -176,3 +176,5 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
               f"{np.nanmedian(residuals_cameralib[i_cam]):13.2f} | "
               f"{np.nanmax(res_diff[i_cam]):13.2f}"
               )
+
+    return

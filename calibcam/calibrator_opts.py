@@ -66,6 +66,8 @@ def get_default_opts(ncams=0, do_fill=False):
         'max_allowed_res': 5.0,
         # Minimum nombers of detected corners to use frame
         'corners_min_n': 6,
+        # Extrinsics init frame
+        'init_extrinsics_frames': [],
         # Use these extrinsics for initialization dict('rvecs_cam': nx3, 'tvecs_cam': nx3)
         'init_extrinsics': {
             'rvecs_cam': -1,

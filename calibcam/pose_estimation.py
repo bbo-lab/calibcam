@@ -45,6 +45,38 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
 
     assert n_cams == len(calibs), "Number of detections must match number of single calibrations"
 
+    if len(opts['init_extrinsics_frames'])==0:
+        calibs = estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames, opts,
+                                  required_corner_idxs)
+    elif len(opts['init_extrinsics_frames'])>1:
+        raise ValueError("Multiple independent cameras are not supported yet")
+    else:
+        ie_fr_idx = opts['init_extrinsics_frames'][0]
+        ie_ideal2camsys = RigidTransform(rotation=calibs[0]["rvecs"][ie_fr_idx],
+                                   translation=calibs[0]["tvecs"][ie_fr_idx],
+                                   rotation_type="rotvec")
+        # calibs = estimate_cam_poses_singleframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames,
+        #                                        opts,
+        #                                        required_corner_idxs)
+        for i_calib, calib in enumerate(calibs):
+            ie_ideal2cam = RigidTransform(rotation=calib["rvecs"][ie_fr_idx],
+                                       translation=calib["tvecs"][ie_fr_idx],
+                                       rotation_type="rotvec")
+            camsys2cam =  ie_ideal2cam * ie_ideal2camsys.inv()
+            calib["rvec_cam"] = camsys2cam.get_rotation().as_rotvec()
+            calib["tvec_cam"] = camsys2cam.get_translation()
+
+            ideal2cam = RigidTransform(rotation=calib["rvecs"],
+                                          translation=calib["tvecs"],
+                                          rotation_type="rotvec")
+            ideal2camsys = camsys2cam.inv() * ideal2cam
+            calib["rvecs"] = ideal2camsys.get_rotation().as_rotvec()
+            calib["tvecs"] = ideal2camsys.get_translation()
+    return calibs
+
+
+def estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames, opts,
+                                  required_corner_idxs):
     rs = np.full((n_cams, n_frames, 3), np.nan)
     ts = np.full((n_cams, n_frames, 3), np.nan)
     frames_masks_req = np.zeros((n_cams, n_frames), dtype=bool)
@@ -53,29 +85,22 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
         rs[i_calib, mask] = calib["rvecs"]
         ts[i_calib, mask] = calib["tvecs"]
         frames_masks_req[i_calib, mask] = True
-
-
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
     discard_detection_idxs = get_discard_detection_idxs(detections=detections,
-                                              required_corner_idxs=required_corner_idxs
-                                                  if opts['pose_estimation']['use_required_corners']
-                                                  else None)
-
+                                                        required_corner_idxs=required_corner_idxs
+                                                        if opts['pose_estimation']['use_required_corners']
+                                                        else None)
     for i_cam, (fmr, dfi, rs_cam) in enumerate(zip(frames_masks_req, discard_detection_idxs, rs)):
         mask = np.isin(detections_array["detection_idxs"], dfi)
         fmr[mask] = False
         fmr[:] &= np.all(~np.isnan(rs_cam), axis=1)
         print(f"Found {np.sum(fmr):04d} frames pose estimation of for cam {i_cam:03d}")
-
-
     # n_cam x n_cam matrix of frames between two cams
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
-
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
     common_frame_mat[:, opts['coord_cam']] = common_frame_mat[:, opts['coord_cam']] * 10
     common_frame_mat[opts['coord_cam'], :] = common_frame_mat[:, opts['coord_cam']].T
-
     while not np.all(cams_oriented):
         # Find unoriented cam with the most overlaps with an oriented camera
         ori_nori_mat = common_frame_mat.copy()

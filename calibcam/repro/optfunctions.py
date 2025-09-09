@@ -36,6 +36,10 @@ def obj_fcn_wrapper(vars_opt, args):
     rvecs_cams, tvecs_cams, cam_matrices, xis, ks, rvecs_boards, tvecs_boards = \
         optimization.unravel_vars_full(vars_full, n_cams, n_boards)
 
+    pose_mask = np.any(np.isnan(rvecs_boards), axis=-1)
+    rvecs_boards[pose_mask] = 0
+    tvecs_boards[pose_mask] = 0
+
     residuals = np.array(args['precalc']['objfunc'](
         rvecs_cams,
         tvecs_cams,
@@ -49,7 +53,7 @@ def obj_fcn_wrapper(vars_opt, args):
     ))  # Make np array since JAX arrays are immutable.
 
     # Residuals of untracked corners are invalid
-    residuals[corners_mask] = 0
+    residuals[corners_mask | pose_mask[np.newaxis,:,np.newaxis,np.newaxis]] = 0
     return residuals.ravel()
 
 
