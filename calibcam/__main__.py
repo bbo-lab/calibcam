@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-import sys
 
 import argparse
-import yaml
-import numpy as np
+import timeit
 from pathlib import Path
 
+import numpy as np
+import yaml
+
 from calibcam import calibrator_opts, helper, yaml_helper, __version__
-from calibcam.board import load_board_params
 from calibcam.camcalibrator import CamCalibrator
-from calibcamlib import Camerasystem
-import timeit
+from calibcamlib import Camerasystem, Board
 
 
 def main():
@@ -173,9 +172,9 @@ def make_board_params(board_args, videos):
         if board_args[0] is None:
             return None
 
-        board_params = load_board_params(board_args[0])
+        board_params = Board.from_file(board_args[0]).get_board_params()
         if isinstance(board_params, dict):
-            return [board_params]*n_videos
+            return [board_params] * n_videos
         else:
             assert len(board_params) == n_videos, (f"Single board file must either contain a single board, or a list of"
                                                    f" boards of the size of the number of videos ({n_videos})")
@@ -186,7 +185,9 @@ def make_board_params(board_args, videos):
     for board_arg in board_args:
         if board_arg.isdigit():
             assert current_board_file is not None, "Must specifiy board file before board idx!"
-            board_params.append(load_board_params(current_board_file, int(board_arg)))
+            board_params.append(
+                Board.from_file(current_board_file, int(board_arg)).get_board_params()
+            )
         else:
             current_board_file = board_arg
 

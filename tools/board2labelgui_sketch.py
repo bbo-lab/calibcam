@@ -1,14 +1,14 @@
+import argparse
 import os
 from pathlib import Path
 
 import numpy as np
-import argparse
-from calibcamlib.camerasystem import Camerasystem
-from calibcam.board import Board
-from bbo.geometry import RigidTransform
-from bbo import label_lib
 
-def main(calibration_file, sketch_path = None):
+from calibcamlib import Board
+from calibcamlib.camerasystem import Camerasystem
+
+
+def main(calibration_file, sketch_path=None):
     calibration_file = Path(calibration_file)
 
     if sketch_path is None:
@@ -27,7 +27,7 @@ def main(calibration_file, sketch_path = None):
     if "ids" in board_params:
         ids = board_params["ids"]
     else:
-        ids = np.arange((rows-1) * (columns-1))
+        ids = np.arange((rows - 1) * (columns - 1))
 
     board_img = board.get_board_img()
     pixel_size = board_img.shape
@@ -40,8 +40,9 @@ def main(calibration_file, sketch_path = None):
     }
 
     for i_id, id in enumerate(ids):
-        i,j = np.unravel_index(i_id, (rows-1, columns-1))
-        sketch["sketch_label_locations"][f"corner_{id:03d}"] = np.array([(j+1)*column_px-0.5, (i+1)*row_px-0.5])
+        i, j = np.unravel_index(i_id, (rows - 1, columns - 1))
+        sketch["sketch_label_locations"][f"corner_{id:03d}"] = np.array(
+            [(j + 1) * column_px - 0.5, (i + 1) * row_px - 0.5])
 
     np.save(sketch_path, sketch)
 

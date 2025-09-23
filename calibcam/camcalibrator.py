@@ -1,34 +1,28 @@
 import logging
-
+import multiprocessing
 import os
 from copy import deepcopy
-import numpy as np
-from scipy.io import savemat as scipy_io_savemat
+from glob import glob
+from pathlib import Path
+
 import cv2
 import matplotlib.pyplot as plt
-
-from pathlib import Path
+import numpy as np
 import yaml
-
 from ccvtools import rawio  # noqa
+from joblib import Parallel, delayed
+from scipy.io import savemat as scipy_io_savemat
 from svidreader import filtergraph
 
-import multiprocessing
-from joblib import Parallel, delayed
-
-from calibcam.board import Board
-from calibcam.camfunctions import test_objective_function, make_optim_input
-from calibcam.detection import detect_corners, Detections
-from calibcam.exceptions import *
-from calibcam import helper, camfunctions, board
-
+from calibcam import helper, camfunctions
+from calibcam import yaml_helper
 from calibcam.calibrator_opts import get_default_opts
+from calibcam.camfunctions import test_objective_function, make_optim_input
+from calibcam.detection import detect_corners
+from calibcam.exceptions import *
 from calibcam.pose_estimation import estimate_cam_poses, build_initialized_calibs
 from calibcam.single_camcalibration import calibrate_single_camera
-
-from glob import glob
-
-from calibcam import yaml_helper
+from calibcamlib import Board, Detections
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -63,7 +57,7 @@ class CamCalibrator:
 
     def resolve_board_params(self, board_params):
         if board_params is None:
-            board_params = board.load_board_params(Path(self.rec_file_names[0]).parent)
+            board_params = Board.from_file(Path(self.rec_file_names[0]).parent).get_board_params()
         return board_params
 
     @staticmethod
@@ -234,7 +228,7 @@ class CamCalibrator:
             print('SAVE MULTI CAMERA CALIBRATION')
             self.save_multicalibration(result, None, None, "multicalibraton_joinedsingles")
 
-            board_points_all = board.combine_boards_to_points(self.boards, marker_ids)
+            board_points_all = helper.combine_boards_to_points(self.boards, marker_ids)
 
             if self.opts['debug']:
                 args, vars_free = make_optim_input(
@@ -284,7 +278,6 @@ class CamCalibrator:
             self.save_multicalibration(result, rvecs_boards, tvecs_boards)
             # Builds a part of the v1 result that is necessary for other software
             # self.save_multicalibration(helper.build_v1_result(result), rvecs_boards, tvecs_boards, 'multicalibration_v1')
-
 
             print('SAVE FIUGRE WITH DETECTIONS')
             rep_err = min_result.fun.reshape(marker_coords.shape)
@@ -474,7 +467,8 @@ class CamCalibrator:
 
             # print(i_pose, rvecs_boards[i_pose])
             calibs_fit_pose, rvecs_boards[i_pose], tvecs_boards[i_pose], min_result, args = \
-                camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_points_all, opts=pose_opts,
+                camfunctions.optimize_calib_parameters(corners_pose, calibs_multi_pose, board_points_all,
+                                                       opts=pose_opts,
                                                        verbose=0)
             # print(i_pose, rvecs_boards[i_pose], min_result.cost)
         return calibs_fit_pose, rvecs_boards, tvecs_boards, None, None
@@ -537,7 +531,7 @@ class CamCalibrator:
         from scipy.spatial.transform import Rotation as R  # noqa
         import camfunctions_ag
 
-        board_coords_3d_0 = board.make_board_points(board_params)
+        board_coords_3d_0 = Board(board_params).make_board_points()
 
         print(f"{cidx} - {fidx} - {used_frames_ids[fidx]} - {len(used_frames_ids)} - {len(corners[cidx])}")
         r = calibs[cidx]['rvecs'][fidx, :]

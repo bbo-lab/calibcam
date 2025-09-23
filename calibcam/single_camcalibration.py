@@ -1,11 +1,8 @@
-import numpy as np
 import cv2
-
+import numpy as np
 from ccvtools import rawio  # noqa
 
-from calibcam import helper, board
-from calibcam.board import Board
-from calibcam.detection import Detections
+from calibcamlib import Board, Detections
 
 
 def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Board, opts, mask=None, calib_init=None):
@@ -15,17 +12,17 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         if "xi" in calib_init:
             xi = calib_init['xi'].reshape(1, -1)
         else:
-            xi=0
+            xi = 0
     else:
         A = None
         xi = None
         k = None
 
-
     detections_cam_array = detections_cam.to_array()
     if mask is None:
         mask = np.sum(~np.isnan(detections_cam_array["marker_coords"][0, :, :, 1]),
-                      axis=1) >= opts['corners_min_n']  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
+                      axis=1) >= opts[
+                   'corners_min_n']  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
 
     n_used_frames = np.sum(mask)
 

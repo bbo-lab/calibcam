@@ -1,14 +1,16 @@
+import argparse
 import os
 from pathlib import Path
 
 import numpy as np
-import argparse
-from calibcamlib.camerasystem import Camerasystem
-from calibcam.board import Board
-from bbo.geometry import RigidTransform
 from bbo import label_lib
+from bbo.geometry import RigidTransform
 
-def main(calibration_file, label_path = None, reference_path = None):
+from calibcamlib import Board
+from calibcamlib.camerasystem import Camerasystem
+
+
+def main(calibration_file, label_path=None, reference_path=None):
     calibration_file = Path(calibration_file)
 
     if label_path is None:
@@ -34,13 +36,13 @@ def main(calibration_file, label_path = None, reference_path = None):
 
     used_aruco_ids = np.arange(len(board_points))  # For later more complex setups with multiple boards
 
-    labeler = np.ones((len(cs.cameras),), dtype=int)*2
-    times =  np.zeros((len(cs.cameras),))
+    labeler = np.ones((len(cs.cameras),), dtype=int) * 2
+    times = np.zeros((len(cs.cameras),))
 
     reference_labels_dict = get_empty_labels_dict(used_aruco_ids)
     for pose, frame_idx in zip(board_poses, used_frames_ids):
         points = pose.apply(board_points)
-        pixel_coords = cs.project(points).transpose([1,0,2])
+        pixel_coords = cs.project(points).transpose([1, 0, 2])
 
         for coords, id in zip(pixel_coords, used_aruco_ids):
             reference_labels_dict["labels"][f"corner_{id:03d}"][frame_idx] = {}
@@ -65,10 +67,12 @@ def main(calibration_file, label_path = None, reference_path = None):
 def get_board_from_calibration(calibration_dict):
     return Board(calibration_dict["board_params"])
 
+
 def get_board_poses_from_calibration(calibration_dict):
     return RigidTransform(rotation=np.asarray(calibration_dict["info"]["rvecs_boards"]),
                           translation=np.asarray(calibration_dict["info"]["tvecs_boards"]),
                           rotation_type="rotvec")
+
 
 def get_empty_labels_dict(used_aruco_ids):
     labels_dict = {

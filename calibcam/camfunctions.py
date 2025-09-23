@@ -1,12 +1,10 @@
+import timeit
+
 import numpy as np
 from scipy.optimize import least_squares, OptimizeResult
 
-import timeit
-
 from calibcam import optimization, helper, calibrator_opts
 from calibcam.exceptions import *
-
-import sys
 
 
 def optimize_calib_parameters(corners, calibs_multi, board_points_all, opts=None, verbose=None):
@@ -69,7 +67,8 @@ def optimize_calib_parameters(corners, calibs_multi, board_points_all, opts=None
 
 def make_optim_input(board_points_all, calibs_multi, marker_coords, opts):
     # Generate vectors of all and of free variables
-    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, marker_coords, board_points_all, opts)
+    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, marker_coords,
+                                                                             board_points_all, opts)
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
         'mask_opt': mask_free_input,  # Mask of free vars within all vars
@@ -123,7 +122,6 @@ def get_header_from_reader(reader):
 
 
 def test_objective_function(calibs, vars_free, args, corners_detection, board_points, individual_poses=False):
-
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
@@ -148,7 +146,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
         b = np.einsum('fij,bj->fbi', R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix(), board_points) + \
             tvecs_board.reshape(-1, 1, 3)
 
-        corners_cameralib[i_cam, :] = cs.project(b)[i_cam]
+        corners_cameralib[i_cam, :] = cs.project(b, cam_idx=i_cam)
 
     residuals_cameralib = np.abs(corners_detection - corners_cameralib)
 

@@ -1,14 +1,15 @@
-import unittest
-import numpy as np
-import yaml
-import cv2
 import os
+import unittest
+
+import cv2
+import numpy as np
 import svidreader
+import yaml
 
 from calibcam import helper
 from calibcam.calibrator_opts import get_default_opts
-from calibcam.detection import detect_corners_cam, Detections
-from calibcam.board import Board
+from calibcam.detection import detect_corners_cam
+from calibcamlib import Board, Detections
 
 
 class TestDetection(unittest.TestCase):
@@ -66,7 +67,7 @@ class TestDetection(unittest.TestCase):
                 if frame_idx in human_marked:
                     human_frame = dict(zip(human_marked[frame_idx]['ids'], human_marked[frame_idx]['corners']))
                     for id, corner in zip(np.squeeze(ids[i]), np.squeeze(corners[i])):
-                        if id in human_frame and img[tuple(np.asarray(corner, dtype=int)[::-1,np.newaxis])] > 0:
+                        if id in human_frame and img[tuple(np.asarray(corner, dtype=int)[::-1, np.newaxis])] > 0:
                             count += 1
                             assert np.allclose(corner, human_frame[id], atol=5)
 
@@ -100,8 +101,8 @@ class TestDetection(unittest.TestCase):
 
         detections_all = sum(detections, Detections())
 
-        markers_all = [0,1,3,10,11,13,14,15]
-        frames_all = [0,1,3,4,5]
+        markers_all = [0, 1, 3, 10, 11, 13, 14, 15]
+        frames_all = [0, 1, 3, 4, 5]
 
         d_marker_coords = detections_all.to_array()["marker_coords"]
 
@@ -151,5 +152,5 @@ class TestDetection(unittest.TestCase):
                                                                             [1, 2, 3, 0, 0, 0, 2, 1]]))
         assert np.all(detections_all.get_n_detections_markers() == np.array([[3, 0, 3, 3, 0],
                                                                              [0, 3, 3, 0, 3]]))
-        assert np.all(detections_all.to_array()["frame_idxs"] == np.array([[ 0, -1,  3,  4, -1],
+        assert np.all(detections_all.to_array()["frame_idxs"] == np.array([[0, -1, 3, 4, -1],
                                                                            [-1, 11, 13, -1, 15]]))

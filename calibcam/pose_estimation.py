@@ -1,9 +1,10 @@
-import numpy as np
 from copy import deepcopy
-from scipy.spatial.transform import Rotation as R  # noqa
-from bbo.geometry import RigidTransform
 
-from calibcam.detection import Detections
+import numpy as np
+from bbo.geometry import RigidTransform
+from scipy.spatial.transform import Rotation as R  # noqa
+
+from calibcamlib import Detections
 
 
 def build_initialized_calibs(calibs_single, opts, detections: Detections):
@@ -45,30 +46,31 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
 
     assert n_cams == len(calibs), "Number of detections must match number of single calibrations"
 
-    if len(opts['init_extrinsics_frames'])==0:
-        calibs = estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames, opts,
-                                  required_corner_idxs)
-    elif len(opts['init_extrinsics_frames'])>1:
+    if len(opts['init_extrinsics_frames']) == 0:
+        calibs = estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames,
+                                               opts,
+                                               required_corner_idxs)
+    elif len(opts['init_extrinsics_frames']) > 1:
         raise ValueError("Multiple independent cameras are not supported yet")
     else:
         ie_fr_idx = opts['init_extrinsics_frames'][0]
         ie_ideal2camsys = RigidTransform(rotation=calibs[0]["rvecs"][ie_fr_idx],
-                                   translation=calibs[0]["tvecs"][ie_fr_idx],
-                                   rotation_type="rotvec")
+                                         translation=calibs[0]["tvecs"][ie_fr_idx],
+                                         rotation_type="rotvec")
         # calibs = estimate_cam_poses_singleframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames,
         #                                        opts,
         #                                        required_corner_idxs)
         for i_calib, calib in enumerate(calibs):
             ie_ideal2cam = RigidTransform(rotation=calib["rvecs"][ie_fr_idx],
-                                       translation=calib["tvecs"][ie_fr_idx],
-                                       rotation_type="rotvec")
-            camsys2cam =  ie_ideal2cam * ie_ideal2camsys.inv()
+                                          translation=calib["tvecs"][ie_fr_idx],
+                                          rotation_type="rotvec")
+            camsys2cam = ie_ideal2cam * ie_ideal2camsys.inv()
             calib["rvec_cam"] = camsys2cam.get_rotation().as_rotvec()
             calib["tvec_cam"] = camsys2cam.get_translation()
 
             ideal2cam = RigidTransform(rotation=calib["rvecs"],
-                                          translation=calib["tvecs"],
-                                          rotation_type="rotvec")
+                                       translation=calib["tvecs"],
+                                       rotation_type="rotvec")
             ideal2camsys = camsys2cam.inv() * ideal2cam
             calib["rvecs"] = ideal2camsys.get_rotation().as_rotvec()
             calib["tvecs"] = ideal2camsys.get_translation()
