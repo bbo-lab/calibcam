@@ -67,11 +67,10 @@ def detect_corners(rec_file_names, boards, opts, rec_pipelines=None):
         for rec_file_name, brd, frames_list, offset, rec_pipeline \
                 in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines):
             detections_cams.append(detect_corners_cam(
-                rec_file_name, opts, brd, frames_list, offset_from_real=offset, rec_pipeline=rec_pipeline))
+                rec_file_name, opts, brd, frames_list, rec_pipeline=rec_pipeline))
     else:
         detections_cams = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
-            delayed(detect_corners_cam)(rec_file_name, opts, brd, frames_list, offset_from_real=offset,
-                                        rec_pipeline=rec_pipeline)
+            delayed(detect_corners_cam)(rec_file_name, opts, brd, frames_list, rec_pipeline=rec_pipeline)
             for rec_file_name, brd, frames_list, offset, rec_pipeline
             in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines))
 

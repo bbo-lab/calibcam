@@ -124,8 +124,8 @@ class CamCalibrator:
             # Memory footprint at this stage is not critical.
             print("Performing charuco detection")
 
-            detections = detect_corners(self.rec_file_names, self.n_frames, self.boards, self.opts,
-                                        rec_pipelines=self.rec_pipelines, data_path=self.data_path)
+            detections = detect_corners(self.rec_file_names, self.boards, self.opts,
+                                        rec_pipelines=self.rec_pipelines)
             detections.to_file(Path(self.data_path) / f"detection.yml")
         else:
             print("Cannot proceed without detections. Exiting.")
