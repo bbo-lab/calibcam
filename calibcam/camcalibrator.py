@@ -581,7 +581,7 @@ class CamCalibrator:
 
 
 def save_multicalibration(result_path, result, rvecs_boards, tvecs_boards):
-    if rvecs_boards is None:
+    if rvecs_boards is not None:
         boards_dict = {
             'rvecs': rvecs_boards,
             'tvecs': tvecs_boards,
