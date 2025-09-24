@@ -69,7 +69,7 @@ class CamCalibrator:
         return helper.deepmerge_dicts(opts, get_default_opts(0))
 
     def load_recordings(self, recordings, pipelines=None):
-        # check if input files are valid files
+        # TODO check if input files are valid files
         try:
             self.readers = []
             for irec, rec in enumerate(recordings):
@@ -224,9 +224,9 @@ class CamCalibrator:
             marker_ids = detections_array['marker_ids']
             frame_idxs = detections.to_array()["frame_idxs"]
 
-            result = self.build_result(calibs_multi, used_frames_ids=frame_idxs, min_result=None)
+            result = self.build_result(calibs_multi, used_frames_ids=frame_idxs)
             print('SAVE MULTI CAMERA CALIBRATION')
-            self.save_multicalibration(result, None, None, "multicalibraton_joinedsingles")
+            self.save_multicalibration(result, filename="joinedsingles_calibraton")
 
             board_points_all = helper.combine_boards_to_points(self.boards, marker_ids)
 
@@ -272,10 +272,30 @@ class CamCalibrator:
             test_objective_function(calibs_test, min_result.x, args, marker_coords, board_points_all,
                                     individual_poses=True)
 
-            result = self.build_result(calibs_fit, used_frames_ids=frame_idxs, min_result=min_result)
+            print('OPTIMIZING ALL PARAMETERS III - Removed high error frames')
+            # At this point, there does not seem to be any hope to recover high error frames. We recalibrate without
+            # them.
+            errors = min_result.fun.copy().reshape(frame_idxs.shape + (-1, 2))
+            errors[errors == 0] = np.nan
+            errors = np.linalg.norm(errors, axis=-1)
+
+            errormask = errors<self.opts["error_final_discard"]
+            print(f"Discarded {100*(1-np.sum(errormask)/np.sum(~np.isnan(errors))):.2f}% of detections due to high errors")
+            marker_coords[errormask] = np.nan
+
+            calibs_fit = helper.combine_calib_with_board_poses(calibs_fit, rvecs_boards, tvecs_boards)
+            calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(
+                 marker_coords, calibs_fit, board_points_all)
+
+            calibs_test = helper.combine_calib_with_board_poses(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
+            test_objective_function(calibs_test, min_result.x, args, marker_coords, board_points_all,
+                                    individual_poses=True)
 
             print('SAVE MULTI CAMERA CALIBRATION')
-            self.save_multicalibration(result, rvecs_boards, tvecs_boards)
+            result = self.build_result(calibs_fit, used_frames_ids=frame_idxs)
+            board_result = self.build_board_result(rvecs_boards, tvecs_boards,
+                                                   used_frames_ids=frame_idxs, min_result=min_result)
+            self.save_multicalibration(result, board_result)
             # Builds a part of the v1 result that is necessary for other software
             # self.save_multicalibration(helper.build_v1_result(result), rvecs_boards, tvecs_boards, 'multicalibration_v1')
 
@@ -482,28 +502,27 @@ class CamCalibrator:
 
         return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
-    def build_result(self, calibs, corners=None, used_frames_ids=None, min_result=None, other=None):
-
+    def build_result(self, calibs, used_frames_ids, other=None):
+        # Result should contain the calibration parameters plus all information to reproduce them
+        # Siince a calibration can be
         # savemat cannot deal with None
         if other is None:
             other = dict()
-        if used_frames_ids is None:
-            used_frames_ids = []
-        if corners is None:
-            corners = []
+
         calibs = deepcopy(calibs)
+        video_headers = [camfunctions.get_header_from_reader(r) for r in self.readers]
+        for calib, header in zip(calibs, video_headers):
+            calib['sensor_size'] = header['sensorsize']
 
         result = {
-            'version': 3,  # Increase when this structure changes
+            'version': 4,  # Increase when this structure changes
             'calibs': calibs,
-            # This field shall always hold all intrinsically necessary information to project and triangulate.
-            'board_params': [brd.get_board_params() for brd in self.boards],  # All parameters to recreate the board
-            'rec_file_names': self.rec_file_names,  # Recording filenames, may be used for cam names
-            'vid_headers': [camfunctions.get_header_from_reader(r) for r in self.readers],
+
             # Headers. No content structure guaranteed
             'info': {  # Additional nonessential info from the calibration process
-                'cost_val_final': np.nan,
-                'optimality_final': np.nan,
+                'board_params': [brd.get_board_params() for brd in self.boards],  # All parameters to recreate the board
+                'rec_file_names': self.rec_file_names,  # Recording filenames, may be used for cam names
+                'vid_headers': video_headers,
                 'used_frames_ids': used_frames_ids,
                 'opts': self.opts,
                 'other': other,  # Additional info without guaranteed structure
@@ -511,19 +530,30 @@ class CamCalibrator:
         }
 
         if self.rec_pipelines is not None:
-            result['rec_pipelines'] = self.rec_pipelines
-        # savemat cannot deal with none!
-        if min_result is not None:
-            result['info']['fun_final'] = min_result.fun
-            result['info']['cost_val_final'] = min_result.cost
-            result['info']['optimality_final'] = min_result.optimality
+            result['info']['rec_pipelines'] = self.rec_pipelines
 
         return result
 
-    def save_multicalibration(self, result, rvecs_boards, tvecs_boards, filename="multicam_calibration"):
+    def build_board_result(self, rvecs_boards, tvecs_boards, used_frames_ids, min_result=None):
+        boards_dict = {
+            'version': 4,
+            'rvecs': rvecs_boards,
+            'tvecs': tvecs_boards,
+            'frame_idxs': used_frames_ids,
+            'info': {},
+        }
+
+        if min_result is not None:
+            boards_dict['info']['fun_final'] = min_result.fun
+            boards_dict['info']['cost_val_final'] = min_result.cost
+            boards_dict['info']['optimality_final'] = min_result.optimality
+
+        return boards_dict
+
+    def save_multicalibration(self, result, board_result=None, filename="multicam_calibration"):
         data_path = self.data_path
         result_path = Path(data_path + '/' + filename)
-        return save_multicalibration(result_path, result, rvecs_boards, tvecs_boards)
+        return save_multicalibration(result_path, result, board_result)
 
     # Debug function
     def plot(self, calibs, corners, used_frames_ids, board_params, cidx, fidx):
@@ -580,15 +610,10 @@ class CamCalibrator:
         return fig
 
 
-def save_multicalibration(result_path, result, rvecs_boards, tvecs_boards):
-    if rvecs_boards is not None:
-        boards_dict = {
-            'rvecs': rvecs_boards,
-            'tvecs': tvecs_boards,
-            'frame_idxs': result['info']['used_frames_ids'],
-        }
+def save_multicalibration(result_path, result, board_result=None):
+    if board_result is not None:
         with open(result_path.parent / f"{result_path.stem}_board_positions.yml", "w") as yml_file:
-            yaml.dump(yaml_helper.numpy_collection_to_list(boards_dict), yml_file, default_flow_style=True)
+            yaml.dump(yaml_helper.numpy_collection_to_list(board_result), yml_file, default_flow_style=True)
 
     np.save(result_path.with_suffix('.npy'), result)
     scipy_io_savemat(result_path.with_suffix('.mat'), result)

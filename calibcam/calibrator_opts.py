@@ -73,6 +73,8 @@ def get_default_opts(ncams=0, do_fill=False):
             'rvecs_cam': -1,
             'tvecs_cam': -1,
         },
+        # In a last step, discard all detections that have an error higher than this number
+        "error_final_discard": 5,
 
 
         'detection_opts': {
