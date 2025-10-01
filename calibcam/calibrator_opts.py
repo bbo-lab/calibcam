@@ -61,11 +61,12 @@ def get_default_opts(ncams=0, do_fill=False):
         # Optimize individual board poses then all params again.
         # In a test, optimality was already reached after a first general optimization
         'optimize_board_poses': False,
-        # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
-        # error while optimizing individual board poses.
+        # Value in pixels. If optimize_board_poses is true, replace the pose with higher error and insert 'nearby'
+        # pose with lower error while optimizing individual board poses. In the last step, discard all detections
+        # that have an error higher than this number
         'max_allowed_res': 5.0,
-        # Minimum nombers of detected corners to use frame
-        'corners_min_n': 6,
+        # Minimum numbers of detected corners to use frame
+        'corners_min_n': 5,
         # Extrinsics init frame
         'init_extrinsics_frames': [],
         # Use these extrinsics for initialization dict('rvecs_cam': nx3, 'tvecs_cam': nx3)
@@ -73,12 +74,9 @@ def get_default_opts(ncams=0, do_fill=False):
             'rvecs_cam': -1,
             'tvecs_cam': -1,
         },
-        # In a last step, discard all detections that have an error higher than this number
-        "error_final_discard": 5,
-
 
         'detection_opts': {
-            'inter_frame_dist': 1.0,  # In pixels
+            'inter_frame_dist': 3.0,  # In pixels
             'min_corners': 5,  # Minimum number of corners to detect in a frame
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),

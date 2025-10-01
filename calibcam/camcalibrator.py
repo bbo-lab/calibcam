@@ -279,9 +279,20 @@ class CamCalibrator:
             errors[errors == 0] = np.nan
             errors = np.linalg.norm(errors, axis=-1)
 
-            errormask = errors<self.opts["error_final_discard"]
-            print(f"Discarded {100*(1-np.sum(errormask)/np.sum(~np.isnan(errors))):.2f}% of detections due to high errors")
-            marker_coords[errormask] = np.nan
+            high_error_mask = errors > self.opts["max_allowed_res"]
+            print(f"Discarded {100*(np.sum(high_error_mask)/np.sum(~np.isnan(errors))):.2f}% of detections due to high errors")
+            marker_coords[high_error_mask] = np.nan
+
+            marker_count = np.all(~np.isnan(marker_coords), axis=-1)
+            marker_count = np.sum(marker_count, axis=-1)
+            high_error_frame_mask = np.all(marker_count < self.opts["corners_min_n"], axis=0)
+            good_frames = np.where(~high_error_frame_mask)[0]
+            print(
+                f"Discarded {100 * (1-len(good_frames)/frame_idxs.shape[1]):.2f}% of frames due to high errors")
+            marker_coords = marker_coords[:, good_frames]
+            rvecs_boards = rvecs_boards[good_frames]
+            tvecs_boards = tvecs_boards[good_frames]
+            frame_idxs = frame_idxs[:, good_frames]
 
             calibs_fit = helper.combine_calib_with_board_poses(calibs_fit, rvecs_boards, tvecs_boards)
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(
