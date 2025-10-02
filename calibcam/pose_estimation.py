@@ -54,6 +54,11 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
         raise ValueError("Multiple independent cameras are not supported yet")
     else:
         ie_fr_idx = opts['init_extrinsics_frames'][0]
+        ie_fr_idx = np.where(detections_array['frame_idxs'][0] == ie_fr_idx)[0]
+        if len(ie_fr_idx)==0:
+            raise ValueError(f"init_extrinsics_frames {opts['init_extrinsics_frames'][0]} is not part of cam 0 detections")
+        else:
+            ie_fr_idx = ie_fr_idx[0]
         ie_ideal2camsys = RigidTransform(rotation=calibs[0]["rvecs"][ie_fr_idx],
                                          translation=calibs[0]["tvecs"][ie_fr_idx],
                                          rotation_type="rotvec")
