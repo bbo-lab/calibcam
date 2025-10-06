@@ -81,6 +81,7 @@ def detect_corners(rec_file_names, boards, opts, rec_pipelines=None):
 
 def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None):
     board_params = board.get_board_params()
+    board_start_id = board.get_board_ids()[0]
 
     reader = filtergraph.get_reader(video, backend="iio", cache=False)
     if rec_pipeline is not None:
@@ -192,7 +193,7 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
                     continue
 
         corners_cam.append(charuco_corners)
-        ids_cam.append(charuco_ids)
+        ids_cam.append(charuco_ids + board_start_id)
         detection_idxs_cam.append(i_fr)
 
     reader.close()

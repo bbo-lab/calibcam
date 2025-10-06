@@ -351,6 +351,7 @@ class CamCalibrator:
         calib = deepcopy(calib)
 
         board_points = board.get_board_points()
+        min_board_id = board.get_board_ids()[0]
 
         markers = detections_cam.to_list()
         marker_coords = markers["marker_coords"][0]
@@ -378,7 +379,7 @@ class CamCalibrator:
                 board_positions.append(
                     CamCalibrator.estimate_single_board_position(calib,
                                                                  marker_coords_fr,
-                                                                 marker_ids_fr,
+                                                                 marker_ids_fr-min_board_id,
                                                                  board_points)
                 )
 

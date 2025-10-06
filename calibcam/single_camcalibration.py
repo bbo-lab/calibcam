@@ -91,11 +91,13 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
 
         charuco_corners = detections_list_use["marker_coords"][0]
         charuco_ids = detections_list_use["marker_ids"][0]
+        min_board_id = board.get_board_ids()[0]
 
         # Pinhole camera model [d.reshape((-1,2)) for d in detections_list_use["marker_coords"][0]]
+        charuco_ids_zeroed = [ci-min_board_id for ci in charuco_ids]
         cal_res = cv2.aruco.calibrateCameraCharucoExtended(charuco_corners,
-                                                           charuco_ids,
-                                                           board.get_cv2_board(),
+                                                           charuco_ids_zeroed,
+                                                           board.get_cv2_board(zero_ids=True),
                                                            sensor_size,
                                                            A,
                                                            k,
