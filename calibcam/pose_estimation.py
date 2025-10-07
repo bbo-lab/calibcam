@@ -84,20 +84,20 @@ def estimate_cam_poses(calibs_single, opts, detections=None, required_corner_idx
 
 def estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_array, n_cams, n_frames, opts,
                                   required_corner_idxs):
-    rs = np.full((n_cams, n_frames, 3), np.nan)
-    ts = np.full((n_cams, n_frames, 3), np.nan)
+    rs_b02cw = np.full((n_cams, n_frames, 3), np.nan)
+    ts_b02cw = np.full((n_cams, n_frames, 3), np.nan)
     frames_masks_req = np.zeros((n_cams, n_frames), dtype=bool)
     for i_calib, calib in enumerate(calibs):
         mask = np.isin(detections_array["detection_idxs"], calib["detection_idxs"])
-        rs[i_calib, mask] = calib["rvecs"]
-        ts[i_calib, mask] = calib["tvecs"]
+        rs_b02cw[i_calib, mask] = calib["rvecs"]
+        ts_b02cw[i_calib, mask] = calib["tvecs"]
         frames_masks_req[i_calib, mask] = True
     # Only use frames that have these corners detected (usually "corner corners" for full boards)
     discard_detection_idxs = get_discard_detection_idxs(detections=detections,
                                                         required_corner_idxs=required_corner_idxs
                                                         if opts['pose_estimation']['use_required_corners']
                                                         else None)
-    for i_cam, (fmr, dfi, rs_cam) in enumerate(zip(frames_masks_req, discard_detection_idxs, rs)):
+    for i_cam, (fmr, dfi, rs_cam) in enumerate(zip(frames_masks_req, discard_detection_idxs, rs_b02cw)):
         mask = np.isin(detections_array["detection_idxs"], dfi)
         fmr[mask] = False
         fmr[:] &= np.all(~np.isnan(rs_cam), axis=1)
@@ -106,8 +106,8 @@ def estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_
     common_frame_mat = calc_common_frame_mat(frames_masks_req)
     # We allow some bonus to coord_cam as it might be beneficial to not have another cam as an inbetween step if the
     # difference in frame numbers is small. (Also good for testing if the propagation works.)
-    common_frame_mat[:, opts['coord_cam']] = common_frame_mat[:, opts['coord_cam']] * 10
-    common_frame_mat[opts['coord_cam'], :] = common_frame_mat[:, opts['coord_cam']].T
+    common_frame_mat[:, opts['coord_cam']] *= 10
+    common_frame_mat[opts['coord_cam'], :] *= 10
     while not np.all(cams_oriented):
         # Find unoriented cam with the most overlaps with an oriented camera
         ori_nori_mat = common_frame_mat.copy()
@@ -118,59 +118,79 @@ def estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_
             f"Orienting cam {oricam_idx} on cam {refcam_idx} on {ori_nori_mat[refcam_idx, oricam_idx]} potential poses")
 
         r_error = np.inf
-        R_trans = None
-        Rs_trans = None
+        T_wo2wr = None
+        Ts_wo2wr = None
         # Copy, we will remove frames this
         frames_masks_req_ori = frames_masks_req[oricam_idx].copy()
         while r_error >= opts['common_pose_r_err']:
             # Remove frames with too high deviation from frames_mask
             # In single camera calibration misestimation of board pose may occur where the board is tilted around one of
             #  its axes relative  to the camera axis: c ----> / instead of c ----> \
-            #  theses tilts do not yield a consistent alternative position and may thus be removed by iteratively
+            #  these tilts do not yield a consistent alternative position and may thus be removed by iteratively
             #  removing the highest deviations.
-            if R_trans is not None and Rs_trans is not None:
+            if T_wo2wr is not None and Ts_wo2wr is not None:
                 # Remove frame with the highest error
                 common_detection_idxs = np.where(common_frame_mask)[0]
                 frames_masks_req_ori[
                     common_detection_idxs[
-                        np.argmax(np.sum(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=1))
+                        np.argmax(np.sum(np.abs((T_wo2wr.get_rotation().inv() *
+                                                 Ts_wo2wr.get_rotation()).as_rotvec()), axis=1))
                     ]
                 ] = False
+            common_frame_mask = frames_masks_req[refcam_idx] & frames_masks_req_ori
+            num_common = int(np.count_nonzero(common_frame_mask))
+            if num_common == 0:
+                raise RuntimeError(f"No common frames between cams {refcam_idx} and {oricam_idx}.")
 
             # Determine common frames
             common_frame_mask = frames_masks_req[refcam_idx] & frames_masks_req_ori
 
-            # Calculate average transformation from oricam to refcam coordinate system
-            Rs_trans = (
-                    R.from_rotvec(rs[refcam_idx, common_frame_mask]) *
-                    R.from_rotvec(rs[oricam_idx, common_frame_mask]).inv()
-            )
-            R_trans = Rs_trans.mean()
-            r_error = np.max(np.sum(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=1))
+            # Transformations from ideal board space to reference world
+            Ts_b02wr = RigidTransform(rotation=rs_b02cw[refcam_idx, common_frame_mask],
+                                      translation=ts_b02cw[refcam_idx, common_frame_mask],
+                                      rotation_type="rotvec")
+            # Transformations from ideal board space to orientee world
+            Ts_b02wo = RigidTransform(rotation=rs_b02cw[oricam_idx, common_frame_mask],
+                                      translation=ts_b02cw[oricam_idx, common_frame_mask],
+                                      rotation_type="rotvec")
+            # Transformations from orientee world to reference world
+            Ts_wo2wr = Ts_b02wr * Ts_b02wo.inv()
 
-            ts_trans = (
-                    ts[refcam_idx, common_frame_mask]
-                    - R_trans.apply(ts[oricam_idx, common_frame_mask])
-            )
+            if len(Ts_wo2wr) > 1:
+                T_wo2wr = Ts_wo2wr.nanmean()
+            else:
+                T_wo2wr = Ts_wo2wr
 
-            t_trans = ts_trans.mean(axis=0).reshape((1, 3))
+            errs_R = np.linalg.norm(
+                (T_wo2wr.get_rotation().inv() * Ts_wo2wr.get_rotation()).as_rotvec(), axis=1
+            )
+            r_error = float(np.max(errs_R))
 
         print(f"Chose {np.sum(common_frame_mask)} poses.")
-        print(f"Mean rvec deviation: {np.mean(np.abs((R_trans.inv() * Rs_trans).as_rotvec()), axis=0)}")
-        print(f"Mean tvec deviation: {np.mean(np.abs(ts_trans - t_trans), axis=0)}")
+        print(f"Mean rvec deviation: "
+              f"{np.mean(np.abs((T_wo2wr.get_rotation().inv() * Ts_wo2wr.get_rotation()).as_rotvec()), axis=0)}")
+        print(f"Mean tvec deviation: "
+              f"{np.mean(np.abs(Ts_wo2wr.get_translation() - T_wo2wr.get_translation()), axis=0)}")
 
         nanposemask = ~np.isnan(calibs[oricam_idx]['rvecs'][:, 0])
-        calibs[oricam_idx]['rvecs'][nanposemask] = (
-                R_trans *
-                R.from_rotvec(calibs[oricam_idx]['rvecs'][nanposemask])
-        ).as_rotvec().reshape((-1, 3))
-        calibs[oricam_idx]['tvecs'] = (
-                R_trans.apply(calibs[oricam_idx]['tvecs']) +
-                t_trans
-        ).reshape((-1, 3))
 
-        calibs[oricam_idx]['rvec_cam'] = (R_trans.inv() * R.from_rotvec(calibs[oricam_idx]['rvec_cam'])).as_rotvec()
-        calibs[oricam_idx]['tvec_cam'] = R_trans.inv().apply(calibs[oricam_idx]['tvec_cam'] - t_trans)
+        # Transformations from ideal board space to orientee world
+        Ts_b02wo = RigidTransform(rotation=calibs[oricam_idx]['rvecs'][nanposemask],
+                                 translation=calibs[oricam_idx]['tvecs'][nanposemask],
+                                 rotation_type="rotvec")
+        # Transformations from ideal board space to reference world
+        Ts_b02wr = T_wo2wr * Ts_b02wo
+        calibs[oricam_idx]['rvecs'][nanposemask] = Ts_b02wr.get_rotation().as_rotvec().reshape((-1, 3))
+        calibs[oricam_idx]['tvecs'][nanposemask] = Ts_b02wr.get_translation().reshape((-1, 3))
+
+        # Transformations from orientee world to orientee camera
+        T_wo2co = RigidTransform(rotation=calibs[oricam_idx]['rvec_cam'],
+                                 translation=calibs[oricam_idx]['tvec_cam'],
+                                 rotation_type="rotvec")
+        # Transformations from reference world to orientee camera
+        T_wr2co =  T_wo2co * T_wo2wr.inv()
+        calibs[oricam_idx]['rvec_cam'] = T_wr2co.get_rotation().as_rotvec()
+        calibs[oricam_idx]['tvec_cam'] = T_wr2co.get_translation()
         cams_oriented[oricam_idx] = True
 
     return calibs
