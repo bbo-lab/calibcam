@@ -1,5 +1,5 @@
 import numpy as np
-from calibcam import helper
+from calibcamlib import Detections
 
 
 def update_preoptim_2_0_to_2_1(preoptim, n_corners):
@@ -7,8 +7,9 @@ def update_preoptim_2_0_to_2_1(preoptim, n_corners):
         frames_masks = preoptim['info']['frames_masks'].astype(bool)
         calibs_single = preoptim['info']['other']['calibs_single']
 
-        preoptim['info']['corners'] = helper.make_corners_array(preoptim['info']['corners'],
-                                                                preoptim['info']['corner_ids'], n_corners, frames_masks)
+        preoptim['info']['corners'] = Detections.from_list(preoptim['info']['corners'],
+                                                           preoptim['info']['corner_ids'], frames_masks,
+                                                           return_dict=True)
 
         used_frames_ids = np.where(np.any(frames_masks, axis=0))[0]
 

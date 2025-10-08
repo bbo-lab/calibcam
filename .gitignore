@@ -137,4 +137,5 @@ dmypy.json
 
 test/out
 
-examples/
+examples/*.npy
+examples/*.png

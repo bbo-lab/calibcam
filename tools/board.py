@@ -10,6 +10,8 @@ def generate_charuco_pattern(rows, columns, square_size_real, marker_ratio, aruc
             aruco_dict = aruco.DICT_4X4_250
         case 5:
             aruco_dict = aruco.DICT_5X5_250
+        case _:
+            raise NotImplementedError
 
     aruco_ids = aruco_ids[:(rows * columns) // 2]  # This must probably be improved for boards with uneven rows/columns
     print(len(aruco_ids))

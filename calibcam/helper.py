@@ -1,8 +1,11 @@
 from copy import deepcopy
-from svidreader.video_supplier import VideoSupplier
-import scipy.stats as stats
+
 import numpy as np
+import scipy.stats as stats
 from scipy.spatial.transform import Rotation as R  # noqa
+from svidreader.video_supplier import VideoSupplier
+
+from calibcamlib import Detections
 
 
 # Detection may not lie on a single line
@@ -44,40 +47,32 @@ def deepmerge_dicts(source, destination):
     return destination
 
 
-def make_corners_array(corners_all, ids_all, n_corners, frames_masks):
-    used_frames_mask = np.any(frames_masks, axis=0)
-    used_frame_idxs = np.where(used_frames_mask)[0]
-
-    corners = np.empty(shape=(frames_masks.shape[0], used_frames_mask.sum(), n_corners, 2), dtype=np.float32)
-    corners[:] = np.nan
-    for i_cam, frames_mask_cam in enumerate(frames_masks):
-        frame_idxs_cam = np.where(frames_mask_cam)[0]
-
-        for i_frame, f_idx in enumerate(used_frame_idxs):
-            # print(ids_all[i_cam][i_frame].ravel())
-            # print(corners[i_cam, f_idx].shape)
-            # print(corners_all[i_cam][i_frame].shape)
-            cam_fr_idx = np.where(frame_idxs_cam == f_idx)[0]
-            if cam_fr_idx.size < 1:
-                continue
-
-            cam_fr_idx = int(cam_fr_idx)
-            if ids_all is None:
-                corners[i_cam, i_frame] = \
-                    corners_all[i_cam][cam_fr_idx][:, 0, :]
-            else:
-                corners[i_cam, i_frame][ids_all[i_cam][cam_fr_idx].ravel(), :] = \
-                    corners_all[i_cam][cam_fr_idx][:, 0, :]
-    return corners
-
-
-def corners_array_to_ragged(corners_array):
-    corner_shape = corners_array.shape[2]
-
-    ids_use = [np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1, 1) for c in corners_array]
-    corners_use = [c[i, :].astype(np.float32).reshape(-1, 1, corner_shape) for c, i in zip(corners_array, ids_use)]
-
-    return corners_use, ids_use
+# def corners_array_to_ragged(markers, squeeze=True):
+#     markers_list = []
+#     for marker_coords_cam in markers["marker_coords"]:
+#         marker_coords_used = []
+#         frame_idxs_used = []
+#         marker_ids_used = []
+#         for i_frame, marker_coords_cam_frame in enumerate(marker_coords_cam):
+#
+#
+#         marker_ids_used = [
+#             markers["marker_ids"][np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1)]
+#             for c in marker_coords_cam]
+#         marker_coords_used = [
+#             c[]
+#         ]
+#
+#         markers_list.append({
+#             "marker_coords": corners,
+#             "frame_idxs": frame_idxs_used,
+#             "marker_ids": marker_ids_used,
+#         })
+#
+#     ids_use = [np.where(~np.isnan(c[:, 1]))[0].astype(np.int32).reshape(-1) for c in corners_array]
+#     corners_use = [c[i, :].astype(np.float32).reshape(-1, 1, corner_shape) for c, i in zip(corners_array, ids_use)]
+#
+#     return corners_use, ids_use
 
 
 def build_v1_result(result):
@@ -93,7 +88,7 @@ def build_v1_result(result):
     }
 
 
-def combine_calib_with_board_params(calibs, rvecs_boards, tvecs_boards, copy=False):
+def combine_calib_with_board_poses(calibs, rvecs_boards, tvecs_boards, copy=False):
     if copy:
         calibs = deepcopy(calibs)
 
@@ -109,45 +104,20 @@ def nearest_element(num_1: int, list_nums):
     return list_nums[np.argmin(dist)]
 
 
-@DeprecationWarning
-def reject_corners(corners, prev_fun, board_params, detection_opts, rejection_opts):
-    """Reject corners/poses based on zscores which indicate outliers and misdetections"""
-    from scipy import stats
+def combine_boards_to_points(boards, marker_ids):
+    board_start_ids = [brd.get_board_ids()[0] for brd in boards]
+    for brd in boards:
+        print(brd.get_board_points()[:, np.newaxis].shape)
+    board_points = [[brd.get_board_points()[:, np.newaxis] for brd in boards]]
+    board_ids = [[np.arange(len(bp))+bsid for bp,bsid in zip(board_points[0],board_start_ids)]]
 
-    prev_fun = prev_fun.reshape(corners.shape)
-    output_corners = np.copy(corners)
-    num_poses = corners.shape[1]
+    print(len(board_points), len(board_points[0]), len(board_points[0][0]), len(board_points[0][0][0]))
+    print(board_ids)
+    board_coords = Detections.from_list(board_points, board_ids, return_dict=True)
 
-    # Calculate zscores along the frames axis
-    corners_zscores_bad = np.abs(stats.zscore(prev_fun, axis=-2)) > rejection_opts["max_zscore"]
-    corners_zscores_bad = np.sum(corners_zscores_bad, axis=-1, dtype=bool)
-
-    # Corners with low reprojection error are not rejected
-    corners_good = np.abs(prev_fun) < rejection_opts["max_res"]
-    corners_good = np.sum(corners_good, axis=-1, dtype=bool)
-    corners_zscores_bad[corners_good] = False
-
-    output_corners[corners_zscores_bad] = np.nan
-    print("The following corners are rejected:", np.where(corners_zscores_bad))
-
-    if rejection_opts["reject_poses"]:
-        # Reject the degeratge poses
-        corners_non_nans = ~np.isnan(output_corners[..., 0])
-        corners_per_pose = np.nansum(corners_non_nans, axis=-1)
-        poses_good = np.ones_like(corners_per_pose, dtype=bool)
-        for icam, cam_corners in enumerate(corners_non_nans):
-            for ipose, pose_corners in enumerate(cam_corners):
-                poses_good[icam, ipose] = check_detections_nondegenerate(board_params['boardWidth'],
-                                                                         np.where(pose_corners),
-                                                                         detection_opts['min_corners'])
-        # Reject pose only if it is bad in all cameras!
-        rejected_poses = np.prod(~poses_good, axis=0, dtype=bool)
-        output_corners = output_corners[:, ~rejected_poses]
-        print("The following poses are rejected:", np.where(rejected_poses))
-
-        return output_corners, rejected_poses, np.where(corners_zscores_bad)
-    else:
-        return output_corners, np.zeros(num_poses, dtype=bool), np.where(corners_zscores_bad)
+    marker_mask = np.isin(board_coords["marker_ids"], marker_ids)
+    print(marker_ids, marker_mask)
+    return np.nanmean(board_coords["marker_coords"], axis=1)[0, marker_mask]
 
 
 class RadialContrast(VideoSupplier):

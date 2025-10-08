@@ -1,9 +1,11 @@
-from svidreader import filtergraph
+import cv2
 import imageio
-from calibcam import board
-from calibcam.calibrator_opts import get_default_opts, finalize_aruco_detector_opts
-from calibcam.board import get_board_params
 import matplotlib
+from svidreader import filtergraph
+
+from calibcam.calibrator_opts import get_default_opts, finalize_aruco_detector_opts
+from calibcamlib import Board
+
 matplotlib.use('tkagg')
 import matplotlib.pyplot as plt
 
@@ -14,12 +16,12 @@ def main(frame_num=1295):
     reader = filtergraph.get_reader(video, backend='iio')
     reader = filtergraph.create_filtergraph_from_string([reader], pipeline)['out']
     test_frame = reader.get_data(frame_num)
-    imageio.imwrite(f'test/sample_images_1/{frame_num}.png', test_frame)
+    imageio.imwrite(f'sample_images_1/{frame_num}.png', test_frame)
 
     board_name = "/media/smb/soma-fs.ad01.caesar.de/bbo/projects/junker-bird/experiments/20230612_20230615_FlightWindow/calibrations/board_small"
-    board_params = get_board_params(board_name)
+    board_params = Board.from_file(board_name).get_board_params()
     opts = get_default_opts(1, do_fill=True)
-    detection = opts['detection']
+    detection = opts['detection_opts']
     detection['aruco_refine']['errorCorrectionRate'] = 0.1
     detection['aruco_interpolate']['minMarkers'] = 1
 
@@ -46,26 +48,26 @@ def main(frame_num=1295):
     corners, ids, rejected_img_points = \
         cv2.aruco.detectMarkers(test_frame,  # noqa
                                 cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
-                                **finalize_aruco_detector_opts(opts['detection']['aruco_detect']))
+                                **finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect']))
     # corner refinement
     corners_ref, ids_ref = \
         cv2.aruco.refineDetectedMarkers(test_frame,  # noqa
-                                        board.make_board(board_params),
+                                        Board(board_params).get_cv2_board(),
                                         corners,
                                         ids,
                                         rejected_img_points,
-                                        **finalize_aruco_detector_opts(opts['detection']['aruco_refine']))[0:2]
+                                        **finalize_aruco_detector_opts(opts['detection_opts']['aruco_refine']))[0:2]
 
-    #print(corners_ref)
+    # print(corners_ref)
     # corner interpolation
     retval, charuco_corners, charuco_ids = \
         cv2.aruco.interpolateCornersCharuco(corners_ref,  # noqa
                                             ids_ref,
                                             test_frame,
-                                            board.make_board(board_params),
-                                            **opts['detection']['aruco_interpolate'])
+                                            Board(board_params).get_cv2_board(),
+                                            **opts['detection_opts']['aruco_interpolate'])
 
-    print(charuco_corners,charuco_ids)
+    print(charuco_corners, charuco_ids)
 
     charuco_corners = charuco_corners.reshape(-1, 2)
     plt.figure()
@@ -74,3 +76,9 @@ def main(frame_num=1295):
     for c_ref in corners_ref:
         c_ref = c_ref.reshape(-1, 2)
         plt.plot(c_ref[:, 0], c_ref[:, 1], "o", c="blue")
+
+    plt.show()
+
+
+if __name__ == '__main__':
+    main()

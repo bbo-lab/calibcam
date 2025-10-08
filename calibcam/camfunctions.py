@@ -1,15 +1,13 @@
+import timeit
+
 import numpy as np
 from scipy.optimize import least_squares, OptimizeResult
 
-import timeit
-
-from calibcam import optimization, board, helper, calibrator_opts
+from calibcam import optimization, helper, calibrator_opts
 from calibcam.exceptions import *
 
-import sys
 
-
-def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, verbose=None):
+def optimize_calib_parameters(corners, calibs_multi, board_points_all, opts=None, verbose=None):
     if opts is None:
         opts = {}
 
@@ -23,7 +21,7 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, ve
 
     start_time = timeit.default_timer()
 
-    args, vars_free = make_optim_input(board_params, calibs_multi, corners, opts)
+    args, vars_free = make_optim_input(board_points_all, calibs_multi, corners, opts)
 
     # This triggers JIT compilation
     optimization.obj_fcn_wrapper(vars_free, args)
@@ -67,17 +65,17 @@ def optimize_calib_parameters(corners, calibs_multi, board_params, opts=None, ve
     return calibs_fit, rvecs_boards, tvecs_boards, min_result, args
 
 
-def make_optim_input(board_params, calibs_multi, corners, opts):
-    board_coords_3d_0 = board.make_board_points(board_params)
+def make_optim_input(board_points_all, calibs_multi, marker_coords, opts):
     # Generate vectors of all and of free variables
-    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, corners, board_params, opts)
+    vars_free, vars_full, mask_free_input = optimization.make_initialization(calibs_multi, marker_coords,
+                                                                             board_points_all, opts)
     args = {
         'vars_full': vars_full,  # All possible vars, free vars will be substituted in _free wrapper functions
         'mask_opt': mask_free_input,  # Mask of free vars within all vars
         'opts_free_vars': opts['free_vars'],
         'coord_cam': opts['coord_cam'],  # This is currently only required due to unsolved jacobian issue
-        'board_coords_3d_0': board_coords_3d_0,  # Board points in z plane
-        'corners': corners,
+        'board_coords_3d_0': board_points_all,  # Board points in z plane
+        'corners': marker_coords,
         'precalc': optimization.get_precalc(opts),
         # Inapplicable tue to autograd slice limitations
         # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
@@ -123,8 +121,7 @@ def get_header_from_reader(reader):
     return header
 
 
-def test_objective_function(calibs, vars_free, args, corners_detection, board_params, individual_poses=False):
-
+def test_objective_function(calibs, vars_free, args, corners_detection, board_points, individual_poses=False):
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
@@ -134,7 +131,7 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
     corners_cameralib = np.empty_like(residuals_objfun)
     corners_cameralib[:] = np.nan
     cs = Camerasystem.from_calibs(calibs)
-    board_points = board.make_board_points(board_params)
+
     for i_cam, calib in enumerate(calibs):
         # This calculates from individual board pose estimations
         if individual_poses:
@@ -142,14 +139,14 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
             tvecs_board = calibs[i_cam]['tvecs'].reshape(-1, 3)
         # This calculates from common camera board estimations
         else:
-            pose_params = optimization.make_common_pose_params(calibs, corners_detection, board_params)
+            pose_params = optimization.make_common_pose_params(calibs, corners_detection, board_points)
             rvecs_board = pose_params[0].reshape(-1, 3)
             tvecs_board = pose_params[1].reshape(-1, 3)
 
         b = np.einsum('fij,bj->fbi', R.from_rotvec(rvecs_board.reshape(-1, 3)).as_matrix(), board_points) + \
             tvecs_board.reshape(-1, 1, 3)
 
-        corners_cameralib[i_cam, :] = cs.project(b)[i_cam]
+        corners_cameralib[i_cam, :] = cs.project(b, cam_idx=i_cam)
 
     residuals_cameralib = np.abs(corners_detection - corners_cameralib)
 
@@ -177,3 +174,5 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_pa
               f"{np.nanmedian(residuals_cameralib[i_cam]):13.2f} | "
               f"{np.nanmax(res_diff[i_cam]):13.2f}"
               )
+
+    return

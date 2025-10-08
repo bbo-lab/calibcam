@@ -1,3 +1,5 @@
+import sys
+
 import cv2
 import numpy as np
 
@@ -11,6 +13,15 @@ def get_default_opts(ncams=0, do_fill=False):
         'calibration_single': False,
         # If True, calibcam will perform multi cam calibration.
         'calibration_multi': False,
+
+        # === Frame selection
+        "frames_start": 0,
+        "frames_end": sys.maxsize,
+        "frames_step": 1,
+        # == or overwriting any of the above
+        "frames_lists": False,
+        # == Offset is applied for match between cams in both cases. (0,5) means that frame 0 of cam 0 corresponds to frame 5 of cam 1
+        "frames_offsets": False,
 
         # === Camera system description
         # Number of cams
@@ -26,11 +37,9 @@ def get_default_opts(ncams=0, do_fill=False):
         # GPU regularly runs out of memory for these problems
         'jax_backend': 'cpu',
         # Parallelize detection and calibration
-        'parallelize': True,
+        'parallelize': False,
         # Reference camera that defines the multicam coordinate system
         'coord_cam': 0,
-        # Skip frames in recording
-        'frame_step': 1,
         # Sometimes last frame is cut, so this may be okay.
         'allow_unequal_n_frame': True,
         # Iteratively exclude poses with higher rotation deviation from mean
@@ -38,6 +47,7 @@ def get_default_opts(ncams=0, do_fill=False):
         # Set to cv2.COLOR_RGB2GRAY to convert rgb images to grayscale for corner detection
         'color_convert': False,
         # use N_CPU/detect_cpu_divisor threads for feature detection
+        # Empirically, detection seems to utilize about 6 cores
         'detect_cpu_divisor': 6,
         # Use radial contrast value for rejecting corners, check rejection params below in detection_opts
         'RC_reject_corners': False,
@@ -51,11 +61,14 @@ def get_default_opts(ncams=0, do_fill=False):
         # Optimize individual board poses then all params again.
         # In a test, optimality was already reached after a first general optimization
         'optimize_board_poses': False,
-        # In pixels. replace the pose with higher error and insert 'nearby' pose with lower
-        # error while optimizing individual board poses.
+        # Value in pixels. If optimize_board_poses is true, replace the pose with higher error and insert 'nearby'
+        # pose with lower error while optimizing individual board poses. In the last step, discard all detections
+        # that have an error higher than this number
         'max_allowed_res': 5.0,
-        # Minimum nombers of detected corners to use frame
-        'corners_min_n': 6,
+        # Minimum numbers of detected corners to use frame
+        'corners_min_n': 5,
+        # Extrinsics init frame, in cam 0 frame base
+        'init_extrinsics_frames': [],
         # Use these extrinsics for initialization dict('rvecs_cam': nx3, 'tvecs_cam': nx3)
         'init_extrinsics': {
             'rvecs_cam': -1,
@@ -63,7 +76,7 @@ def get_default_opts(ncams=0, do_fill=False):
         },
 
         'detection_opts': {
-            'inter_frame_dist': 1.0,  # In pixels
+            'inter_frame_dist': 3.0,  # In pixels
             'min_corners': 5,  # Minimum number of corners to detect in a frame
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
