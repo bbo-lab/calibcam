@@ -175,13 +175,13 @@ def make_board_params(board_args, videos):
         if board_args[0] is None:
             return None
 
-        board_params = Board.from_file(board_args[0]).get_board_params()
-        if isinstance(board_params, dict):
-            return [board_params] * n_videos
+        boards = Board.from_file(board_args[0])
+        if isinstance(boards, Board):
+            return [boards.get_board_params()] * n_videos
         else:
-            assert len(board_params) == n_videos, (f"Single board file must either contain a single board, or a list of"
+            assert len(boards) == n_videos, (f"Single board file must either contain a single board, or a list of"
                                                    f" boards of the size of the number of videos ({n_videos})")
-            return board_params
+            return [brd.get_board_params() for brd in boards]
 
     current_board_file = None
     board_params = []
