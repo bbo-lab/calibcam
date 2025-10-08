@@ -19,7 +19,8 @@ dependencies:
     - pytest
     - pytest-cov
     - bbo-ccvtools
-    - bbo-calibcamlib
+    - bbo-calibcamlib>=0.3.17
+    - bbo-bbo>=0.4.11
     - bbo-calibcam
-    - bbo-svidreader
+    - bbo-svidreader>=0.8.0
     - matplotlib
