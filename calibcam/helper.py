@@ -106,17 +106,12 @@ def nearest_element(num_1: int, list_nums):
 
 def combine_boards_to_points(boards, marker_ids):
     board_start_ids = [brd.get_board_ids()[0] for brd in boards]
-    for brd in boards:
-        print(brd.get_board_points()[:, np.newaxis].shape)
     board_points = [[brd.get_board_points()[:, np.newaxis] for brd in boards]]
     board_ids = [[np.arange(len(bp))+bsid for bp,bsid in zip(board_points[0],board_start_ids)]]
 
-    print(len(board_points), len(board_points[0]), len(board_points[0][0]), len(board_points[0][0][0]))
-    print(board_ids)
     board_coords = Detections.from_list(board_points, board_ids, return_dict=True)
 
     marker_mask = np.isin(board_coords["marker_ids"], marker_ids)
-    print(marker_ids, marker_mask)
     return np.nanmean(board_coords["marker_coords"], axis=1)[0, marker_mask]
 
 

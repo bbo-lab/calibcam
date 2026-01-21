@@ -28,6 +28,10 @@ def main():
                         help="List of options files to include. Later files supersede earlier files, "
                              "commandline arguments supersede files")
     parser.add_argument('--board', type=str, required=False, nargs='*', default=[None], help="")
+    parser.add_argument('--multi_vars', type=str, required=False, nargs='*', default=None,
+                        help='Must be "all", "extrinsic", "intrinsic" for all cameras.')
+    parser.add_argument('--lock_axes', action="store_true", help="Fix optical axis to center of image")
+
     parser.add_argument('--model', type=str, required=False, nargs='*', default=False, help="")
 
     parser.add_argument('--frames_start', type=int, required=False, default=None, help="")
@@ -69,8 +73,17 @@ def main():
 
     board_params = make_board_params(args.board, recFileNames)
 
+    # Get data path from board. If left none, recording path will be chosen in CamCalibrator
+    if args.data_path[0] is not None:
+        data_path = Path(args.data_path[0])
+    else:
+        if args.board[0] is not None:
+            data_path = Path(args.board[0]).parent
+        else:
+            data_path = None
+
     calibrator = CamCalibrator(recFileNames, pipelines=recPipelines, board_params=board_params, opts=opts,
-                               data_path=args.data_path[0])
+                               data_path=data_path)
     calibrator.perform_multi_calibration()
     print("Camera calibrated")
     calibrator.close_readers()
@@ -117,8 +130,28 @@ def build_args_into_opts(opts, args, n_cams):
         assert len(args.frames_offsets) == n_cams, "Number of frames_offsets does not match number of videos!"
         opts['frames_offsets'] = np.array(args.frames_offsets)
 
+
     # Fill defaults for opts that depend on other opts
     calibrator_opts.fill(opts)
+
+    if args.multi_vars is not None:
+        assert len(args.multi_vars)==len(opts["free_vars"]), "Number of multi_vars does not match number of cameras!"
+        for i_cam, var in enumerate(args.multi_vars):
+            if var=="intrinsics":
+                opts["free_vars"][i_cam]["cam_pose"]=False
+            elif var=="extrinsics":
+                opts["free_vars"][i_cam]["A"][:] = False
+                opts["free_vars"][i_cam]["k"][:] = 0
+                opts["free_vars"][i_cam]["xi"]=False
+            elif var=="all":
+                pass
+            else:
+                raise ValueError(f"Unknown multi_vars option {var}")
+
+    if args.lock_axes:
+        for free_vars in opts["free_vars"]:
+            free_vars["A"][0, 2] = False
+            free_vars["A"][1, 2] = False
 
     return opts
 

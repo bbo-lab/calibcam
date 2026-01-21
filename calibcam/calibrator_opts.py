@@ -64,7 +64,7 @@ def get_default_opts(ncams=0, do_fill=False):
         # Value in pixels. If optimize_board_poses is true, replace the pose with higher error and insert 'nearby'
         # pose with lower error while optimizing individual board poses. In the last step, discard all detections
         # that have an error higher than this number
-        'max_allowed_res': 5.0,
+        'max_allowed_res': 50,
         # Minimum numbers of detected corners to use frame
         'corners_min_n': 5,
         # Extrinsics init frame, in cam 0 frame base
@@ -74,6 +74,8 @@ def get_default_opts(ncams=0, do_fill=False):
             'rvecs_cam': -1,
             'tvecs_cam': -1,
         },
+        # Sensorsize (usually set automatically)
+        'sensorsize': False,
 
         'detection_opts': {
             'inter_frame_dist': 3.0,  # In pixels

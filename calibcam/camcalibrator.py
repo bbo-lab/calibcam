@@ -53,11 +53,14 @@ class CamCalibrator:
         self.load_recordings(recordings, pipelines)
 
         self.boards = [Board(bp) for bp in self.resolve_board_params(board_params)]
+
+        self.opts["sensorsize"] = self.opts["sensorsize"] if self.opts["sensorsize"] \
+            else [camfunctions.get_header_from_reader(r)['sensorsize'] for r in self.readers]
         return
 
     def resolve_board_params(self, board_params):
         if board_params is None:
-            board_params = Board.from_file(Path(self.rec_file_names[0]).parent).get_board_params()
+            board_params = [b.get_board_params() for b in Board.from_file(Path(self.rec_file_names[0]).parent)]
         return board_params
 
     @staticmethod
@@ -143,29 +146,51 @@ class CamCalibrator:
 
         if isinstance(self.opts["calibration_single"], list):
             # TODO: Support True in the list instead of strings to only detect individual cams
-            assert len(self.opts["calibration_single"]) == self.opts["n_cams"], ("Number of calibration_single files "
-                                                                                 "must be equal to number of cameras")
-
             # Import saved calibration; TODO refactor
-            calibs_single = []
-            for calibration_single_file in self.opts["calibration_single"]:
-                calibration_single_file = Path(calibration_single_file)
+            if len(self.opts["calibration_single"]) == len(self.readers):
+                # individual calibration files
+                calibs_single = []
+                for calibration_single_file in self.opts["calibration_single"]:
+                    calibration_single_file = Path(calibration_single_file)
+                    if calibration_single_file.suffix == ".yml":
+                        with open(calibration_single_file, "r") as file:
+                            calibs_dict = yaml_helper.load_calib(yaml.safe_load(file))
+                            if "calibs" in calibs_dict:
+                                calibs_dict = calibs_dict["calibs"][0]  # Use 0th calibration from multicam calibration file
+                            calibs_dict = yaml_helper.collection_to_array(calibs_dict)
+                            assert "A" in calibs_dict and "k" in calibs_dict, "File did not contain valid calibration"
+                            calibs_single.append(calibs_dict)
+                    elif calibration_single_file.suffix == ".npy":
+                        calib = np.load(calibration_single_file, allow_pickle=True)[()]
+                        # For multicam_calibration files
+                        if "calibs" in calib:
+                            calib = calib["calibs"][0]
+                        calibs_single.append(calib)
+                    else:
+                        raise FileNotFoundError(f"{calibration_single_file} is not supported")
+            elif len(self.opts["calibration_single"]) == 1:
+                # Multicam calibration file
+                calibration_single_file = Path(self.opts["calibration_single"][0])
                 if calibration_single_file.suffix == ".yml":
                     with open(calibration_single_file, "r") as file:
-                        calibs_dict = yaml_helper.load_calib(yaml.safe_load(file))
+                        calibs_dict = yaml.safe_load(file)
                         if "calibs" in calibs_dict:
-                            calibs_dict = calibs_dict["calibs"][0]  # Use 0th calibration from multicam calibration file
-                        calibs_dict = yaml_helper.collection_to_array(calibs_dict)
-                        assert "A" in calibs_dict and "k" in calibs_dict, "File did not contain valid calibration"
-                        calibs_single.append(calibs_dict)
+                            calibs_single = [yaml_helper.load_calib(c) for c in calibs_dict["calibs"]]
+                        else:
+                            raise ValueError(f"File {calibration_single_file} does not contain calibration information")
                 elif calibration_single_file.suffix == ".npy":
                     calib = np.load(calibration_single_file, allow_pickle=True)[()]
                     # For multicam_calibration files
                     if "calibs" in calib:
-                        calib = calib["calibs"][0]
+                        calibs_single = calib["calibs"]
+                    else:
+                        raise ValueError(f"File {calibration_single_file} does not contain calibration information")
                     calibs_single.append(calib)
                 else:
                     raise FileNotFoundError(f"{calibration_single_file} is not supported")
+            else:
+                raise ValueError(f"Length of calibration_single must be 1 or equal to number of cameras, but is {len(self.opts['calibration_single'])}")
+
 
             # Fill with board positions for current detectionsö TODO: Refactor to separate functions
             calibs_single = self.obtain_single_cam_calibrations(self.readers, detections=detections, boards=self.boards,
@@ -312,8 +337,8 @@ class CamCalibrator:
 
             print('SAVE FIUGRE WITH DETECTIONS')
             rep_err = min_result.fun.reshape(marker_coords.shape)
-            for i_cam, (i_reader, c, err) in enumerate(zip(self.readers, marker_coords, rep_err)):
-                fig_cam = self.get_corners_cam_fig(camfunctions.get_header_from_reader(i_reader)['sensorsize'],
+            for i_cam, (c, err) in enumerate(zip(marker_coords, rep_err)):
+                fig_cam = self.get_corners_cam_fig(self.opts["sensorsize"][i_cam],
                                                    c, err)
                 fig_cam.savefig(self.data_path + f"/detections_cam_{i_cam:03d}.svg", dpi=300, bbox_inches='tight')
             print('FINISHED MULTI CAMERA CALIBRATION')
@@ -416,8 +441,7 @@ class CamCalibrator:
         if opts["parallelize"]:
             calibs_single = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count())))(
                 delayed(calibrate_single_camera)(detections[i_cam],
-                                                 camfunctions.get_header_from_reader(readers[i_cam])[
-                                                     'sensorsize'],
+                                                 opts["sensorsize"][i_cam],
                                                  boards[i_cam],
                                                  {'free_vars': opts['free_vars'][i_cam],
                                                   'aruco_calibration': opts['aruco_calibration'][i_cam],
@@ -426,8 +450,7 @@ class CamCalibrator:
                 for i_cam in camera_indexes)
         else:
             calibs_single = [calibrate_single_camera(detections[i_cam],
-                                                     camfunctions.get_header_from_reader(readers[i_cam])[
-                                                         'sensorsize'],
+                                                     opts["sensorsize"][i_cam],
                                                      boards[i_cam],
                                                      {'free_vars': opts['free_vars'][i_cam],
                                                       'aruco_calibration': opts['aruco_calibration'][i_cam],
@@ -523,8 +546,8 @@ class CamCalibrator:
 
         calibs = deepcopy(calibs)
         video_headers = [camfunctions.get_header_from_reader(r) for r in self.readers]
-        for calib, header in zip(calibs, video_headers):
-            calib['sensor_size'] = header['sensorsize']
+        for calib, sensorsize in zip(calibs, self.opts["sensorsize"],):
+            calib['sensor_size'] = sensorsize
 
         result = {
             'version': 4,  # Increase when this structure changes

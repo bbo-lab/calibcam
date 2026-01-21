@@ -43,7 +43,7 @@ def optimize_calib_parameters(corners, calibs_multi, board_points_all, opts=None
             tic = timeit.default_timer()
             result = jac(vars_free, args)
             print(
-                f"Jacobian took {timeit.default_timer() - tic} s. Shape {result.shape}.")
+                f"Jacobian took {timeit.default_timer() - tic} s. Shape {result.shape}, free vars {vars_free.size}.")
 
     if verbose > 1:
         print('Starting optimization procedure')
