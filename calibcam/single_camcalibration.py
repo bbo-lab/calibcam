@@ -56,12 +56,32 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
 
         # Object points for each frame must match corners
         board_points = board.get_board_points()
-        object_points = np.zeros((*detections_array_use[0].shape[0:2], 3))
-        object_points[:] = board_points
-        object_points[np.isnan(detections_array_use[0, :, :, 1])] = np.nan
+        detections_array_use = detections_array_use.reshape((n_used_frames, len(board_points), 2))
 
-        cal_res = cv2.omnidir.calibrate(object_points[0],  # noqa
-                                        detections_array_use[0],
+        object_points = np.zeros((*detections_array_use.shape[0:2], 3), dtype=detections_array_use.dtype)
+        object_points[:] = board_points
+        object_points[np.any(np.isnan(detections_array_use), axis=-1)] = np.nan
+
+        object_points = np.ascontiguousarray(object_points, dtype=np.float64)
+        detections_array_use = np.ascontiguousarray(detections_array_use, dtype=np.float64)
+
+        object_points = [o for o in object_points]
+        detections_array_use = [d for d in detections_array_use]
+
+        object_points_list = []
+        detections_array_list = []
+        for o, d in zip(object_points, detections_array_use):
+            mask = np.all(~np.isnan(d), axis=-1)
+            if np.any(mask):
+                object_points_list.append(np.expand_dims(o[mask], -2))
+                detections_array_list.append(np.expand_dims(d[mask], -2))
+
+        assert len(object_points_list) == len(detections_array_use), "Length of object points and detections must match!"
+        print(len(object_points_list), object_points_list[0].shape, object_points_list[0].dtype)
+        print(len(detections_array_list), detections_array_list[0].shape, detections_array_list[0].dtype)
+
+        cal_res = cv2.omnidir.calibrate(object_points_list,  # noqa
+                                        detections_array_list,
                                         sensor_size,
                                         A,
                                         xi,
