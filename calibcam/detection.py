@@ -118,21 +118,33 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
             frame = np.sqrt(frame)
             frame = (frame * 255).astype(np.uint8)
 
+        if opts['detection_opts']['clahe']:
+            if frame.dtype != np.uint8:
+                frame8 = cv2.convertScaleAbs(frame, alpha=255.0 / frame.max())
+            else:
+                frame8 = frame
+
+            lab = cv2.cvtColor(frame8, cv2.COLOR_BGR2LAB)
+            l = cv2.split(lab)[0]
+
+            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+            frame = clahe.apply(l)
+
         # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
             frame = cv2.cvtColor(frame, opts['color_convert'])  # noqa
 
-        parameters = cv2.aruco.DetectorParameters()
+        dictionary = cv2.aruco.getPredefinedDictionary(board_params["dictionary_type"])
+        parameters = finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect'])
 
-        detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),
-                                           parameters)
+        detector = cv2.aruco.ArucoDetector(dictionary, parameters["parameters"])
 
         # corner detection
         corners, ids, rejected_img_points = detector.detectMarkers(frame)
         # corners, ids, rejected_img_points = \
         #     cv2.aruco.detectMarkers(frame,  # noqa
         #                             cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
-        #                             **finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect']))
+        #                             )
 
         if len(corners) == 0:
             continue
