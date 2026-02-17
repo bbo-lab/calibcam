@@ -138,7 +138,7 @@ def make_common_pose_params(calibs, marker_coords, board_points):
     for i_pose in range(n_frames):
         repro_errors[:] = np.nan
         for i_cam, calib in enumerate(calibs):
-            assert calib['rvecs'].shape[0] == marker_coords.shape[1]
+            assert calib['rvecs'].shape[0] == marker_coords.shape[1], f"{calib['rvecs'].shape[0]} board orientations given but {marker_coords.shape[1]} marker coords"
 
             proj = cs.project(R.from_rotvec(calib['rvecs'][i_pose]).apply(board_points)
                               + calib['tvecs'][i_pose], offsets)
@@ -187,8 +187,11 @@ def make_free_parameter_mask(calibs, opts_free_vars, coord_cam_idx):
     tvecs_cam_mask[coord_cam_idx, :] = False
 
     pose_mask = np.ones(shape=(calibs[0]['tvecs'].shape[0], 2, 3), dtype=bool)
-    pose_mask[:] = opts_free_vars[0]['board_poses']
-
+    if isinstance(opts_free_vars[0]['board_poses'], np.ndarray):
+        bp_shape = opts_free_vars[0]['board_poses'].shape
+        pose_mask[:] = opts_free_vars[0]['board_poses'].reshape(bp_shape + (1,)*(3-len(bp_shape)))
+    else:
+        pose_mask[:] = opts_free_vars[0]['board_poses']
     return np.concatenate((
         rvecs_cam_mask.ravel(),
         tvecs_cam_mask.ravel(),

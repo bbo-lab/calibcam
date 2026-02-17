@@ -80,6 +80,7 @@ def get_default_opts(ncams=0, do_fill=False):
         'detection_opts': {
             'inter_frame_dist': 3.0,  # In pixels
             'min_corners': 5,  # Minimum number of corners to detect in a frame
+            'clahe': True,
             'aruco_detect': {
                 'parameters': get_detector_parameters_opts(),
             },
@@ -145,6 +146,7 @@ def fill(opts):
 def get_free_vars(model: str):
     free_vars = {
         'cam_pose': True,
+        # board_poses can be bool, or bool array shapes (n_poses,), (n_poses, 2(rot/trans),), (n_poses, 2(rot/trans), 3)
         'board_poses': True,
         'A': np.asarray([[True, False, True],  # a   c   u   (c is skew and should not be necessary)
                          [False, True, True],  # 0   b   v
