@@ -124,8 +124,11 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
             else:
                 frame8 = frame
 
-            lab = cv2.cvtColor(frame8, cv2.COLOR_BGR2LAB)
-            l = cv2.split(lab)[0]
+            if frame8.ndim>2:
+                lab = cv2.cvtColor(frame8, cv2.COLOR_BGR2LAB)
+                l = cv2.split(lab)[0]
+            else:
+                l = frame8
 
             clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
             frame = clahe.apply(l)

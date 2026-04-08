@@ -55,11 +55,15 @@ def main():
 
     args = parser.parse_args()
 
-    n_cams = len(args.videos)
+    recFileNames = args.videos
+    if Path(recFileNames[0]).is_dir():
+        from glob import glob
+        files = glob(str(Path(recFileNames[0]) / "*"))
+        recFileNames = sorted([f for f in files if f.endswith(".ccv") or f.endswith(".mp4")])
+
+    n_cams = len(recFileNames)
 
     opts = build_options(args, n_cams)
-
-    recFileNames = args.videos
 
     if args.pipelines is None:
         recPipelines = None
