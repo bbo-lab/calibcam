@@ -124,14 +124,20 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
             else:
                 frame8 = frame
 
-            if frame8.ndim>2:
-                lab = cv2.cvtColor(frame8, cv2.COLOR_BGR2LAB)
-                l = cv2.split(lab)[0]
+            if frame8.ndim > 2:
+                gray = cv2.cvtColor(frame8, cv2.COLOR_BGR2GRAY)
             else:
-                l = frame8
+                gray = frame8
 
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            frame = clahe.apply(l)
+    # stronger CLAHE
+            clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+            frame = clahe.apply(gray)
+
+    # NEW: normalize brightness (important for overexposure)
+            frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+
+    # slight blur
+            frame = cv2.GaussianBlur(frame, (3, 3), 0)
 
         # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
