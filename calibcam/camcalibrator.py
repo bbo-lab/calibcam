@@ -6,6 +6,9 @@ from glob import glob
 from pathlib import Path
 
 import cv2
+import matplotlib
+matplotlib.use('Agg')
+
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
@@ -82,8 +85,7 @@ class CamCalibrator:
                     reader = fg['out']
                 self.readers.append(reader)
         except ValueError:
-            print('At least one unsupported format supplied')
-            raise UnsupportedFormatException
+            raise UnsupportedFormatException('At least one unsupported format supplied')
 
         self.rec_file_names = recordings
         self.rec_pipelines = pipelines
@@ -339,7 +341,8 @@ class CamCalibrator:
             rep_err = min_result.fun.reshape(marker_coords.shape)
             for i_cam, (c, err) in enumerate(zip(marker_coords, rep_err)):
                 fig_cam = self.get_corners_cam_fig(self.opts["sensorsize"][i_cam],
-                                                   c, err)
+                                                   c, 
+                                                   err)
                 fig_cam.savefig(self.data_path + f"/detections_cam_{i_cam:03d}.svg", dpi=300, bbox_inches='tight')
             print('FINISHED MULTI CAMERA CALIBRATION')
         else:

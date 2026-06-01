@@ -13,7 +13,7 @@ Multi-camera calibration in calibcam works as follows:
 > First, OpenCV is used for single camera calibration, followed by an initial estimation of camera positions and orientations. Subsequently, all intrinsic and extrinsic parameters are optimised for reprojection error using [Jax](https://github.com/google/jax) autograd.
 
 Major features:
-- Allows calibration of **camera setups consisting of multiple lens** types ex: a combination of omnidirectional and perspective cameras.
+- Allows calibration of **camera setups consisting of multiple lens** types ex: a combination of omnidirectional and pinhole cameras.
 - **Flexibility** to fix or optimize individual intrinsic and extrinsic parameters as needed, allowing users to leverage prior knowledge or constraints about their camera setup.
 - **Modular pipeline** allows users to perform individual steps of the calibration process, such as detection, single camera calibration, and multi-camera calibration.
 - **Direct video support** (.mp4 or .ccv) for calibration data input, given the videos are synchronised or have a constant frame offset.

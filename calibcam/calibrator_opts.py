@@ -51,9 +51,7 @@ def get_default_opts(ncams=0, do_fill=False):
         'detect_cpu_divisor': 6,
         # Use radial contrast value for rejecting corners, check rejection params below in detection_opts
         'RC_reject_corners': False,
-        # DEPRECATED
-        # Do not perform detection and single cam calibration. (Disable mostly for development.)
-        'optimize_only': False,
+
         # Use 2-point numerical jacobian instead of jax.jacobian
         'numerical_jacobian': False,
         # Optimise individual cameras immediately after performing opencv single calibration
@@ -128,6 +126,8 @@ def fill(opts):
         opts["models"] = opts["n_cams"] * ["pinhole"]
     if len(opts["models"]) == 1:
         opts["models"] *= opts["n_cams"]
+
+    assert len(opts["models"]) == opts["n_cams"], "Number of camera models must match number of cameras!"
 
     if not opts["free_vars"]:
         opts["free_vars"] = [get_free_vars(model) for model in opts["models"]]
