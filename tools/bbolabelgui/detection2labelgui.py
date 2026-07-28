@@ -45,10 +45,10 @@ def main(calibration_file, label_path=None, reference_path=None):
         pixel_coords = cs.project(points).transpose([1, 0, 2])
 
         for coords, id in zip(pixel_coords, used_aruco_ids):
-            reference_labels_dict["labels"][f"corner_{id:03d}"][frame_idx] = {}
-            reference_labels_dict["labels"][f"corner_{id:03d}"][frame_idx]["coords"] = coords
-            reference_labels_dict["labels"][f"corner_{id:03d}"][frame_idx]["labeler"] = labeler
-            reference_labels_dict["labels"][f"corner_{id:03d}"][frame_idx]["point_times"] = times
+            reference_labels_dict["labels"][f"corner_{id:04d}"][frame_idx] = {}
+            reference_labels_dict["labels"][f"corner_{id:04d}"][frame_idx]["coords"] = coords
+            reference_labels_dict["labels"][f"corner_{id:04d}"][frame_idx]["labeler"] = labeler
+            reference_labels_dict["labels"][f"corner_{id:04d}"][frame_idx]["point_times"] = times
     label_lib.save(reference_path, reference_labels_dict, yml_only=True)
     print(f"Saved {reference_path}")
 
@@ -56,10 +56,10 @@ def main(calibration_file, label_path=None, reference_path=None):
     labels_dict = get_empty_labels_dict(used_aruco_ids)
     for corners_frame, frame_idx in zip(corners, used_frames_ids):
         for coords, id in zip(corners_frame, used_aruco_ids):
-            labels_dict["labels"][f"corner_{id:03d}"][frame_idx] = {}
-            labels_dict["labels"][f"corner_{id:03d}"][frame_idx]["coords"] = coords
-            labels_dict["labels"][f"corner_{id:03d}"][frame_idx]["labeler"] = labeler
-            labels_dict["labels"][f"corner_{id:03d}"][frame_idx]["point_times"] = times
+            labels_dict["labels"][f"corner_{id:04d}"][frame_idx] = {}
+            labels_dict["labels"][f"corner_{id:04d}"][frame_idx]["coords"] = coords
+            labels_dict["labels"][f"corner_{id:04d}"][frame_idx]["labeler"] = labeler
+            labels_dict["labels"][f"corner_{id:04d}"][frame_idx]["point_times"] = times
     label_lib.save(label_path, labels_dict, yml_only=True)
     print(f"Saved {label_path}")
 
@@ -83,7 +83,7 @@ def get_empty_labels_dict(used_aruco_ids):
     }
 
     for id in used_aruco_ids:
-        labels_dict["labels"][f"corner_{id:03d}"] = {}
+        labels_dict["labels"][f"corner_{id:04d}"] = {}
 
     return labels_dict
 

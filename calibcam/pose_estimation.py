@@ -159,7 +159,7 @@ def estimate_cam_poses_multiframe(calibs, cams_oriented, detections, detections_
             if len(Ts_wo2wr) > 1:
                 T_wo2wr = Ts_wo2wr.nanmean()
             else:
-                T_wo2wr = Ts_wo2wr
+                T_wo2wr = Ts_wo2wr[0]
 
             errs_R = np.linalg.norm(
                 (T_wo2wr.get_rotation().inv() * Ts_wo2wr.get_rotation()).as_rotvec(), axis=1
