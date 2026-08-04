@@ -16,7 +16,7 @@ def get_default_opts(ncams=0, do_fill=False):
 
         # === Frame selection
         "frames_start": 0,
-        "frames_end": sys.maxsize,
+        "frames_end": int(sys.maxsize/10),  # /10 prevents overflows from offsets
         "frames_step": 1,
         # == or overwriting any of the above
         "frames_lists": False,
