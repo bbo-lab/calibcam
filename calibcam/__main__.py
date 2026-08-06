@@ -76,8 +76,18 @@ def main():
         required=False,
         nargs="*",
         default=False,
-        help='Must be either "pinhole" or "omnidir". Can be a single model for all cameras, or a list of models for each camera.',
+        choices=("pinhole", "omnidir"),
+        help='Defines the initial OpenCV optimization model for each camera.',
     )
+    parser.add_argument(
+        "--projection",
+        type=str,
+        required=False,
+        default="perspective",
+        choices=("perspective", "fisheye_equidistant"),
+        help='Defines the projection model for each camera, will use model if set to None.',
+    )
+
     parser.add_argument(
         "--numerical_jacobian",
         required=False,
@@ -205,6 +215,8 @@ def build_args_into_opts(opts, args, n_cams):
         opts["numerical_jacobian"] = args.numerical_jacobian
     if args.models:
         opts["models"] = args.models
+    if args.projection:
+        opts["projection_models"] = args.projection
     if args.gamma_correction:
         opts["gamma_correction"] = True
     if args.init_extrinsics[0] is not None:

@@ -28,6 +28,8 @@ def get_default_opts(ncams=0, do_fill=False):
         'n_cams': ncams,
         # Camera models. Will be filled with opts["n_cams"]*["pinhole"] if left False
         'models': False,
+        # Projection model, Will be filled with "perspective" if left False. Options: "perspective", "fisheye_equidistant"
+        'projection_models': False,
         # Free variables. Will be filled with get_free_vars() if left False
         'free_vars': False,
 
@@ -123,7 +125,7 @@ def get_default_opts(ncams=0, do_fill=False):
 
 def fill(opts):
     if not opts["models"]:
-        opts["models"] = opts["n_cams"] * ["pinhole"]
+        opts["models"] = ["pinhole"]
     if len(opts["models"]) == 1:
         opts["models"] *= opts["n_cams"]
 

@@ -1,11 +1,12 @@
 import cv2
 import numpy as np
 from ccvtools import rawio  # noqa
+import logging
 
 from calibcamlib import Board, Detections
+logger = logging.getLogger(__name__)
 
-
-def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Board, opts, mask=None, calib_init=None):
+def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Board, opts, mask=None, calib_init=None, projection_model='perspective'):
     if calib_init is not None:
         A = calib_init['A']
         k = calib_init['k']
@@ -20,11 +21,10 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
 
     detections_cam_array = detections_cam.to_array()
     if mask is None:
-        mask = np.sum(~np.isnan(detections_cam_array["marker_coords"][0, :, :, 1]),
-                      axis=1) >= opts[
-                   'corners_min_n']  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
+        mask = (np.sum(~np.isnan(detections_cam_array["marker_coords"][0, :, :, 1]), axis=1)
+                >= opts['corners_min_n'])  # Test for degeneration should be performed beforehand and respective frames excluded from corner array
 
-    n_used_frames = np.sum(mask)
+    n_used_frames = np.count_nonzero(mask)
 
     if n_used_frames == 0:
         return {}
@@ -48,14 +48,15 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         'stdDeviationsExtrinsics': False,
         'perViewErrors': False,
     }
-
-    if opts['free_vars']['xi']:
+    if opts['free_vars']['xi'] or projection_model == 'fisheye_equidistant':
         # Omnidir camera model
         if k is not None:
             k = k.reshape(1, -1)[:, :4]
 
         # Object points for each frame must match corners
         board_points = board.get_board_points()
+        if detections_array_use.shape[-2] != len(board_points):
+            logger.log(logging.WARNING, f"Number of detected corners {detections_array_use.shape[-2]} does not match number of board points {len(board_points)}, maybe you picked the wrong board?")
         detections_array_use = detections_array_use.reshape((n_used_frames, len(board_points), 2))
 
         object_points = np.zeros((*detections_array_use.shape[0:2], 3), dtype=detections_array_use.dtype)
@@ -90,6 +91,16 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
 
         retval, A, xi, k, rvecs_used, tvecs_used, idxs_used = cal_res
 
+        if projection_model == "fisheye_equidistant":
+            #Equidistant doesn't have a camera shift. We thus apply the shift as an equivalent scaling factor
+            A[:, 0:2] = A[:, 0:2] / (xi + 1)
+            xi = 0
+        elif projection_model is None or projection_model == "perspective":
+            pass
+        else:
+            raise ValueError(f"Unknown projection model: {projection_model}")
+
+        cal['projection_model'] = projection_model
         cal['A'] = np.asarray(A)
         cal['xi'] = np.asarray(xi)
         cal['k'] = np.concatenate((k.squeeze(), [0.0]))
@@ -101,6 +112,7 @@ def calibrate_single_camera(detections_cam: Detections, sensor_size, board: Boar
         tvecs = np.full(shape=(len(detection_idxs_use), 3), fill_value=np.nan)
         tvecs[idxs_used] = np.asarray(tvecs_used).reshape((-1, 3))
         cal['tvecs'] = tvecs
+
     else:
         detections_list_use = Detections.from_array({
             "marker_coords": detections_array_use,

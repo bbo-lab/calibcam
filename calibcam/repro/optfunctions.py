@@ -16,8 +16,8 @@ import timeit
 
 def get_precalc(opts):
     return {
-        'objfunc': jit(opt_ag.obj_fcn, backend=opts["jax_backend"]),
-        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var), backend=opts["jax_backend"]) for i_var in range(7)]
+        'objfunc': jit(opt_ag.obj_fcn, static_argnames=["projection_model"], backend=opts["jax_backend"]),
+        'jacobians': [jit(jacobian(opt_ag.obj_fcn, i_var), static_argnames=["projection_model"], backend=opts["jax_backend"]) for i_var in range(7)]
     }
 
 
@@ -27,6 +27,7 @@ def obj_fcn_wrapper(vars_opt, args):
     corners_mask = np.isnan(corners)
     corners[corners_mask] = 0
     board_coords_3d_0 = args['board_coords_3d_0']
+    projection_model = args['projection_model']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams, n_boards = optimization.make_vars_full(vars_opt, args)
@@ -49,7 +50,8 @@ def obj_fcn_wrapper(vars_opt, args):
         rvecs_boards,
         tvecs_boards,
         board_coords_3d_0,
-        corners
+        corners,
+        projection_model
     ))  # Make np array since JAX arrays are immutable.
 
     # Residuals of untracked corners are invalid
@@ -66,6 +68,7 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
     corners = args['corners']
     corners_mask = np.isnan(corners)
     board_coords_3d_0 = args['board_coords_3d_0']
+    projection_model = args['projection_model']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams, n_boards = optimization.make_vars_full(vars_opt, args)
@@ -91,7 +94,8 @@ def obj_fcn_jacobian_wrapper_full(vars_opt, args):
                 rvecs_boards,
                 tvecs_boards,
                 board_coords_3d_0,
-                corners
+                corners,
+                projection_model
             ).reshape(corners.shape + (-1,))  # Ravel over input dimensions
         ) if np.any(var_masks[i_var]) else np.zeros(shape=corners.shape + (var_masks[i_var].size,))
         for i_var in range(7)
@@ -123,6 +127,7 @@ def obj_fcn_jacobian_wrapper_sparse(vars_opt, args) -> np.ndarray:
     corners_mask = np.isnan(corners)
     corners[corners_mask] = 0
     board_coords_3d_0 = args['board_coords_3d_0']
+    projection_model = args['projection_model']
 
     # Fill vars_full from initialization with vars_opts
     vars_full, n_cams, n_boards = optimization.make_vars_full(vars_opt, args)
@@ -164,7 +169,8 @@ def obj_fcn_jacobian_wrapper_sparse(vars_opt, args) -> np.ndarray:
             rvecs_boards,
             tvecs_boards,
             board_coords_3d_0,
-            corners
+            corners,
+            projection_model
         ))
         j[np.isnan(j)] = 0  # Necessary?
         # Set undetected corners to 0
@@ -204,7 +210,8 @@ def obj_fcn_jacobian_wrapper_sparse(vars_opt, args) -> np.ndarray:
                     rvecs_boards[(i_k,),],
                     tvecs_boards[(i_k,),],
                     board_coords_3d_0,
-                    corners[:, (i_k,),]
+                    corners[:, (i_k,),],
+                    projection_model
                 ))
                 # Set undetected corners to 0
                 j[corners_mask[:, (i_k,),], :] = 0
@@ -237,7 +244,8 @@ def obj_fcn_jacobian_wrapper_sparse(vars_opt, args) -> np.ndarray:
             rvecs_boards(),
             tvecs_boards,
             board_coords_3d_0,
-            corners
+            corners,
+            projection_model
         ).reshape(result_size, -1))
         j[np.isnan(j)] = 0  # Necessary?
         # Set undetected corners to 0

@@ -5,6 +5,11 @@ from scipy.optimize import least_squares, OptimizeResult
 
 from calibcam import optimization, helper, calibrator_opts
 from calibcam.exceptions import *
+import pandas as pd
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 def optimize_calib_parameters(corners, calibs_multi, board_points_all, opts=None, verbose=None):
@@ -77,6 +82,7 @@ def make_optim_input(board_points_all, calibs_multi, marker_coords, opts):
         'board_coords_3d_0': board_points_all,  # Board points in z plane
         'corners': marker_coords,
         'precalc': optimization.get_precalc(opts),
+        'projection_model': opts.get('projection_models', 'perspective'),
         # Inapplicable tue to autograd slice limitations
         # 'memory': {  # References to memory that can be reused, avoiding cost of reallocation
         #     'residuals': np.zeros_like(corners),
@@ -121,7 +127,7 @@ def get_header_from_reader(reader):
     return header
 
 
-def test_objective_function(calibs, vars_free, args, corners_detection, board_points, individual_poses=False):
+def test_objective_function(calibs, vars_free, args, corners_detection, board_points, individual_poses=False, frame_idxs = None):
     from calibcamlib import Camerasystem
     from scipy.spatial.transform import Rotation as R  # noqa
 
@@ -155,6 +161,23 @@ def test_objective_function(calibs, vars_free, args, corners_detection, board_po
     print("Testing objective function vs cameralib")
     if individual_poses:
         print("(Minor differences possible due to common board pose in objfun)")
+
+    assert frame_idxs is not None
+    if frame_idxs is not None:
+        distance = np.linalg.norm(residuals_objfun, axis=-1)
+        columns = {
+            'cam': np.repeat(np.arange(residuals_objfun.shape[0]), residuals_objfun.shape[1] * residuals_objfun.shape[2]),
+            'frame_idx': np.repeat(frame_idxs.flatten(), residuals_objfun.shape[2]),
+            'distance': distance.flatten(),
+        }
+        df = pd.DataFrame(columns)
+        logger.log(logging.INFO, df.nlargest(20, 'distance').to_string())
+        df_frame_aggregates = (
+            df.groupby('frame_idx')
+                .agg(max_distance=('distance', 'max'),avg_distance=('distance', 'mean'))
+                .reset_index())
+        logger.log(logging.INFO, df_frame_aggregates.nlargest(20, 'max_distance').to_string())
+
     print("Cam | "
           "n objfun      | "
           "n cameralib   | "

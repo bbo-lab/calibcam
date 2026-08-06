@@ -56,6 +56,20 @@ def to_ideal_plane(boards_coords_3d):
     return boards_coords_3d
 
 
+def to_ideal_plane_fisheye_equidistant(boards_coords_3d):
+    length = np.sqrt(np.square(boards_coords_3d[..., 0]) + np.square(boards_coords_3d[..., 1]))
+    #length = np.where(length != 0, np.arctan2(length, -boards_coords_3d[..., 2]) / length, 0)
+    length = np.where(length != 0, np.arctan2(length, boards_coords_3d[..., 2]) / length, 0)
+
+    boards_coords_ideal = np.stack(
+        (boards_coords_3d[..., 0] * length,
+         boards_coords_3d[..., 1] * length,
+         np.ones_like(boards_coords_3d[..., 2])), axis=-1)
+    return boards_coords_ideal
+
+
+
+
 def distort(boards_coords_ideal, ks):
     ks = ks.reshape((-1,)+(1,)*(len(boards_coords_ideal.shape)-2)+(ks.shape[-1],))
     r2 = np.sum(boards_coords_ideal[..., 0:2] ** 2, axis=-1, keepdims=True)

@@ -115,8 +115,8 @@ class CamCalibrator:
         # === Detection ===
         if isinstance(self.opts["detection"], list):
             # TODO: Support True in the list instead of strings to only detect individual cams
-            assert len(self.opts["detection"]) == self.opts["n_cams"], ("Number of detection files must be equal "
-                                                                        "to number of cameras")
+            assert len(self.opts["detection"]) == self.opts["n_cams"], (f"Number of detection files {len(self.opts['detection'])} must be equal "
+                                                                        f"to number of cameras {self.opts['n_cams']}")
             print("Loading detections from files")
             detections = Detections.from_file(self.opts["detection"])
         elif self.opts["detection"]:
@@ -261,7 +261,7 @@ class CamCalibrator:
                 args, vars_free = make_optim_input(
                     board_points_all, calibs_multi, marker_coords, self.opts)
                 test_objective_function(calibs_multi, vars_free, args, marker_coords, board_points_all,
-                                        individual_poses=True)
+                                        individual_poses=True, frame_idxs=frame_idxs)
 
             print('OPTIMIZING ALL POSES')
             # self.plot(calibs_single, corners, used_frames_ids, self.board_params, 3, 35)
@@ -271,7 +271,7 @@ class CamCalibrator:
             if self.opts['debug']:
                 calibs_fit = helper.combine_calib_with_board_poses(calibs_fit, rvecs_boards, tvecs_boards)
                 test_objective_function(calibs_fit, min_result.x, args, marker_coords, board_points_all,
-                                        individual_poses=True)
+                                        individual_poses=True, frame_idxs=frame_idxs)
 
             print('OPTIMIZING ALL PARAMETERS I')
             calibs_fit, rvecs_boards, tvecs_boards, min_result, args = self.optimize_calibration(
@@ -297,7 +297,7 @@ class CamCalibrator:
             # No board poses in final calibration!
             calibs_test = helper.combine_calib_with_board_poses(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
             test_objective_function(calibs_test, min_result.x, args, marker_coords, board_points_all,
-                                    individual_poses=True)
+                                    individual_poses=True, frame_idxs=frame_idxs)
 
             print('OPTIMIZING ALL PARAMETERS III - Removed high error frames')
             # At this point, there does not seem to be any hope to recover high error frames. We recalibrate without
@@ -327,7 +327,7 @@ class CamCalibrator:
 
             calibs_test = helper.combine_calib_with_board_poses(calibs_fit, rvecs_boards, tvecs_boards, copy=True)
             test_objective_function(calibs_test, min_result.x, args, marker_coords, board_points_all,
-                                    individual_poses=True)
+                                    individual_poses=True, frame_idxs=frame_idxs)
 
             print('SAVE MULTI CAMERA CALIBRATION')
             result = self.build_result(calibs_fit, used_frames_ids=frame_idxs)
@@ -449,6 +449,7 @@ class CamCalibrator:
                                                  {'free_vars': opts['free_vars'][i_cam],
                                                   'aruco_calibration': opts['aruco_calibration'][i_cam],
                                                   'corners_min_n': opts['corners_min_n'],
+                                                  'projection_model': opts.get('projection_models', "perspective")
                                                   })
                 for i_cam in camera_indexes)
         else:
@@ -458,7 +459,8 @@ class CamCalibrator:
                                                      {'free_vars': opts['free_vars'][i_cam],
                                                       'aruco_calibration': opts['aruco_calibration'][i_cam],
                                                       'corners_min_n': opts['corners_min_n'],
-                                                      }) for i_cam in camera_indexes]
+                                                      },
+                                                     projection_model=opts.get('projection_models', "perspective")) for i_cam in camera_indexes]
 
         for i_cam, calib in enumerate(calibs_single):
             print(

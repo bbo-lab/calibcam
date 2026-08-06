@@ -217,6 +217,7 @@ def unravel_to_calibs(vars_opt, args):
             'A': cam_matrices[i_cam],
             'xi': xis[i_cam],
             'k': ks[i_cam],
+            'projection_model': args['projection_model']
         }
         for i_cam in range(n_cams)
     ]
