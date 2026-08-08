@@ -15,6 +15,7 @@ from calibcamlib import Board, Detections
 
 def detect_corners(rec_file_names, boards, opts, rec_pipelines=None):
     print('DETECTING FEATURES')
+
     if isinstance(opts['frames_offsets'], bool):
         frames_offsets = np.zeros(len(rec_file_names))
     else:
@@ -28,6 +29,15 @@ def detect_corners(rec_file_names, boards, opts, rec_pipelines=None):
         frames_end = opts['frames_end']
         frames_step = opts['frames_step']
 
+        # ============================================================
+        # REPLACE THIS LIST WITH THE OUTPUT FROM analyze_coverage.py
+        # Example:
+        # best_frames = [0, 7, 15, 23, 40, 58]
+        # ============================================================
+        best_frames = [
+            # paste your selected diverse frames here
+        ]
+
         frames_lists = []
         for rec_file_name, rec_pipeline, offset in zip(rec_file_names, rec_pipelines, frames_offsets):
             reader = filtergraph.get_reader(rec_file_name, backend="iio", cache=False)
@@ -35,13 +45,18 @@ def detect_corners(rec_file_names, boards, opts, rec_pipelines=None):
                 fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
                 reader = fg['out']
 
-            frames_list = np.arange(
-                frames_start + offset,
-                min(frames_end + offset, camfunctions.get_n_frames_from_reader(reader)),
-                frames_step,
-                dtype=int
-            )
+            if len(best_frames) > 0:
+                frames_list = np.array(best_frames, dtype=int)
+            else:
+                frames_list = np.arange(
+                    frames_start + offset,
+                    min(frames_end + offset, camfunctions.get_n_frames_from_reader(reader)),
+                    frames_step,
+                    dtype=int
+                )
+
             frames_lists.append(frames_list)
+
     else:
         frames_lists = opts['frames_lists']
 
@@ -64,18 +79,28 @@ def detect_corners(rec_file_names, boards, opts, rec_pipelines=None):
 
     if not opts["parallelize"]:
         detections_cams = []
-        for rec_file_name, brd, frames_list, offset, rec_pipeline \
-                in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines):
-            detections_cams.append(detect_corners_cam(
-                rec_file_name, opts, brd, frames_list, rec_pipeline=rec_pipeline))
+        for rec_file_name, brd, frames_list, offset, rec_pipeline in zip(
+            rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines
+        ):
+            detections_cams.append(
+                detect_corners_cam(
+                    rec_file_name,
+                    opts,
+                    brd,
+                    frames_list,
+                    rec_pipeline=rec_pipeline
+                )
+            )
     else:
-        detections_cams = Parallel(n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor'])))(
+        detections_cams = Parallel(
+            n_jobs=int(np.floor(multiprocessing.cpu_count() // opts['detect_cpu_divisor']))
+        )(
             delayed(detect_corners_cam)(rec_file_name, opts, brd, frames_list, rec_pipeline=rec_pipeline)
             for rec_file_name, brd, frames_list, offset, rec_pipeline
-            in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines))
+            in zip(rec_file_names, boards, frames_lists, frames_offsets, rec_pipelines)
+        )
 
     detections = sum(detections_cams, Detections())
-
     return detections
 
 
@@ -88,13 +113,9 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
         fg = filtergraph.create_filtergraph_from_string([reader], rec_pipeline)
         reader = fg['out']
 
-    # We take offset into consideration at corner detection level. This means that the calibration parameters always
-    # refer to the offset-free pixel positions and offsets do NOT have to be taken into account anywhere in
-    # this calibration procedure or when working with the
     offset_x, offset_y = camfunctions.get_header_from_reader(reader)['offset']
 
     if opts['RC_reject_corners']:
-        # Reject corners based on radial contrast value
         RC_params = opts['detection_opts']['radial_contrast_reject']
         RC_reader = helper.RadialContrast(reader, **RC_params)
 
@@ -105,13 +126,12 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
     corners_cam = []
     ids_cam = []
     detection_idxs_cam = []
+    visited_cells = set()
 
-    # Detect corners over cams
     for i_fr, frame_idx in enumerate(frames_list):
-
         frame = reader.get_data(frame_idx)
 
-        if opts.get("gamma_correction", None) is not None:  # TODO: Generalize this
+        if opts.get("gamma_correction", None) is not None:
             frame -= np.min(frame)
             frame = frame.astype(np.float64)
             frame /= np.max(frame)
@@ -124,88 +144,108 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
             else:
                 frame8 = frame
 
-            if frame8.ndim>2:
-                lab = cv2.cvtColor(frame8, cv2.COLOR_BGR2LAB)
-                l = cv2.split(lab)[0]
+            if frame8.ndim > 2:
+                gray = cv2.cvtColor(frame8, cv2.COLOR_BGR2GRAY)
             else:
-                l = frame8
+                gray = frame8
 
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            frame = clahe.apply(l)
+            clahe = cv2.createCLAHE(clipLimit=4.0, tileGridSize=(8, 8))
+            frame = clahe.apply(gray)
+            frame = cv2.normalize(frame, None, 0, 255, cv2.NORM_MINMAX)
+            frame = cv2.GaussianBlur(frame, (3, 3), 0)
 
-        # color management
         if not isinstance(opts['color_convert'], bool) and len(frame.shape) > 2:
             frame = cv2.cvtColor(frame, opts['color_convert'])  # noqa
 
         dictionary = cv2.aruco.getPredefinedDictionary(board_params["dictionary_type"])
         parameters = finalize_aruco_detector_opts(opts['detection_opts']['aruco_detect'])
-
         detector = cv2.aruco.ArucoDetector(dictionary, parameters["parameters"])
 
-        # corner detection
         corners, ids, rejected_img_points = detector.detectMarkers(frame)
-        # corners, ids, rejected_img_points = \
-        #     cv2.aruco.detectMarkers(frame,  # noqa
-        #                             cv2.aruco.getPredefinedDictionary(board_params['dictionary_type']),  # noqa
-        #                             )
 
         if len(corners) == 0:
             continue
 
         board_obj = board.get_cv2_board()
 
-        # corner refinement
-        corners_ref, ids_ref = \
-            cv2.aruco.refineDetectedMarkers(frame,  # noqa
-                                            board_obj,
-                                            corners,
-                                            ids,
-                                            rejected_img_points,
-                                            **finalize_aruco_detector_opts(opts['detection_opts']['aruco_refine']))[0:2]
+        corners_ref, ids_ref = cv2.aruco.refineDetectedMarkers(
+            frame,
+            board_obj,
+            corners,
+            ids,
+            rejected_img_points,
+            **finalize_aruco_detector_opts(opts['detection_opts']['aruco_refine'])
+        )[0:2]
 
-        # corner interpolation
-        retval, charuco_corners, charuco_ids = \
-            cv2.aruco.interpolateCornersCharuco(corners_ref,  # noqa
-                                                ids_ref,
-                                                frame,
-                                                board_obj,
-                                                **opts['detection_opts']['aruco_interpolate'])
+        retval, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
+            corners_ref,
+            ids_ref,
+            frame,
+            board_obj,
+            **opts['detection_opts']['aruco_interpolate']
+        )
+
         if charuco_corners is None:
             continue
 
         if opts['RC_reject_corners']:
-            # Reject corners based on radial contrast value
             RC_frame = RC_reader.read(frame_idx)
             corners_frame = np.squeeze(charuco_corners).astype(int).T
             RC_bool = RC_frame[tuple(corners_frame[::-1, np.newaxis])] > 0
             charuco_ids = charuco_ids[RC_bool[0]]
             charuco_corners = charuco_corners[RC_bool[0]]
 
-        # check if the result is degenerated (all corners on a line)
-        if not helper.check_detections_nondegenerate(board_params['boardWidth'], charuco_ids,
-                                                     opts['detection_opts']['min_corners']):
+        if not helper.check_detections_nondegenerate(
+            board_params['boardWidth'],
+            charuco_ids,
+            opts['detection_opts']['min_corners']
+        ):
             continue
 
-        # add offset
         charuco_corners[:, :, 0] = charuco_corners[:, :, 0] + offset_x
         charuco_corners[:, :, 1] = charuco_corners[:, :, 1] + offset_y
 
-        # check against last used frame
         if len(detection_idxs_cam) > 0:
             ids_common = np.intersect1d(ids_cam[-1], charuco_ids)
 
-            # TODO Check if replacement with current frame in case of more detections is feasible.
-            # Should be a fringe problem, though
-            if helper.check_detections_nondegenerate(board_params['boardWidth'], ids_common,
-                                                     opts['detection_opts']['min_corners']):
+            if helper.check_detections_nondegenerate(
+                board_params['boardWidth'],
+                ids_common,
+                opts['detection_opts']['min_corners']
+            ):
                 prev_mask = np.isin(ids_cam[-1], ids_common)
                 curr_mask = np.isin(charuco_ids, ids_common)
 
-                diff = corners_cam[-1][prev_mask] - charuco_corners[curr_mask]
-                dist = np.sqrt(np.sum(diff ** 2, 1))
+                prev_pts = corners_cam[-1][prev_mask].reshape(-1, 2)
+                curr_pts = charuco_corners[curr_mask].reshape(-1, 2)
 
-                if np.max(dist) < opts['detection_opts']['inter_frame_dist']:
+                diff = prev_pts - curr_pts
+                dist = np.sqrt(np.sum(diff ** 2, axis=1))
+
+                prev_center = np.mean(prev_pts, axis=0)
+                curr_center = np.mean(curr_pts, axis=0)
+                center_shift = np.linalg.norm(prev_center - curr_center)
+
+                grid_x = int(curr_center[0] // 300)
+                grid_y = int(curr_center[1] // 250)
+                current_cell = (grid_x, grid_y)
+
+                if (
+                    current_cell in visited_cells
+                    and np.max(dist) < opts['detection_opts']['inter_frame_dist']
+                    and center_shift < 100
+                ):
                     continue
+
+                visited_cells.add(current_cell)
+        else:
+            # first accepted frame
+            curr_pts = charuco_corners.reshape(-1, 2)
+            curr_center = np.mean(curr_pts, axis=0)
+            grid_x = int(curr_center[0] // 300)
+            grid_y = int(curr_center[1] // 250)
+            current_cell = (grid_x, grid_y)
+            visited_cells.add(current_cell)
 
         corners_cam.append(charuco_corners)
         ids_cam.append(charuco_ids + board_start_id)
@@ -220,4 +260,4 @@ def detect_corners_cam(video, opts, board: Board, frames_list, rec_pipeline=None
         "frame_idxs": frames_list[detection_idxs_cam],
     }
 
-    return Detections.from_list(markers_list)  # corners_cam, ids_cam, fin_frames_mask
+    return Detections.from_list(markers_list)
