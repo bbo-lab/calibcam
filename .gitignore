@@ -139,3 +139,6 @@ test/out
 
 examples/*.npy
 examples/*.png
+
+.DS_Store
+venv/
