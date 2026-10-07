@@ -78,6 +78,17 @@ def get_default_opts(ncams=0, do_fill=False):
         'sensorsize': False,
 
         'detection_opts': {
+            'backend': 'opencv',
+            'nanodeepcharuco': {
+                'project_root': None,
+                'nano_executable': None,
+                'deep_checkpoint': None,
+                'refinenet_checkpoint': None,
+                'config_path': None,
+                'device': None,
+                'work_dir': None,
+                'keep_work': False,
+            },
             'inter_frame_dist': 3.0,  # In pixels
             'min_corners': 5,  # Minimum number of corners to detect in a frame
             'clahe': True,
