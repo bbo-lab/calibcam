@@ -26,7 +26,7 @@ def _normalize_nanodeep_config_paths(config):
     )
 
     for key in path_keys:
-        if config.get(key) is not None:
+        if config.get(key):
             config[key] = str(config[key])
 
     return config
@@ -71,8 +71,8 @@ def _build_nanodeep_detector(board, config):
         project_root=config["project_root"],
         deep_checkpoint=config["deep_checkpoint"],
         refinenet_checkpoint=config["refinenet_checkpoint"],
-        config_path=config.get("config_path"),
-        device=config.get("device"),
+        config_path=config.get("config_path") or None,
+        device=config.get("device") or None,
     ).load()
 
     return NanoDeepCharucoDetector(

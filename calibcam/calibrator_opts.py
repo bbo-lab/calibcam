@@ -80,13 +80,13 @@ def get_default_opts(ncams=0, do_fill=False):
         'detection_opts': {
             'backend': 'opencv',
             'nanodeepcharuco': {
-                'project_root': None,
-                'nano_executable': None,
-                'deep_checkpoint': None,
-                'refinenet_checkpoint': None,
-                'config_path': None,
-                'device': None,
-                'work_dir': None,
+                'project_root': False,
+                'nano_executable': False,
+                'deep_checkpoint': False,
+                'refinenet_checkpoint': False,
+                'config_path': False,
+                'device': False,
+                'work_dir': False,
                 'keep_work': False,
             },
             'inter_frame_dist': 3.0,  # In pixels

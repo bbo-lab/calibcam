@@ -1,4 +1,5 @@
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ import cv2
 import numpy as np
 import svidreader
 import yaml
+from scipy.io import savemat
 
 from calibcam import helper
 from calibcam.calibrator_opts import get_default_opts
@@ -129,6 +131,15 @@ class TestDetection(unittest.TestCase):
         assert first.startswith("camera_")
         assert second.startswith("camera_")
         assert first != second
+
+    def test_default_opts_are_mat_serializable(self):
+        opts = get_default_opts(1, do_fill=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mat") as tmp:
+            savemat(
+                tmp.name,
+                {"opts": opts},
+            )
 
     def test_nanodeep_path_options_are_serializable(self):
         config = {
