@@ -1,14 +1,24 @@
 import os
+import tempfile
 import unittest
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
 import svidreader
 import yaml
+from scipy.io import savemat
 
 from calibcam import helper
 from calibcam.calibrator_opts import get_default_opts
-from calibcam.detection import detect_corners_cam
+from calibcam.detection import (
+    _nanodeep_corners_to_charuco,
+    _nanodeep_frame_prefix,
+    _normalize_nanodeep_config_paths,
+    detect_corners_cam,
+)
 from calibcamlib import Board, Detections
 
 
@@ -73,6 +83,228 @@ class TestDetection(unittest.TestCase):
 
                         # print('contrast_pixel:', img[tuple(np.asarray(corner, dtype=int)[::-1,np.newaxis])])
                 print(F"accepted {count} of {len(np.squeeze(ids[i]))} in frame {frame_idx}")
+
+    def test_nanodeep_corners_to_charuco(self):
+        corners_by_id = {
+            5: np.array([50.5, 51.5]),
+            1: np.array([10.5, 11.5]),
+            3: np.array([30.5, 31.5]),
+        }
+
+        corners, ids = _nanodeep_corners_to_charuco(corners_by_id)
+
+        assert corners.shape == (3, 1, 2)
+        assert ids.shape == (3, 1)
+
+        assert corners.dtype == np.float32
+        assert ids.dtype == np.int32
+
+        np.testing.assert_array_equal(
+            ids,
+            np.array([[1], [3], [5]], dtype=np.int32),
+        )
+
+        np.testing.assert_allclose(
+            corners[:, 0, :],
+            np.array(
+                [
+                    [10.5, 11.5],
+                    [30.5, 31.5],
+                    [50.5, 51.5],
+                ],
+                dtype=np.float32,
+            ),
+        )
+
+        empty_corners, empty_ids = _nanodeep_corners_to_charuco({})
+        assert empty_corners is None
+        assert empty_ids is None
+
+    def test_nanodeep_frame_prefix_distinguishes_same_basenames(self):
+        first = _nanodeep_frame_prefix(
+            "/tmp/dataset_a/camera.mp4"
+        )
+        second = _nanodeep_frame_prefix(
+            "/tmp/dataset_b/camera.mp4"
+        )
+
+        assert first.startswith("camera_")
+        assert second.startswith("camera_")
+        assert first != second
+
+    def test_default_opts_are_mat_serializable(self):
+        opts = get_default_opts(1, do_fill=True)
+
+        with tempfile.NamedTemporaryFile(suffix=".mat") as tmp:
+            savemat(
+                tmp.name,
+                {"opts": opts},
+            )
+
+    def test_nanodeep_path_options_are_serializable(self):
+        config = {
+            "project_root": Path("/tmp/nanodeep"),
+            "nano_executable": Path("/tmp/nanodeep/detect_batch"),
+            "deep_checkpoint": Path("/tmp/nanodeep/detector.ckpt"),
+            "refinenet_checkpoint": Path("/tmp/nanodeep/refinenet.ckpt"),
+            "config_path": Path("/tmp/nanodeep/config.yaml"),
+            "work_dir": Path("/tmp/nanodeep/work"),
+            "device": "cpu",
+            "keep_work": False,
+        }
+
+        normalized = _normalize_nanodeep_config_paths(config)
+
+        assert normalized is config
+
+        for key in (
+            "project_root",
+            "nano_executable",
+            "deep_checkpoint",
+            "refinenet_checkpoint",
+            "config_path",
+            "work_dir",
+        ):
+            assert isinstance(config[key], str)
+
+        assert config["device"] == "cpu"
+        assert config["keep_work"] is False
+
+    def test_unsupported_detection_backend_raises(self):
+        board_path = "./boards/bboboard-v4.npy"
+        board_params = np.load(
+            os.path.expanduser(board_path),
+            allow_pickle=True,
+        ).item()
+
+        if "marker_size_real" not in board_params:
+            board_params["marker_size_real"] = (
+                board_params["square_size_real"]
+                * board_params["marker_size"]
+            )
+
+        board = Board(board_params)
+
+        opts = get_default_opts(1, do_fill=True)
+        opts["detection_opts"]["backend"] = "does_not_exist"
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Unsupported detection backend",
+        ):
+            detect_corners_cam(
+                video="fake_video.mp4",
+                opts=opts,
+                board=board,
+                frames_list=[0],
+            )
+
+    def test_nanodeep_missing_required_options_raises(self):
+        board_path = "./boards/bboboard-v4.npy"
+        board_params = np.load(
+            os.path.expanduser(board_path),
+            allow_pickle=True,
+        ).item()
+
+        if "marker_size_real" not in board_params:
+            board_params["marker_size_real"] = (
+                board_params["square_size_real"]
+                * board_params["marker_size"]
+            )
+
+        board = Board(board_params)
+
+        opts = get_default_opts(1, do_fill=True)
+        opts["detection_opts"]["backend"] = "nanodeepcharuco"
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "missing required options",
+        ):
+            detect_corners_cam(
+                video="fake_video.mp4",
+                opts=opts,
+                board=board,
+                frames_list=[0],
+            )
+
+    def test_nanodeep_backend_frame_path(self):
+        board_path = "./boards/bboboard-v4.npy"
+        board_params = np.load(
+            os.path.expanduser(board_path),
+            allow_pickle=True,
+        ).item()
+
+        if "marker_size_real" not in board_params:
+            board_params["marker_size_real"] = (
+                board_params["square_size_real"]
+                * board_params["marker_size"]
+            )
+
+        board = Board(board_params)
+
+        opts = get_default_opts(1, do_fill=True)
+        opts["RC_reject_corners"] = False
+        opts["detection_opts"]["backend"] = "nanodeepcharuco"
+
+        frame = np.zeros((100, 100, 3), dtype=np.uint8)
+
+        fake_reader = MagicMock()
+        fake_reader.get_data.return_value = frame
+
+        fake_detector = MagicMock()
+        fake_detector.process_frame.return_value = SimpleNamespace(
+            corners={
+                0: np.array([10.0, 10.0], dtype=np.float32),
+                1: np.array([20.0, 10.0], dtype=np.float32),
+                4: np.array([10.0, 20.0], dtype=np.float32),
+                5: np.array([20.0, 20.0], dtype=np.float32),
+                8: np.array([10.0, 30.0], dtype=np.float32),
+            }
+        )
+
+        with (
+            patch(
+                "calibcam.detection._build_nanodeep_detector",
+                return_value=fake_detector,
+            ) as build_detector,
+            patch(
+                "calibcam.detection.filtergraph.get_reader",
+                return_value=fake_reader,
+            ),
+            patch(
+                "calibcam.detection.camfunctions.get_header_from_reader",
+                return_value={
+                    "offset": (0, 0),
+                },
+            ),
+            patch(
+                "calibcam.detection.camfunctions.get_n_frames_from_reader",
+                return_value=1,
+            ),
+        ):
+            detections = detect_corners_cam(
+                video="fake_video.mp4",
+                opts=opts,
+                board=board,
+                frames_list=[0],
+            )
+
+        build_detector.assert_called_once()
+        fake_detector.process_frame.assert_called_once()
+
+        processed_frame, frame_tag = (
+            fake_detector.process_frame.call_args.args
+        )
+
+        np.testing.assert_array_equal(processed_frame, frame)
+        assert frame_tag.startswith("fake_video_")
+        assert frame_tag.endswith("_00000000")
+
+        assert detections.get_n_frames() == 1
+        assert detections.get_n_markers() == 5
+
+        fake_reader.close.assert_called_once()
 
     def test_detection_merge(self):
         detections_lists = [

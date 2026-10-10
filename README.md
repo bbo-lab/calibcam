@@ -54,6 +54,35 @@ We recommend keeping a copy of the board file with the videos for documentation 
 3. Check number of detections per camera in the output. Values should range between 80 and 300. If too few detections are made, check recording conditions (lighting, blur ...) and collect new calibration data. If too many frames are detected, convergence may be slow or run out of memory. Reduce detections adding a frame skip with `--frame_step`.
 4. Check reprojection error at the end of the output. Median errors should be <0.5px.
 
+### Optional NanoDeepCharuco detection backend
+
+OpenCV remains the default detection backend. NanoDeepCharuco can be selected through a CalibCam options file. NanoDeepCharuco and its dependencies must be available in the Python environment when this backend is used.
+
+Example `nanodeep_opts.yml`:
+
+```yaml
+detection_opts:
+  backend: nanodeepcharuco
+  nanodeepcharuco:
+    project_root: /path/to/NanoDeepChArUco
+    nano_executable: /path/to/detect_batch
+    deep_checkpoint: /path/to/detector.ckpt
+    refinenet_checkpoint: /path/to/refinenet.ckpt
+    config_path: false
+    device: false
+    work_dir: /path/to/nanodeep_work
+    keep_work: false
+```
+
+Run CalibCam with the options file:
+
+```bash
+python -m calibcam --videos [LIST OF VIDEOS TO INCLUDE] --board [PATH TO BOARD.NPY file] --opts nanodeep_opts.yml
+```
+
+NanoDeepCharuco only replaces the corner-detection backend. Its detections are converted to CalibCam's standard detection representation, after which the existing single-camera and multi-camera calibration workflow is used unchanged.
+
+
 ## Format
 ### Result
 Generated `multicam_calibration.npy/mat/yml` holds a dictionary/struct with the calibration results. The filed `"calibs"` holds an array of calibration dictionarys/structs with entries
